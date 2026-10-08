@@ -1,4 +1,5 @@
 #include "inputs.h"
+#include <Preferences.h>
 
 namespace {
 constexpr uint32_t kDebounceMs = 6;      // a change must be stable this long
@@ -20,6 +21,7 @@ struct EncState {
   volatile uint8_t prev;      // previous AB state
   uint8_t pinA, pinB; bool reverse;
   int8_t pulseDir; uint32_t pulseAt; bool pulseOn;
+  int16_t level; uint32_t levelChangedAt; bool levelDirty;  // virtual knob
 };
 EncState enc[FF_NUM_ENCODERS > 0 ? FF_NUM_ENCODERS : 1];
 
@@ -92,9 +94,35 @@ bool rawFor(size_t i, uint32_t now) {
   return false;
 }
 
+constexpr uint32_t kKnobSaveMs = 3000;  // save a knob level to flash 3 s after the last click
+
+void saveKnob(size_t i) {
+  Preferences p;
+  p.begin("ffknob", false);
+  char key[6];
+  snprintf(key, sizeof key, "k%u", (unsigned)i);
+  p.putUChar(key, (uint8_t)enc[i].level);
+  p.end();
+}
+
 [[maybe_unused]] void serviceEncoders(uint32_t now) {
   for (size_t i = 0; i < FF_NUM_ENCODERS; i++) {
     EncState &e = enc[i];
+    if (FF_ENCODERS[i].axis != AX_NONE) {  // virtual knob: clicks change a 0..255 level
+      if (e.detents != 0) {
+        noInterrupts();
+        int16_t d = e.detents;
+        e.detents = 0;
+        interrupts();
+        e.level = constrain(e.level + d * (int)FF_ENCODERS[i].step, 0, 255);
+        e.levelChangedAt = now;
+        e.levelDirty = true;
+      } else if (e.levelDirty && now - e.levelChangedAt > kKnobSaveMs) {
+        e.levelDirty = false;
+        saveKnob(i);
+      }
+      continue;
+    }
     if (e.pulseOn) {
       if (now - e.pulseAt >= kPulseOnMs) { e.pulseOn = false; e.pulseAt = now; }
     } else if (now - e.pulseAt >= kPulseOffMs && e.detents != 0) {
@@ -126,8 +154,13 @@ void begin() {
   pinMode(PIN_BOOT_BTN, INPUT_PULLUP);
   pinMode(PIN_STICK_BTN, INPUT_PULLUP);  // also the calibration button
 #if !FF_FORCE_FALLBACK
+  Preferences prefs;
+  prefs.begin("ffknob", true);
   for (size_t i = 0; i < FF_NUM_ENCODERS; i++) {
     EncState &e = enc[i];
+    char key[6];
+    snprintf(key, sizeof key, "k%u", (unsigned)i);
+    e.level = prefs.getUChar(key, 160);
     e.pinA = FF_ENCODERS[i].pinA; e.pinB = FF_ENCODERS[i].pinB; e.reverse = FF_ENCODERS[i].reverse;
     pinMode(e.pinA, INPUT_PULLUP);
     pinMode(e.pinB, INPUT_PULLUP);
@@ -135,6 +168,9 @@ void begin() {
     attachInterruptArg(digitalPinToInterrupt(e.pinA), encIsr, &e, CHANGE);
     attachInterruptArg(digitalPinToInterrupt(e.pinB), encIsr, &e, CHANGE);
   }
+  prefs.end();
+#else
+  for (size_t i = 0; i < FF_NUM_ENCODERS; i++) enc[i].level = 160;
 #endif
   uint32_t now = millis();
   scan(now);
@@ -175,4 +211,5 @@ bool hidButton(uint8_t hidIndex) { return hidIndex < 64 && ((hidBits >> hidIndex
 bool chainPresent() { return chainOk; }
 uint64_t rawChain() { return chainBits; }
 bool gpioHeld(uint8_t pin) { return digitalRead(pin) == LOW; }
+uint8_t knobLevel(size_t i) { return i < FF_NUM_ENCODERS ? (uint8_t)enc[i].level : 255; }
 }  // namespace Inputs

@@ -2,7 +2,7 @@
 #if FF_HAS_LEDS
 #include "leds.h"
 #include <Adafruit_NeoPixel.h>
-#include "axes.h"
+#include "inputs.h"
 #include "led_segments_gen.h"
 
 namespace {
@@ -108,7 +108,7 @@ void render(uint32_t now) {
   // Global brightness x dimmer pot, then current limit.
   uint32_t scale = brightness;  // 0..255
 #if FF_LED_DIMMER_SCALES_STRIP
-  scale = scale * (0.05f + 0.95f * Axes::normalized01(FF_DIMMER_AXIS_INDEX));
+  scale = scale * (0.05f + 0.95f * Inputs::knobLevel(FF_DIMMER_ENCODER_INDEX) / 255.0f);
 #endif
   uint32_t sum = 0;
   for (int i = 0; i < FF_NUM_LEDS; i++) sum += buf[i][0] + buf[i][1] + buf[i][2];
@@ -215,7 +215,7 @@ void handleLine(char *line, Print &out) {
   }
   if (!strcasecmp(cmd, "STATE?")) {
     out.printf("STATE SEAT %s BRIGHT %u DIMMER %u\n", seatState == 1 ? "UP" : "DOWN", brightness,
-               (unsigned)(Axes::normalized01(FF_DIMMER_AXIS_INDEX) * 255));
+               (unsigned)Inputs::knobLevel(FF_DIMMER_ENCODER_INDEX));
     return;
   }
   if (!strcasecmp(cmd, "PING")) { out.println("PONG"); return; }

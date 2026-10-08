@@ -19,6 +19,7 @@ uint16_t sampleRaw(uint8_t pin) {
 namespace Axes {
 
 void begin() {
+  if constexpr (FF_NUM_AXES == 0) return;  // board without analog axes
   analogReadResolution(12);
   analogSetAttenuation(ADC_11db);  // ~0..3.1 V full scale; pot ends on 3V3/GND
   Preferences p;
@@ -42,6 +43,7 @@ void begin() {
 }
 
 void update() {
+  if constexpr (FF_NUM_AXES == 0) return;  // board without analog axes
   for (size_t i = 0; i < FF_NUM_AXES; i++) {
     smooth[i] += kSmoothing * ((float)sampleRaw(FF_AXES[i].pin) - smooth[i]);
   }
@@ -59,6 +61,7 @@ static float shape(float x, float dz) {
 }
 
 static float norm(size_t i) {
+  if constexpr (FF_NUM_AXES == 0) return 0;  // board without analog axes
   const AxisCfg &cfg = FF_AXES[i];
   const AxisCal &c = cals[i];
   float v = smooth[i];
@@ -90,6 +93,7 @@ float normalized01(size_t i) {
 AxisCal &cal(size_t i) { return cals[i]; }
 
 void saveCalibration() {
+  if constexpr (FF_NUM_AXES == 0) return;  // board without analog axes
   Preferences p;
   p.begin("ffcal", false);
   for (size_t i = 0; i < FF_NUM_AXES; i++) {

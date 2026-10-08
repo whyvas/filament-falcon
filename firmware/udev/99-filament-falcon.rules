@@ -1,0 +1,16 @@
+# The Filament Falcon cockpit controllers (ESP32-S3, VID 0x1209 pid.codes test PIDs)
+#   1209:0003 Falcon Pilot    (HID joystick)
+#   1209:0004 Falcon Ops      (HID joystick)
+#   1209:0005 Falcon Command  (HID joystick + CDC serial for the LED strip)
+# Install:  sudo cp 99-filament-falcon.rules /etc/udev/rules.d/ && sudo udevadm control --reload && sudo udevadm trigger
+# Then unplug/replug the boards.
+
+# CDC serial of Falcon Command: readable/writable by everyone, stable name /dev/falcon-command,
+# and keep ModemManager from probing it (it would spam AT commands into the LED protocol).
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1209", ATTRS{idProduct}=="0005", MODE="0666", TAG+="uaccess", SYMLINK+="falcon-command", ENV{ID_MM_DEVICE_IGNORE}="1"
+
+# Raw HID access for SDL's hidapi backend / tools (optional; evdev works without it)
+KERNEL=="hidraw*", ATTRS{idVendor}=="1209", ATTRS{idProduct}=="000[345]", MODE="0666", TAG+="uaccess"
+
+# Make sure all three are classified as joysticks (they are anyway, this is belt and braces)
+SUBSYSTEM=="input", ATTRS{idVendor}=="1209", ATTRS{idProduct}=="000[345]", ENV{ID_INPUT_JOYSTICK}="1", TAG+="uaccess"

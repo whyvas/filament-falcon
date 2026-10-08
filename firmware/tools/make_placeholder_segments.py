@@ -7,7 +7,12 @@ Each label gets LEDS_PER_LABEL LEDs back-to-back, with PANEL_GAP unused LEDs
 where the strip jumps between panels. Re-run after measuring the real strip, or
 just edit the JSON by hand (use the `FIND <index>` serial command to locate LEDs).
 
-usage: python3 make_placeholder_segments.py [path/to/panel_labels.json]
+If cad/tools/layouts.py is available, the 5 mm status/indicator LED holes from
+the CAD panels are added too, as single addressable LEDs (WS2812D-F5 / 5 mm
+through-hole WS2812, GRB) spliced into the same data line right after their
+panel's labels. Their ids end in _LED.
+
+usage: python3 make_placeholder_segments.py [panel_labels.json] [cad/tools/layouts.py]
 """
 import json, sys, pathlib
 
@@ -57,36 +62,73 @@ BUILTIN = [
 
 
 def from_panel_labels(path):
+    """Accepts the CAD format (labels: list with id/panel/text/index/est_leds_60_per_m,
+    panel_order) or a simple {id: {panel, text}} dict. Returns [(panel, [(id, text, leds)])]."""
     data = json.loads(pathlib.Path(path).read_text())
     labels = data.get("labels", data)
-    groups = {}
     if isinstance(labels, dict):
         items = [dict(id=k, **(v if isinstance(v, dict) else {"text": v})) for k, v in labels.items()]
     else:
-        items = labels
+        items = sorted(labels, key=lambda l: l.get("index", 0))
+    groups = {p: [] for p in data.get("panel_order", [])} if isinstance(data, dict) else {}
     for it in items:
-        groups.setdefault(it.get("panel", "misc"), []).append((it["id"], it.get("text", it["id"])))
-    return list(groups.items())
+        leds = int(it.get("est_leds_60_per_m") or LEDS_PER_LABEL)
+        groups.setdefault(it.get("panel", "misc"), []).append((it["id"], it.get("text", it["id"]), max(1, leds)))
+    return [(p, l) for p, l in groups.items() if l]
+
+
+def status_leds(layouts_path):
+    """panel -> [(id, text, count)] for every 5 mm LED hole in cad/tools/layouts.py"""
+    import importlib.util, re as _re
+    spec = importlib.util.spec_from_file_location("ff_layouts", layouts_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    out = {}
+    for p in mod.PANELS:
+        segs, parent = {}, None
+        for c in p.controls:
+            if c["kind"] != "led5":
+                parent = c
+                continue
+            if c["desc"] == "status LED" and parent and parent.get("id"):
+                sid, text = parent["id"] + "_LED", (parent.get("label") or parent["id"]) + " status"
+            else:
+                base = _re.sub(r"\(.*?\)", "", c["label"]).strip()
+                sid, text = _re.sub(r"[^A-Z0-9]+", "_", base.upper()).strip("_") + "_LED", c["label"]
+            n = segs.get(sid, (text, 0))[1]
+            segs[sid] = (text, n + 1)
+        out[p.id] = [(k, t, n) for k, (t, n) in segs.items()]
+    return out
 
 
 def main():
     src = "SPEC.md built-in list"
-    groups = BUILTIN
-    cand = sys.argv[1] if len(sys.argv) > 1 else ROOT / "shared" / "panel_labels.json"
-    if pathlib.Path(cand).exists():
-        groups, src = from_panel_labels(cand), str(cand)
+    groups = [(p, [(i, t, LEDS_PER_LABEL) for i, t in l]) for p, l in BUILTIN]
+    cand = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / "shared" / "panel_labels.json")
+    if cand.exists():
+        groups, src = from_panel_labels(cand), "shared/panel_labels.json (CAD)"
+    lay = pathlib.Path(sys.argv[2] if len(sys.argv) > 2 else ROOT / "cad" / "tools" / "layouts.py")
+    extra = status_leds(lay) if lay.exists() else {}
+    if extra:
+        src += " + 5 mm LED holes from cad/tools/layouts.py"
     segs, idx = {}, 0
     for gi, (panel, labels) in enumerate(groups):
         if gi:
             idx += PANEL_GAP
-        for lid, text in labels:
-            segs[lid] = {"start": idx, "count": LEDS_PER_LABEL, "panel": panel, "text": text}
-            idx += LEDS_PER_LABEL
+        for lid, text, n in labels:
+            segs[lid] = {"start": idx, "count": n, "panel": panel, "text": text}
+            idx += n
+        for lid, text, n in extra.get(panel, []):
+            assert lid not in segs, lid
+            segs[lid] = {"start": idx, "count": n, "panel": panel, "text": text, "type": "5mm WS2812D-F5"}
+            idx += n
     total = idx + SPARE_AT_END
     out = {
         "_comment": ("PLACEHOLDER map until the real strip is installed and measured. "
                      "label id -> first LED index (0 = first LED after Falcon Command) + LED count. "
-                     "Edit freely, then rebuild/flash Falcon Command (the firmware compiles this file in). "
+                     "Labels use est. LEDs at 60/m from CAD; *_LED entries are 5 mm through-hole WS2812D-F5 "
+                     "spliced into the same data line. Edit freely, then rebuild/flash Falcon Command "
+                     "(the firmware compiles this file in). "
                      f"Label ids from: {src}."),
         "strip": {"type": "WS2812B", "color_order": "GRB", "leds_per_meter": 60,
                   "total_leds": total, "driven_by": "Falcon Command GPIO21"},

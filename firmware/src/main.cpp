@@ -27,6 +27,9 @@ static uint32_t lastSendMs = 0;
 static void buildReport() {
   memset(&report, 0, sizeof report);
   for (size_t i = 0; i < FF_NUM_AXES; i++) report.axes[FF_AXES[i].slot] = Axes::value(i);
+  for (size_t i = 0; i < FF_NUM_ENCODERS; i++)  // virtual knobs: 0..255 -> -32767..32767
+    if (FF_ENCODERS[i].axis < AX_COUNT)
+      report.axes[FF_ENCODERS[i].axis] = (int16_t)((int32_t)Inputs::knobLevel(i) * 65534 / 255 - 32767);
   for (uint8_t b = 0; b < FF_HID_BUTTONS; b++)
     if (Inputs::hidButton(b)) report.buttons[b / 8] |= 1 << (b % 8);
 }
@@ -81,7 +84,7 @@ void setup() {
 #if FF_HAS_LEDS
   Leds::begin();
 #endif
-  statusLed(0, Inputs::chainPresent() ? 40 : 0, Inputs::chainPresent() ? 0 : 40);  // green = full, cyan-ish = fallback
+  statusLed(0, Inputs::chainPresent() ? 40 : 0, Inputs::chainPresent() ? 0 : 40);  // green = chain found, blue = fallback
 }
 
 void loop() {

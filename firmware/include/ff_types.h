@@ -6,7 +6,7 @@
 // HID axis slots, in the order they appear in the HID report.
 // Linux evdev: ABS_X, ABS_Y, ABS_Z, ABS_RX, ABS_RY, ABS_RZ, ABS_THROTTLE, ABS_RUDDER
 // SDL / Godot / Windows see them as axis index 0..7 in this order.
-enum HidAxis : uint8_t { AX_X = 0, AX_Y, AX_Z, AX_RX, AX_RY, AX_RZ, AX_SLIDER, AX_DIAL, AX_COUNT };
+enum HidAxis : uint8_t { AX_X = 0, AX_Y, AX_Z, AX_RX, AX_RY, AX_RZ, AX_SLIDER, AX_DIAL, AX_COUNT, AX_NONE = 0xFF };
 
 // BIPOLAR: spring-centred (stick axes): min..center..max -> -32767..0..+32767
 // UNIPOLAR: no centre (throttle, dimmer): min..max -> -32767..+32767
@@ -47,9 +47,15 @@ struct ButtonCfg {
 struct EncoderCfg {
   uint8_t pinA, pinB;   // EC11 A/B to GPIO, C (middle pin) to GND. Push switch is a normal button.
   bool reverse;
+  HidAxis axis;         // AX_NONE: clicks become CW/CCW button pulses (FF_BTN SRC_ENC_*).
+                        // Otherwise the encoder is a "virtual knob": 0..255 level (saved in NVS)
+                        // reported on this HID axis, e.g. the cockpit lights dimmer.
+  uint8_t step;         // level change per click (virtual knob only)
+  const char *action;   // game action name (virtual knob only; "" for button mode)
 };
 
 // Macros used in the config headers. tools/gen_input_map.py parses these lines
 // to produce shared/input_map.json, so keep ONE entry per line.
 #define FF_AXIS(pin, slot, mode, inv, dz, action)  {pin, slot, mode, inv, dz, action}
 #define FF_BTN(src, ref, hid, kind, action)        {src, ref, hid, kind, action}
+#define FF_ENC(pinA, pinB, rev, axis, step, action) {pinA, pinB, rev, axis, step, action}
