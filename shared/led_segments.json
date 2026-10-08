@@ -1,0 +1,366 @@
+{
+  "_comment": "PLACEHOLDER map until the real strip is installed and measured. label id -> first LED index (0 = first LED after Falcon Command) + LED count. Edit freely, then rebuild/flash Falcon Command (the firmware compiles this file in). Label ids from: SPEC.md built-in list.",
+  "strip": {
+    "type": "WS2812B",
+    "color_order": "GRB",
+    "leds_per_meter": 60,
+    "total_leds": 205,
+    "driven_by": "Falcon Command GPIO21"
+  },
+  "segments": {
+    "CMD_MASTER_POWER": {
+      "start": 0,
+      "count": 3,
+      "panel": "command",
+      "text": "MASTER POWER"
+    },
+    "CMD_MISSION": {
+      "start": 3,
+      "count": 3,
+      "panel": "command",
+      "text": "MISSION"
+    },
+    "CMD_MISSION_LAUNCH": {
+      "start": 6,
+      "count": 3,
+      "panel": "command",
+      "text": "LAUNCH"
+    },
+    "CMD_MISSION_DOCK": {
+      "start": 9,
+      "count": 3,
+      "panel": "command",
+      "text": "DOCK"
+    },
+    "CMD_MISSION_LUNAR": {
+      "start": 12,
+      "count": 3,
+      "panel": "command",
+      "text": "LUNAR"
+    },
+    "CMD_MISSION_ASTEROID": {
+      "start": 15,
+      "count": 3,
+      "panel": "command",
+      "text": "ASTEROID"
+    },
+    "CMD_MISSION_REENTRY": {
+      "start": 18,
+      "count": 3,
+      "panel": "command",
+      "text": "REENTRY"
+    },
+    "CMD_MISSION_SANDBOX": {
+      "start": 21,
+      "count": 3,
+      "panel": "command",
+      "text": "SANDBOX"
+    },
+    "CMD_START": {
+      "start": 24,
+      "count": 3,
+      "panel": "command",
+      "text": "START"
+    },
+    "CMD_PAUSE": {
+      "start": 27,
+      "count": 3,
+      "panel": "command",
+      "text": "PAUSE"
+    },
+    "CMD_MASTER_CAUTION": {
+      "start": 30,
+      "count": 3,
+      "panel": "command",
+      "text": "MASTER CAUTION"
+    },
+    "CMD_FAIL_ENGINE_FIRE": {
+      "start": 33,
+      "count": 3,
+      "panel": "command",
+      "text": "ENGINE FIRE"
+    },
+    "CMD_FAIL_CABIN_LEAK": {
+      "start": 36,
+      "count": 3,
+      "panel": "command",
+      "text": "CABIN LEAK"
+    },
+    "CMD_FAIL_POWER_FAULT": {
+      "start": 39,
+      "count": 3,
+      "panel": "command",
+      "text": "POWER FAULT"
+    },
+    "CMD_FAIL_SENSOR_GLITCH": {
+      "start": 42,
+      "count": 3,
+      "panel": "command",
+      "text": "SENSOR GLITCH"
+    },
+    "CMD_INTERCOM": {
+      "start": 45,
+      "count": 3,
+      "panel": "command",
+      "text": "INTERCOM"
+    },
+    "CMD_LIGHTS": {
+      "start": 48,
+      "count": 3,
+      "panel": "command",
+      "text": "COCKPIT LIGHTS"
+    },
+    "CMD_SEAT_LIFT": {
+      "start": 51,
+      "count": 3,
+      "panel": "command",
+      "text": "SEAT LIFT"
+    },
+    "OH_BATTERY": {
+      "start": 60,
+      "count": 3,
+      "panel": "overhead",
+      "text": "BATTERY"
+    },
+    "OH_FUEL_PUMPS": {
+      "start": 63,
+      "count": 3,
+      "panel": "overhead",
+      "text": "FUEL PUMPS"
+    },
+    "OH_AVIONICS": {
+      "start": 66,
+      "count": 3,
+      "panel": "overhead",
+      "text": "AVIONICS"
+    },
+    "OH_APU_START": {
+      "start": 69,
+      "count": 3,
+      "panel": "overhead",
+      "text": "APU START"
+    },
+    "OH_GUIDANCE": {
+      "start": 72,
+      "count": 3,
+      "panel": "overhead",
+      "text": "GUIDANCE"
+    },
+    "OH_IGNITION_ARM": {
+      "start": 75,
+      "count": 3,
+      "panel": "overhead",
+      "text": "IGNITION ARM"
+    },
+    "OH_CABIN_LIGHTS": {
+      "start": 78,
+      "count": 3,
+      "panel": "overhead",
+      "text": "CABIN LIGHTS"
+    },
+    "OH_BEACON": {
+      "start": 81,
+      "count": 3,
+      "panel": "overhead",
+      "text": "BEACON"
+    },
+    "OH_STROBE": {
+      "start": 84,
+      "count": 3,
+      "panel": "overhead",
+      "text": "STROBE"
+    },
+    "OH_EJECT": {
+      "start": 87,
+      "count": 3,
+      "panel": "overhead",
+      "text": "EJECT"
+    },
+    "PILOT_ENGINE_ARM": {
+      "start": 96,
+      "count": 3,
+      "panel": "pilot",
+      "text": "ENGINE ARM"
+    },
+    "PILOT_IGNITION": {
+      "start": 99,
+      "count": 3,
+      "panel": "pilot",
+      "text": "IGNITION"
+    },
+    "PILOT_GEAR": {
+      "start": 102,
+      "count": 3,
+      "panel": "pilot",
+      "text": "GEAR"
+    },
+    "PILOT_ASSIST": {
+      "start": 105,
+      "count": 3,
+      "panel": "pilot",
+      "text": "FLIGHT ASSIST"
+    },
+    "PILOT_ASSIST_OFF": {
+      "start": 108,
+      "count": 3,
+      "panel": "pilot",
+      "text": "OFF"
+    },
+    "PILOT_ASSIST_STAB": {
+      "start": 111,
+      "count": 3,
+      "panel": "pilot",
+      "text": "STAB"
+    },
+    "PILOT_ASSIST_PROGRADE": {
+      "start": 114,
+      "count": 3,
+      "panel": "pilot",
+      "text": "PROGRADE"
+    },
+    "PILOT_ASSIST_HOLD": {
+      "start": 117,
+      "count": 3,
+      "panel": "pilot",
+      "text": "HOLD"
+    },
+    "PILOT_AIRBRAKE": {
+      "start": 120,
+      "count": 3,
+      "panel": "pilot",
+      "text": "AIRBRAKE"
+    },
+    "PILOT_FLAPS": {
+      "start": 123,
+      "count": 3,
+      "panel": "pilot",
+      "text": "FLAPS"
+    },
+    "PILOT_BOOST": {
+      "start": 126,
+      "count": 3,
+      "panel": "pilot",
+      "text": "BOOST"
+    },
+    "PILOT_VIEW": {
+      "start": 129,
+      "count": 3,
+      "panel": "pilot",
+      "text": "VIEW"
+    },
+    "PILOT_HORN": {
+      "start": 132,
+      "count": 3,
+      "panel": "pilot",
+      "text": "HORN"
+    },
+    "PILOT_TRIM": {
+      "start": 135,
+      "count": 3,
+      "panel": "pilot",
+      "text": "TRIM"
+    },
+    "PILOT_THROTTLE": {
+      "start": 138,
+      "count": 3,
+      "panel": "pilot",
+      "text": "THROTTLE"
+    },
+    "OPS_REACTOR": {
+      "start": 147,
+      "count": 3,
+      "panel": "ops",
+      "text": "REACTOR"
+    },
+    "OPS_LIFE_SUPPORT": {
+      "start": 150,
+      "count": 3,
+      "panel": "ops",
+      "text": "LIFE SUPPORT"
+    },
+    "OPS_SHIELDS": {
+      "start": 153,
+      "count": 3,
+      "panel": "ops",
+      "text": "SHIELDS"
+    },
+    "OPS_COMMS": {
+      "start": 156,
+      "count": 3,
+      "panel": "ops",
+      "text": "COMMS"
+    },
+    "OPS_SENSORS": {
+      "start": 159,
+      "count": 3,
+      "panel": "ops",
+      "text": "SENSORS"
+    },
+    "OPS_MODE": {
+      "start": 162,
+      "count": 3,
+      "panel": "ops",
+      "text": "MODE"
+    },
+    "OPS_MODE_RCS": {
+      "start": 165,
+      "count": 3,
+      "panel": "ops",
+      "text": "RCS"
+    },
+    "OPS_MODE_ARM": {
+      "start": 168,
+      "count": 3,
+      "panel": "ops",
+      "text": "ARM"
+    },
+    "OPS_MODE_SCANNER": {
+      "start": 171,
+      "count": 3,
+      "panel": "ops",
+      "text": "SCANNER"
+    },
+    "OPS_CARGO_DOORS": {
+      "start": 174,
+      "count": 3,
+      "panel": "ops",
+      "text": "CARGO DOORS"
+    },
+    "OPS_DOCK_CLAMP": {
+      "start": 177,
+      "count": 3,
+      "panel": "ops",
+      "text": "DOCK CLAMP"
+    },
+    "OPS_SCAN_PING": {
+      "start": 180,
+      "count": 3,
+      "panel": "ops",
+      "text": "SCAN PING"
+    },
+    "OPS_FIRE_SUPP": {
+      "start": 183,
+      "count": 3,
+      "panel": "ops",
+      "text": "FIRE SUPP"
+    },
+    "OPS_NAV_TARGET": {
+      "start": 186,
+      "count": 3,
+      "panel": "ops",
+      "text": "NAV TARGET"
+    },
+    "OPS_JUMP_ARM": {
+      "start": 189,
+      "count": 3,
+      "panel": "ops",
+      "text": "JUMP ARM"
+    },
+    "OPS_JUMP_ENGAGE": {
+      "start": 192,
+      "count": 3,
+      "panel": "ops",
+      "text": "JUMP ENGAGE"
+    }
+  }
+}
