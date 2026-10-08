@@ -1,0 +1,12 @@
+# Godot
+.godot/
+.import/
+*.import
+export/
+exports/
+builds/
+*.tmp
+export_presets.cfg
+# python helper
+__pycache__/
+*.pyc

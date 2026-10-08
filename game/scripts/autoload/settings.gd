@@ -1,0 +1,112 @@
+extends Node
+## Persistent settings stored in user://falcon_settings.cfg
+## (on Linux: ~/.local/share/filament-falcon/falcon_settings.cfg).
+## Command-line overrides (after `--`): --dev, --cockpit, --quality=low|medium|high|ultra,
+## --mission=<id>, --no-voice, --no-led, --smoke-test, --screenshots=<dir>
+
+signal changed(section: String)
+
+const PATH := "user://falcon_settings.cfg"
+const QUALITY_LEVELS := ["low", "medium", "high", "ultra"]
+
+const DEFAULTS := {
+	"display": {
+		"mode": "auto",            # auto | cockpit | dev
+		"left_screen": 1,
+		"right_screen": 2,
+		"console_screen": 0,
+		"fullscreen": true,
+		"monitor_width_m": 0.597,  # 27" 16:9 panel width
+		"monitor_height_m": 0.336,
+		"monitor_gap_m": 0.06,     # bezel-to-bezel gap between the two monitors
+		"eye_distance_m": 0.62,    # eye point to monitor plane
+		"eye_height_m": 0.0,       # eye above (+) / below (-) monitor centre
+		"toe_in_deg": 0.0,         # each monitor angled toward the centre
+		"view_scale": 1.15,        # >1 widens the field of view a little for drama
+	},
+	"graphics": {"quality": "high"},
+	"audio": {"master_db": 0.0, "voice": true, "voice_engine": "auto", "piper_model": ""},
+	"led": {"enabled": true, "udp_port": 47800, "serial_port": "auto", "brightness": 160},
+	"game": {"start_mission": "launch"},
+}
+
+var cfg := ConfigFile.new()
+var cli := {}
+
+
+func _enter_tree() -> void:
+	_parse_cli()
+	var err := cfg.load(PATH)
+	if err != OK:
+		cfg = ConfigFile.new()
+	for section in DEFAULTS:
+		for key in DEFAULTS[section]:
+			if not cfg.has_section_key(section, key):
+				cfg.set_value(section, key, DEFAULTS[section][key])
+	if cli.has("quality"):
+		cfg.set_value("graphics", "quality", cli["quality"])
+	if cli.has("dev"):
+		cfg.set_value("display", "mode", "dev")
+	if cli.has("cockpit"):
+		cfg.set_value("display", "mode", "cockpit")
+	if cli.has("no-voice") or is_test_run():
+		cfg.set_value("audio", "voice", false)
+	if cli.has("no-led") or is_test_run():
+		cfg.set_value("led", "enabled", false)
+
+
+func _parse_cli() -> void:
+	for a in OS.get_cmdline_user_args():
+		var s: String = a
+		s = s.trim_prefix("--")
+		var eq := s.find("=")
+		if eq >= 0:
+			cli[s.substr(0, eq)] = s.substr(eq + 1)
+		else:
+			cli[s] = true
+
+
+func is_test_run() -> bool:
+	return cli.has("smoke-test") or cli.has("screenshots")
+
+
+func is_headless() -> bool:
+	return DisplayServer.get_name() == "headless"
+
+
+func get_v(section: String, key: String) -> Variant:
+	return cfg.get_value(section, key, DEFAULTS.get(section, {}).get(key))
+
+
+func set_v(section: String, key: String, value: Variant, save_now: bool = true) -> void:
+	cfg.set_value(section, key, value)
+	if save_now:
+		save()
+	changed.emit(section)
+
+
+func save() -> void:
+	if is_test_run():
+		return
+	cfg.save(PATH)
+
+
+func quality() -> String:
+	var q: String = str(get_v("graphics", "quality"))
+	return q if q in QUALITY_LEVELS else "high"
+
+
+func quality_index() -> int:
+	return QUALITY_LEVELS.find(quality())
+
+
+## Repo root (the folder that contains game/ and shared/), when running from source.
+func repo_root() -> String:
+	return ProjectSettings.globalize_path("res://").path_join("..").simplify_path()
+
+
+## Path to a file in the repo's shared/ contract folder (override with --shared-dir=/path).
+func shared_file(file_name: String) -> String:
+	if cli.has("shared-dir"):
+		return str(cli["shared-dir"]).path_join(file_name)
+	return repo_root().path_join("shared").path_join(file_name)

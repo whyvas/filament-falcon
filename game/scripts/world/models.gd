@@ -1,0 +1,314 @@
+class_name Models
+extends RefCounted
+## Procedural models for everything that is not the Falcon itself.
+
+
+static func _metal() -> StandardMaterial3D:
+	return ProcGen.mat(Color(0.6, 0.6, 0.62), 0.85, 0.35)
+
+
+static func _white() -> StandardMaterial3D:
+	var m := ProcGen.mat(Color(0.88, 0.88, 0.86), 0.05, 0.7)
+	return m
+
+
+static func _gold() -> StandardMaterial3D:
+	return ProcGen.mat(Color(0.95, 0.72, 0.3), 1.0, 0.3)
+
+
+static func _blink_light(parent: Node3D, pos: Vector3, c: Color, rng: float = 15.0) -> Node3D:
+	var n := Node3D.new()
+	n.position = pos
+	n.set_meta("blink", true)
+	var l := OmniLight3D.new()
+	l.light_color = c
+	l.omni_range = rng
+	l.light_energy = 2.0
+	n.add_child(l)
+	n.add_child(ProcGen.mesh_node(ProcGen.sphere(0.25, 12, 6), ProcGen.glow_mat(c, 10.0)))
+	parent.add_child(n)
+	return n
+
+
+## Space station. Station frame: docking port at +Z (z = 21).
+static func station() -> Node3D:
+	var root := Node3D.new()
+	var white := _white()
+	var metal := _metal()
+	var gold := _gold()
+	var panel := ProcGen.shader_mat("res://shaders/solar_panel.gdshader")
+	var rx := Vector3(PI * 0.5, 0, 0)
+	# core modules along Z
+	root.add_child(ProcGen.mesh_node(ProcGen.cyl(2.6, 2.6, 16.0, 32), white, Vector3(0, 0, 6.0), rx))
+	root.add_child(ProcGen.mesh_node(ProcGen.cyl(2.2, 2.6, 3.0, 32), white, Vector3(0, 0, 15.5), rx))
+	root.add_child(ProcGen.mesh_node(ProcGen.cyl(1.3, 1.3, 4.0, 24), metal, Vector3(0, 0, 18.8), rx))
+	root.add_child(ProcGen.mesh_node(ProcGen.cyl(3.2, 3.2, 14.0, 32), gold, Vector3(0, 0, -9.0), rx))
+	root.add_child(ProcGen.mesh_node(ProcGen.sphere(3.4), white, Vector3(0, 0, -2.0)))
+	# docking port ring + approach lights + target standoff cross
+	root.add_child(ProcGen.mesh_node(ProcGen.torus(0.5, 0.85, 32), metal, Vector3(0, 0, 20.9), rx))
+	var tgt_mat := ProcGen.mat(Color(0.05, 0.05, 0.05), 0.0, 0.8)
+	var cross_mat := ProcGen.glow_mat(Color(1.0, 1.0, 1.0), 1.5)
+	root.add_child(ProcGen.mesh_node(ProcGen.cyl(0.45, 0.45, 0.05, 24), tgt_mat, Vector3(1.6, 1.6, 20.8), rx))
+	root.add_child(ProcGen.mesh_node(ProcGen.cyl(0.04, 0.04, 1.1, 6), cross_mat, Vector3(1.6, 1.6, 21.3), rx))
+	root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.7, 0.06, 0.02)), cross_mat, Vector3(1.6, 1.6, 21.86)))
+	root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.06, 0.7, 0.02)), cross_mat, Vector3(1.6, 1.6, 21.86)))
+	for i in 4:
+		var a := TAU * i / 4.0 + PI * 0.25
+		_blink_light(root, Vector3(cos(a) * 1.2, sin(a) * 1.2, 21.0), Color(0.2, 1.0, 0.3), 6.0)
+	# habitat side modules
+	for s in [-1.0, 1.0]:
+		root.add_child(ProcGen.mesh_node(ProcGen.cyl(2.0, 2.0, 9.0, 24), white, Vector3(s * 6.5, 0, 2.0), Vector3(0, 0, PI * 0.5)))
+		root.add_child(ProcGen.mesh_node(ProcGen.sphere(2.0), white, Vector3(s * 11.0, 0, 2.0)))
+	# truss along Y with solar arrays
+	root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(1.0, 70.0, 1.0)), metal, Vector3(0, 0, -6.0)))
+	for s in [-1.0, 1.0]:
+		for k in 2:
+			var y := s * (18.0 + k * 16.0)
+			var wing := Node3D.new()
+			wing.position = Vector3(0, y, -6.0)
+			wing.set_meta("solar", true)
+			root.add_child(wing)
+			wing.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(30.0, 14.0, 0.15)), panel))
+			wing.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(30.0, 0.3, 0.3)), metal))
+	# radiators
+	for s in [-1.0, 1.0]:
+		root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.1, 9.0, 12.0)), ProcGen.mat(Color(0.95, 0.95, 0.95), 0.0, 0.3), Vector3(s * 3.6, 0, -9.0)))
+	# rotating ring
+	var ring := Node3D.new()
+	ring.position = Vector3(0, 0, -18.0)
+	ring.set_meta("spin", 0.05)
+	root.add_child(ring)
+	var tm := ProcGen.torus(15.0, 17.5, 96)
+	ring.add_child(ProcGen.mesh_node(tm, white, Vector3.ZERO, rx))
+	for i in 4:
+		var a2 := TAU * i / 4.0
+		ring.add_child(ProcGen.mesh_node(ProcGen.cyl(0.5, 0.5, 15.0, 12), metal, Vector3(cos(a2), sin(a2), 0) * 8.0, Vector3(0, 0, a2 + PI * 0.5)))
+	for i in 8:
+		var a3 := TAU * i / 8.0
+		var win := ProcGen.mesh_node(ProcGen.box(Vector3(1.2, 0.5, 0.2)), ProcGen.glow_mat(Color(1.0, 0.85, 0.55), 3.0), Vector3(cos(a3), sin(a3), 0) * 16.25 + Vector3(0, 0, 1.3))
+		ring.add_child(win)
+	_blink_light(root, Vector3(0, 36.0, -6.0), Color(1, 0.1, 0.1), 20.0)
+	_blink_light(root, Vector3(0, -36.0, -6.0), Color(1, 0.1, 0.1), 20.0)
+	var flood := SpotLight3D.new()
+	flood.position = Vector3(0, 3.0, 16.0)
+	flood.basis = Basis.looking_at(Vector3(0, -0.2, 1))
+	flood.spot_range = 120.0
+	flood.spot_angle = 30.0
+	flood.light_energy = 3.0
+	root.add_child(flood)
+	return root
+
+
+static func booster() -> Node3D:
+	var root := Node3D.new()
+	var white := _white()
+	var dark := ProcGen.mat(Color(0.08, 0.08, 0.09), 0.3, 0.6)
+	var metal := _metal()
+	var rx := Vector3(PI * 0.5, 0, 0)
+	root.add_child(ProcGen.mesh_node(ProcGen.cyl(2.6, 2.6, 22.0, 32), white, Vector3.ZERO, rx))
+	root.add_child(ProcGen.mesh_node(ProcGen.cyl(1.9, 2.6, 2.2, 32), dark, Vector3(0, 0, -11.9), rx))
+	root.add_child(ProcGen.mesh_node(ProcGen.cyl(2.6, 2.6, 2.0, 32), dark, Vector3(0, 0, 4.0), rx))
+	for i in 4:
+		var a := TAU * i / 4.0
+		var fin := ProcGen.mesh_node(ProcGen.box(Vector3(0.2, 3.5, 5.0)), dark, Vector3(cos(a) * 3.6, sin(a) * 3.6, 8.5))
+		fin.rotation = Vector3(0, 0, a + PI * 0.5)
+		root.add_child(fin)
+	for i in 5:
+		var p := Vector3.ZERO if i == 0 else Vector3(cos(TAU * i / 4.0), sin(TAU * i / 4.0), 0) * 1.5
+		root.add_child(ProcGen.mesh_node(ProcGen.cyl(0.35, 0.75, 1.6, 16), metal, p + Vector3(0, 0, 11.8), rx))
+	var plume_mat := ProcGen.shader_mat("res://shaders/plume.gdshader", {"core_color": Color(1.0, 0.7, 0.35)})
+	var pm := CylinderMesh.new()
+	pm.top_radius = 1.0
+	pm.bottom_radius = 1.0
+	pm.height = 1.0
+	pm.rings = 8
+	var pivot := Node3D.new()
+	pivot.name = "Plume"
+	pivot.position = Vector3(0, 0, 12.6)
+	pivot.rotation = Vector3(-PI * 0.5, 0, 0)
+	root.add_child(pivot)
+	var plume := ProcGen.mesh_node(pm, plume_mat, Vector3(0, -0.5, 0))
+	plume.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	pivot.add_child(plume)
+	pivot.set_meta("mat", plume_mat)
+	var l := OmniLight3D.new()
+	l.name = "Light"
+	l.position = Vector3(0, 0, 16.0)
+	l.light_color = Color(1.0, 0.6, 0.3)
+	l.omni_range = 300.0
+	l.light_energy = 0.0
+	root.add_child(l)
+	return root
+
+
+static func satellite() -> Node3D:
+	var root := Node3D.new()
+	root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(1.2, 1.0, 1.6)), _gold()))
+	var dish := ProcGen.mesh_node(ProcGen.cyl(0.7, 0.1, 0.3, 24), _white(), Vector3(0, 0.75, 0))
+	root.add_child(dish)
+	var panel := ProcGen.shader_mat("res://shaders/solar_panel.gdshader")
+	for s in [-1.0, 1.0]:
+		var w := Node3D.new()
+		w.name = "Wing%d" % int(s)
+		w.position = Vector3(s * 0.6, 0, 0)
+		w.set_meta("side", s)
+		root.add_child(w)
+		w.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(3.2, 0.05, 1.2)), panel, Vector3(s * 1.6, 0, 0)))
+	return root
+
+
+static func pod() -> Node3D:
+	var root := Node3D.new()
+	root.add_child(ProcGen.mesh_node(ProcGen.cyl(0.6, 1.4, 2.0, 24), ProcGen.mat(Color(1.0, 0.45, 0.1), 0.1, 0.5)))
+	root.add_child(ProcGen.mesh_node(ProcGen.sphere(1.4, 24, 12), _white(), Vector3(0, -1.0, 0), Vector3.ZERO, Vector3(1, 0.4, 1)))
+	root.add_child(ProcGen.mesh_node(ProcGen.sphere(0.3), ProcGen.glow_mat(Color(0.3, 0.8, 1.0), 4.0), Vector3(0, 0.3, 1.05)))
+	_blink_light(root, Vector3(0, 1.2, 0), Color(1.0, 0.3, 0.1), 40.0)
+	return root
+
+
+static func crystal(big: bool = false) -> Node3D:
+	var root := Node3D.new()
+	var cm := ProcGen.mat(Color(0.3, 1.0, 0.9), 0.2, 0.1, Color(0.2, 1.0, 0.85), 3.0)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 99 if big else 7
+	for i in 7:
+		var len := rng.randf_range(0.8, 1.8) * (1.0 if not big else 3.0)
+		var c := ProcGen.mesh_node(ProcGen.cyl(0.0, 0.22 * len, len, 6), cm)
+		c.basis = Basis.looking_at(Vector3(rng.randf_range(-1, 1), rng.randf_range(0.2, 1), rng.randf_range(-1, 1)).normalized()) * Basis(Vector3.RIGHT, -PI * 0.5)
+		c.position = c.basis.y * len * 0.4
+		root.add_child(c)
+	var l := OmniLight3D.new()
+	l.light_color = Color(0.3, 1.0, 0.9)
+	l.omni_range = 30.0 if big else 10.0
+	l.light_energy = 2.0
+	root.add_child(l)
+	return root
+
+
+static func rock_material() -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.36, 0.33, 0.3)
+	m.roughness = 0.95
+	var nt := NoiseTexture2D.new()
+	var fn := FastNoiseLite.new()
+	fn.frequency = 0.02
+	fn.fractal_octaves = 5
+	nt.noise = fn
+	nt.width = 512
+	nt.height = 512
+	nt.seamless = true
+	m.albedo_texture = nt
+	m.uv1_triplanar = true
+	m.uv1_scale = Vector3(0.6, 0.6, 0.6)
+	var nn := NoiseTexture2D.new()
+	nn.noise = fn
+	nn.width = 512
+	nn.height = 512
+	nn.seamless = true
+	nn.as_normal_map = true
+	nn.bump_strength = 6.0
+	m.normal_enabled = true
+	m.normal_texture = nn
+	return m
+
+
+static func crystal_rock() -> Node3D:
+	var root := Node3D.new()
+	var rock := ProcGen.mesh_node(ProcGen.rock_mesh(31, 0.3), rock_material(), Vector3.ZERO, Vector3.ZERO, Vector3.ONE * 11.0)
+	root.add_child(rock)
+	var c := crystal(true)
+	c.position = Vector3(0, 7.0, 0)
+	root.add_child(c)
+	var c2 := crystal(true)
+	c2.position = Vector3(5.0, -4.0, 4.0)
+	c2.rotation = Vector3(2.0, 0.5, 0)
+	root.add_child(c2)
+	return root
+
+
+## Launch pad (local frame: y = up).
+static func pad() -> Node3D:
+	var root := Node3D.new()
+	var concrete := ProcGen.mat(Color(0.55, 0.54, 0.52), 0.0, 0.95)
+	var steel := ProcGen.mat(Color(0.75, 0.25, 0.1), 0.6, 0.5)
+	root.add_child(ProcGen.mesh_node(ProcGen.cyl(45.0, 50.0, 4.0, 48), concrete, Vector3(0, 0.0, 0)))
+	root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(12, 4.5, 60)), ProcGen.mat(Color(0.15, 0.15, 0.15), 0, 0.9), Vector3(0, 0.2, 30)))
+	# tower lattice
+	for i in 14:
+		var y := 2.0 + i * 4.0
+		for c in [Vector3(-3, 0, -3), Vector3(3, 0, -3), Vector3(-3, 0, 3), Vector3(3, 0, 3)]:
+			root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.4, 4.0, 0.4)), steel, Vector3(14, y + 2.0, 0) + c))
+		root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(6.4, 0.3, 0.3)), steel, Vector3(14, y, -3)))
+		root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(6.4, 0.3, 0.3)), steel, Vector3(14, y, 3)))
+		root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.3, 0.3, 6.4)), steel, Vector3(11, y, 0)))
+	# crew access arm
+	root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(9.0, 2.2, 2.2)), steel, Vector3(8.0, 44.0, 0)))
+	# floodlight masts
+	for a in [0.0, 2.1, 4.2]:
+		var p := Vector3(cos(a), 0, sin(a)) * 70.0
+		root.add_child(ProcGen.mesh_node(ProcGen.cyl(0.4, 0.6, 40.0, 8), ProcGen.mat(Color(0.5, 0.5, 0.5), 0.7, 0.4), p + Vector3(0, 20, 0)))
+		var sp := SpotLight3D.new()
+		sp.position = p + Vector3(0, 40, 0)
+		sp.basis = Basis.looking_at((Vector3(0, 30, 0) - sp.position).normalized())
+		sp.spot_range = 160.0
+		sp.spot_angle = 22.0
+		sp.light_energy = 6.0
+		sp.light_color = Color(1.0, 0.95, 0.85)
+		root.add_child(sp)
+		_blink_light(root, p + Vector3(0, 41, 0), Color(1, 0.1, 0.1), 10.0)
+	return root
+
+
+static func runway(length_m: float = 3600.0, width_m: float = 60.0) -> Node3D:
+	var root := Node3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(length_m, width_m)
+	pm.subdivide_width = 64
+	var rmat := ProcGen.shader_mat("res://shaders/runway.gdshader", {"length_m": length_m, "width_m": width_m})
+	root.add_child(ProcGen.mesh_node(pm, rmat, Vector3(0, 0.15, 0)))
+	# edge lights via MultiMesh
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = ProcGen.sphere(0.35, 8, 4)
+	var count := int(length_m / 60.0) * 2
+	mm.instance_count = count + 40
+	var k := 0
+	for i in int(length_m / 60.0):
+		var x := -length_m * 0.5 + i * 60.0
+		mm.set_instance_transform(k, Transform3D(Basis(), Vector3(x, 0.5, width_m * 0.5 + 1.0)))
+		mm.set_instance_transform(k + 1, Transform3D(Basis(), Vector3(x, 0.5, -width_m * 0.5 - 1.0)))
+		k += 2
+	# approach light bars (west end)
+	for j in 20:
+		mm.set_instance_transform(k, Transform3D(Basis(), Vector3(-length_m * 0.5 - 60.0 - j * 30.0, 1.0, 0)))
+		k += 1
+	for j in 20:
+		mm.set_instance_transform(k, Transform3D(Basis(), Vector3(-length_m * 0.5 - 60.0 - j * 30.0, 1.0, 6.0 if j % 2 == 0 else -6.0)))
+		k += 1
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	mmi.material_override = ProcGen.glow_mat(Color(1.0, 0.9, 0.6), 6.0)
+	root.add_child(mmi)
+	# tower + hangars
+	var bmat := ProcGen.mat(Color(0.7, 0.72, 0.75), 0.4, 0.5)
+	root.add_child(ProcGen.mesh_node(ProcGen.cyl(4, 5, 30, 16), bmat, Vector3(200, 15, 160)))
+	root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(14, 6, 14)), ProcGen.glow_mat(Color(0.4, 0.8, 1.0), 0.6), Vector3(200, 33, 160)))
+	for i in 4:
+		root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(70, 20, 50)), bmat, Vector3(-400 + i * 110, 10, 190)))
+	return root
+
+
+static func lunar_pad() -> Node3D:
+	var root := Node3D.new()
+	var paint := ProcGen.mat(Color(0.85, 0.85, 0.8), 0.0, 0.8)
+	root.add_child(ProcGen.mesh_node(ProcGen.torus(18.0, 20.0, 64), paint, Vector3(0, 0.1, 0), Vector3.ZERO, Vector3(1, 0.05, 1)))
+	root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(2.0, 0.2, 16.0)), paint, Vector3(-5, 0.1, 0)))
+	root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(2.0, 0.2, 16.0)), paint, Vector3(5, 0.1, 0)))
+	root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(10.0, 0.2, 2.0)), paint, Vector3(0, 0.1, 0)))
+	var mast := ProcGen.mesh_node(ProcGen.cyl(0.2, 0.3, 12.0, 8), _metal(), Vector3(26, 6, 0))
+	root.add_child(mast)
+	_blink_light(root, Vector3(26, 12.4, 0), Color(0.2, 1.0, 0.3), 60.0)
+	for a in 6:
+		var p := Vector3(cos(TAU * a / 6.0), 0.4, sin(TAU * a / 6.0)) * 22.0
+		_blink_light(root, p, Color(0.3, 0.7, 1.0), 8.0)
+	return root

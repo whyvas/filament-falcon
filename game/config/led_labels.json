@@ -1,0 +1,233 @@
+{
+ "_comment": "Game signal -> backlit label ids in shared/led_segments.json (CAD ids + <ID>_LED status LEDs). Edit the right-hand side if ids change; the game sends 'SEG <id> r g b MODE' for each.",
+ "labels": {
+  "ovh_battery": [
+   "BATTERY",
+   "BATTERY_LED"
+  ],
+  "ovh_fuel_pumps": [
+   "FUEL_PUMPS",
+   "FUEL_PUMPS_LED"
+  ],
+  "ovh_avionics": [
+   "AVIONICS",
+   "AVIONICS_LED"
+  ],
+  "ovh_apu": [
+   "APU_START",
+   "APU_START_LED"
+  ],
+  "ovh_guidance": [
+   "GUIDANCE",
+   "GUIDANCE_LED"
+  ],
+  "ovh_ign_arm": [
+   "IGNITION_ARM",
+   "IGNITION_ARM_LED"
+  ],
+  "cabin_lights": [
+   "CABIN_LIGHTS",
+   "CABIN_LIGHTS_LED"
+  ],
+  "beacon": [
+   "BEACON",
+   "BEACON_LED"
+  ],
+  "strobe": [
+   "STROBE",
+   "STROBE_LED"
+  ],
+  "eject": [
+   "EJECT"
+  ],
+  "engine_arm": [
+   "ENG_ARM",
+   "ENG_ARM_LED"
+  ],
+  "ignition": [
+   "IGNITION"
+  ],
+  "gear": [
+   "GEAR"
+  ],
+  "gear_down_led": [
+   "GEAR_DOWN_LED"
+  ],
+  "gear_up": [
+   "GEAR_UP"
+  ],
+  "gear_dn": [
+   "GEAR_DN"
+  ],
+  "gear_lights": [
+   "GEAR_LIGHTS"
+  ],
+  "throttle": [
+   "THROTTLE"
+  ],
+  "thr_max": [
+   "THR_MAX"
+  ],
+  "thr_idle": [
+   "THR_IDLE"
+  ],
+  "assist": [
+   "ASSIST"
+  ],
+  "fa_off": [
+   "ASSIST_OFF"
+  ],
+  "fa_stab": [
+   "ASSIST_STAB"
+  ],
+  "fa_prograde": [
+   "ASSIST_PROGRADE"
+  ],
+  "fa_hold": [
+   "ASSIST_HOLD"
+  ],
+  "airbrake": [
+   "AIRBRAKE",
+   "AIRBRAKE_LED"
+  ],
+  "flaps": [
+   "FLAPS",
+   "FLAPS_LED"
+  ],
+  "nav_lights": [
+   "NAV_LIGHTS",
+   "NAV_LIGHTS_LED"
+  ],
+  "boost": [
+   "BOOST"
+  ],
+  "view_cycle": [
+   "VIEW"
+  ],
+  "horn": [
+   "HORN"
+  ],
+  "pwr_reactor": [
+   "REACTOR",
+   "REACTOR_LED"
+  ],
+  "pwr_life": [
+   "LIFE_SUPPORT",
+   "LIFE_SUPPORT_LED"
+  ],
+  "pwr_shields": [
+   "SHIELDS",
+   "SHIELDS_LED"
+  ],
+  "pwr_comms": [
+   "COMMS",
+   "COMMS_LED"
+  ],
+  "pwr_sensors": [
+   "SENSORS",
+   "SENSORS_LED"
+  ],
+  "mode": [
+   "MODE"
+  ],
+  "mode_rcs": [
+   "MODE_RCS"
+  ],
+  "mode_arm": [
+   "MODE_ARM"
+  ],
+  "mode_scanner": [
+   "MODE_SCANNER"
+  ],
+  "cargo_doors": [
+   "CARGO_BAY",
+   "CARGO_BAY_LED"
+  ],
+  "dock_clamp": [
+   "DOCK_CLAMP",
+   "DOCK_CLAMP_LED"
+  ],
+  "scanner_ping": [
+   "SCAN_PING"
+  ],
+  "fire_suppress": [
+   "FIRE_SUPPR"
+  ],
+  "nav_target": [
+   "NAV_TGT"
+  ],
+  "jump_arm": [
+   "JUMP_ARM"
+  ],
+  "jump_charge": [
+   "CHARGE",
+   "JUMP_CHARGE_BAR_LED"
+  ],
+  "jump_engage": [
+   "ENGAGE"
+  ],
+  "hyperspace": [
+   "HYPERSPACE"
+  ],
+  "master_power": [
+   "MASTER_POWER"
+  ],
+  "mission_select": [
+   "MISSION"
+  ],
+  "dimmer": [
+   "LIGHTS_DIM"
+  ],
+  "intercom": [
+   "INTERCOM"
+  ],
+  "start": [
+   "START"
+  ],
+  "pause": [
+   "PAUSE"
+  ],
+  "caution_reset": [
+   "CAUTION_RESET"
+  ],
+  "master_caution": [
+   "CAUTION",
+   "MASTER_CAUTION_LED"
+  ],
+  "crew_ready": [
+   "CREW_READY"
+  ],
+  "pilot_ready": [
+   "PILOT_READY_LED"
+  ],
+  "ops_ready": [
+   "OPS_READY_LED"
+  ],
+  "failures": [
+   "FAILURES"
+  ],
+  "fail_fire": [
+   "ENGINE_FIRE"
+  ],
+  "fail_leak": [
+   "CABIN_LEAK"
+  ],
+  "fail_power": [
+   "POWER_FAULT"
+  ],
+  "fail_sensor": [
+   "SENSOR_GLITCH"
+  ],
+  "seat_up": [
+   "SEAT_UP"
+  ],
+  "seat_dn": [
+   "SEAT_DN"
+  ],
+  "seat_static": [
+   "SEAT_LIFT",
+   "SEAT_KEY",
+   "SEAT_STOP"
+  ]
+ }
+}
