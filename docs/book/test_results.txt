@@ -1,0 +1,20 @@
+# Game test results - written by docs/book/build_book.py --run-tests
+# date: 2026-10-09 18:19 ADT (America/Moncton)
+# godot: Godot 4.7.2.stable.official.ed1daf0bf (headless, Dummy audio)
+# commit: 224848a
+[smoke]
+PASS launch     state=COMPLETE steps=7/7 score=3013 stars=3 hull=99% (2173 ms)
+PASS docking    state=COMPLETE steps=4/4 score=3129 stars=3 hull=99% (1724 ms)
+PASS lunar      state=COMPLETE steps=4/4 score=3477 stars=3 hull=99% (1779 ms)
+PASS asteroids  state=COMPLETE steps=5/5 score=2964 stars=3 hull=99% (3532 ms)
+PASS reentry    state=COMPLETE steps=5/5 score=3464 stars=3 hull=99% (2295 ms)
+PASS sandbox    state=COMPLETE steps=1/1 score=1538 stars=3 hull=99% (1407 ms)
+RESULT: 6/6 missions passed
+[flight]
+PASS launch     state=COMPLETE step=7/7 score=1889 stars=3 mission_time=229s hull=100% maxG=4.4 (7885 ms)
+PASS docking    state=COMPLETE step=4/4 score=1872 stars=3 mission_time=189s hull=100% maxG=0.9 (6669 ms)
+PASS lunar      state=COMPLETE step=4/4 score=1937 stars=3 mission_time=281s hull=100% maxG=1.8 (9235 ms)
+PASS asteroids  state=COMPLETE step=5/5 score=1542 stars=2 mission_time=516s hull=100% maxG=0.9 (22122 ms)
+PASS reentry    state=COMPLETE step=5/5 score=1843 stars=3 mission_time=658s hull=100% maxG=2.7 (22013 ms)
+PASS sandbox    state=COMPLETE step=1/1 score=855 stars=2 mission_time=55s hull=100% maxG=1.5 (14116 ms)
+RESULT: 6/6 missions flown to completion
