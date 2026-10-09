@@ -31,6 +31,7 @@ var beacon_mesh: MeshInstance3D
 var rcs_emitters: Array[GPUParticles3D] = []
 var smoke: GPUParticles3D
 var cargo_root: Node3D
+var haze_mat: ShaderMaterial
 var _t := 0.0
 
 
@@ -66,7 +67,9 @@ func _build() -> void:
 	add_child(fin)
 	# Engine bell + glow
 	var metal := ProcGen.mat(Color(0.25, 0.24, 0.23), 0.9, 0.35)
-	var bell := ProcGen.mesh_node(ProcGen.cyl(0.65, 1.25, 2.0, 32), metal, Vector3(0, 0, 8.2), Vector3(PI * 0.5, 0, 0))
+	var bell_mat := ProcGen.shader_mat("res://shaders/hull.gdshader", {"base_color": Color(0.3, 0.28, 0.27), "belly_tiles": 0.0, "stripes": 0.0,
+		"panel_scale": 7.0, "metallic_base": 0.9, "rough_base": 0.3, "bump_strength": 0.6})
+	var bell := ProcGen.mesh_node(ProcGen.cyl(0.65, 1.25, 2.0, 48), bell_mat, Vector3(0, 0, 8.2), Vector3(PI * 0.5, 0, 0))
 	add_child(bell)
 	var hot := ProcGen.glow_mat(Color(1.0, 0.5, 0.2), 2.0)
 	add_child(ProcGen.mesh_node(ProcGen.cyl(0.6, 0.6, 0.05, 24), hot, Vector3(0, 0, 7.3), Vector3(PI * 0.5, 0, 0)))
@@ -86,6 +89,12 @@ func _build() -> void:
 	plume.position = Vector3(0, -0.5, 0)
 	plume_pivot.add_child(plume)
 	plume_pivot.name = "PlumePivot"
+	haze_mat = ProcGen.shader_mat("res://shaders/heat_haze.gdshader")
+	var haze := ProcGen.mesh_node(pm, haze_mat, Vector3(0, -0.5, 0))
+	haze.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	haze.name = "Haze"
+	plume_pivot.add_child(haze)
+	_greebles(metal)
 	engine_light = OmniLight3D.new()
 	engine_light.position = Vector3(0, 0, 11.0)
 	engine_light.light_color = Color(1.0, 0.65, 0.35)
@@ -162,7 +171,7 @@ func _build() -> void:
 	door_r.position = Vector3(1.45, 1.42, 1.5)
 	add_child(door_r)
 	door_r.add_child(ProcGen.mesh_node(door_mesh, hull_mat, Vector3(-0.65, 0, 0)))
-	var bay_mat := ProcGen.mat(Color(0.75, 0.6, 0.25), 0.85, 0.35)
+	var bay_mat := ProcGen.shader_mat("res://shaders/hull.gdshader", {"mli": 1.0, "belly_tiles": 0.0, "stripes": 0.0, "panel_scale": 0.8, "bump_strength": 5.0})
 	add_child(ProcGen.mesh_node(ProcGen.box(Vector3(2.5, 0.1, 5.8)), bay_mat, Vector3(0, 0.85, 1.5)))
 	cargo_root = Node3D.new()
 	add_child(cargo_root)
@@ -228,6 +237,33 @@ func _build() -> void:
 	add_child(plasma)
 
 
+## Small surface details: canopy frame, OMS pods, RCS nozzle clusters, antennas, sensor dome.
+func _greebles(metal: Material) -> void:
+	var frame := ProcGen.mat(Color(0.08, 0.08, 0.09), 0.6, 0.4)
+	for x: float in [-0.45, 0.45]:
+		var st := ProcGen.mesh_node(ProcGen.box(Vector3(0.06, 0.06, 3.4)), frame, Vector3(x, 1.38, -4.3))
+		st.rotation = Vector3(0.12, 0, 0)
+		add_child(st)
+	add_child(ProcGen.mesh_node(ProcGen.box(Vector3(1.6, 0.06, 0.06)), frame, Vector3(0, 1.32, -3.2)))
+	# OMS pods with small nozzles either side of the fin
+	for s: float in [-1.0, 1.0]:
+		add_child(ProcGen.mesh_node(ProcGen.cyl(0.42, 0.5, 3.4, 20), hull_mat, Vector3(s * 1.25, 1.25, 6.0), Vector3(PI * 0.5, 0, 0)))
+		add_child(ProcGen.mesh_node(ProcGen.cyl(0.15, 0.3, 0.5, 16), metal, Vector3(s * 1.25, 1.25, 7.9), Vector3(PI * 0.5, 0, 0)))
+	# RCS nozzle clusters (three little cones per quad)
+	for p: Vector3 in [Vector3(1.75, 0.6, -5.5), Vector3(-1.75, 0.6, -5.5), Vector3(1.6, 0.6, 6.2), Vector3(-1.6, 0.6, 6.2)]:
+		var sx := signf(p.x)
+		for k in 3:
+			var cone := ProcGen.mesh_node(ProcGen.cyl(0.05, 0.11, 0.18, 10), metal, p + Vector3(sx * 0.2, -0.1 + k * 0.1, -0.12 + k * 0.12), Vector3(0, 0, -sx * PI * 0.5))
+			add_child(cone)
+	# antennas and a sensor dome
+	add_child(ProcGen.mesh_node(ProcGen.cyl(0.02, 0.03, 0.9, 6), metal, Vector3(0.5, 1.95, 0.0)))
+	add_child(ProcGen.mesh_node(ProcGen.cyl(0.02, 0.03, 0.6, 6), metal, Vector3(-0.6, 1.9, -1.8)))
+	add_child(ProcGen.mesh_node(ProcGen.sphere(0.28, 16, 8), ProcGen.mat(Color(0.85, 0.85, 0.8), 0.0, 0.3), Vector3(0, -1.55, -2.0), Vector3.ZERO, Vector3(1, 0.5, 1)))
+	# hatch outline on the side
+	for s2: float in [-1.0, 1.0]:
+		add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.03, 0.9, 0.7)), frame, Vector3(s2 * 1.62, 0.5, -1.5)))
+
+
 func _light(p: Vector3, c: Color, e: float) -> OmniLight3D:
 	var l := OmniLight3D.new()
 	l.position = p
@@ -263,8 +299,13 @@ func animate(g: Node, dt: float) -> void:
 	plume.visible = thr_frac > 0.01
 	plume.scale = Vector3(1.0 + vac * 2.5, 9.0 + thr_frac * 14.0 + vac * 10.0, 1.0 + vac * 2.5)
 	plume_mat.set_shader_parameter("throttle", thr_frac * (1.3 if sim.boost else 1.0))
+	haze_mat.set_shader_parameter("strength", clampf(thr_frac, 0.0, 1.0) * (1.0 - 0.8 * vac))
+	haze_mat.set_shader_parameter("time", _t)
 	plume_mat.set_shader_parameter("vacuum", vac)
 	plume_mat.set_shader_parameter("time", _t)
+	var haze: Node3D = plume.get_parent().get_node("Haze")
+	haze.visible = thr_frac > 0.01
+	haze.scale = Vector3(1.6 + vac * 2.0, 6.0 + thr_frac * 8.0, 1.6 + vac * 2.0)
 	engine_light.light_energy = thr_frac * 6.0 * (0.85 + 0.15 * sin(_t * 40.0))
 	smoke.emitting = thr_frac > 0.05 and sim.density_now > 0.05
 	if smoke.emitting:

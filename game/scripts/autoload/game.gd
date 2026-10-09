@@ -228,8 +228,10 @@ func _reset_systems() -> void:
 func _spawn_universe_entities() -> void:
 	_eid = 0
 	station = add_entity("station", {"mode": "rails", "orbit_r": EARTH_R + STATION_ALT, "phase0": deg_to_rad(20.0), "radius": 30.0, "name": "STATION"})
-	# Station is inertially fixed: docking port (+Z in station frame) faces "backward" along its orbit.
+	# Station flies "LVLH" like the ISS (fixed attitude relative to the local vertical): its docking
+	# port (+Z) faces straight up, its truss (+Y) lies along the velocity.
 	station["basis"] = Basis.looking_at(Vector3(0, 0, 1), Vector3.UP)
+	station["lvlh"] = true
 	field = add_entity("field", {"mode": "rails", "orbit_r": EARTH_R + FIELD_ALT, "phase0": deg_to_rad(140.0), "radius": 3000.0, "name": "ASTEROID FIELD"})
 	_gen_field_rocks()
 	add_entity("pad", {"mode": "surface", "body": earth, "dir": pad_dir, "radius": 40.0, "name": "LAUNCH PAD"})
@@ -298,6 +300,11 @@ func _place_entity(e: Dictionary) -> void:
 			var th: float = e["phase0"] + n * t
 			e["pos"].set_xyz(r * cos(th), 0.0, -r * sin(th))
 			e["vel"] = Vector3(-sin(th), 0.0, -cos(th)) * (n * r)
+			if e.get("lvlh", false):
+				var zz := Vector3(-sin(th), 0.0, -cos(th))
+				var yy := Vector3(cos(th), 0.0, -sin(th))
+				# port (+Z) faces the zenith: the Falcon docks from above (R-bar), Earth behind the station
+				e["basis"] = Basis(zz.cross(yy), zz, yy)
 		"surface":
 			var body: CelestialBody = e["body"]
 			var d: Vector3 = e["dir"]

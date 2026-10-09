@@ -27,6 +27,7 @@ var windows: Array[Window] = []
 var mode := "dev"
 var dev_root: Control
 var out_views: Array[String] = []   # out-the-window outputs, e.g. ["left", "right"]
+var solo_view := ""                 # screenshot helper: this view gets a centred, forward frustum
 
 
 func setup(w: WorldView) -> void:
@@ -276,6 +277,9 @@ func _process(_dt: float) -> void:
 	for n: String in out_views:
 		var cam: Camera3D = cams[n]
 		var f := off_axis(screen_rect_for(n))
+		if n == solo_view:
+			# single-view screenshot: same field of view, but centred straight ahead
+			f = [Basis.IDENTITY, f[1], Vector2.ZERO]
 		cam.global_transform = world.rig_xform * Transform3D(f[0], Vector3.ZERO)
 		if Settings.cli.has("persp"):
 			cam.set_perspective(70.0, NEAR, FAR)
@@ -289,6 +293,7 @@ func _process(_dt: float) -> void:
 func solo(which: String) -> void:
 	if mode != "dev":
 		return
+	solo_view = which
 	if which == "":
 		for n in cont:
 			(cont[n] as Control).visible = true

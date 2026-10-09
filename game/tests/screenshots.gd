@@ -108,7 +108,7 @@ func _shot_docking() -> void:
 	var p: BigVec = (st["pos"] as BigVec).copy()
 	p.add((st["basis"] as Basis) * Vector3(0, 0, 21) + n * 25.8 + Vector3(0.3, 0.2, 0))
 	Game.sim.pos.set_from(p)
-	Game.sim.vel = st["vel"]
+	Game.sim.vel = m.call("frame_vel", Game.sim.pos.rel(st["pos"]))
 	Game.sim.basis = m.ship_basis(-n, (st["basis"] as Basis).y)
 	Game.sim.ang_vel = Vector3.ZERO
 	m.step = 2
@@ -123,6 +123,13 @@ func _shot_lunar() -> void:
 	_start("lunar")
 	Game.scanner_ping()
 	_ticks(20.0)
+	# look down the descent path: retrograde, nose ~40 deg below the horizon
+	InputHub.set_group("fa", ShipSim.FA.STAB)
+	var sim: ShipSim = Game.sim
+	var retro := -(sim.surface_vel - sim.up_dir * sim.surface_vel.dot(sim.up_dir)).normalized()
+	sim.basis = Mission.ship_basis(retro - sim.up_dir * 0.85, sim.up_dir)
+	sim.ang_vel = Vector3.ZERO
+	_ticks(0.3)
 	await _shot("09_lunar_descent", "left")
 	Game.view_mode = 1
 	await _shot("10_lunar_chase", "right")
@@ -177,8 +184,10 @@ func _shot_celebration() -> void:
 	while Game.state == Game.State.ACTIVE:
 		m.cheat_advance()
 		_ticks(0.5)
+	Game.view_mode = 1
 	await _frames(20)
 	await _shot("17_mission_complete")
+	Game.view_mode = 0
 
 
 func _shot_console_pages() -> void:

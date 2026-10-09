@@ -26,7 +26,7 @@ float craters(vec3 p, float scale) {
 void fragment() {
 	vec3 d = normalize(obj_dir);
 	float maria = smoothstep(0.48, 0.58, fbm(d * 2.2 + 7.0, 6));
-	vec3 base = mix(vec3(0.62, 0.61, 0.58), vec3(0.3, 0.3, 0.31), maria);
+	vec3 base = mix(vec3(0.42, 0.41, 0.39), vec3(0.2, 0.2, 0.21), maria);
 	float cr = craters(d, 9.0) + craters(d, 23.0) * 0.6 + craters(d, 61.0) * 0.4 * detail;
 	base *= 0.85 + 0.25 * fbm(d * 80.0, 4);
 	// crater shading: fake slope from the crater field gradient toward the sun
@@ -37,5 +37,5 @@ void fragment() {
 	vec3 n = normalize(world_n);
 	float ndl = max(dot(n, L), 0.0);
 	float lit = ndl * (1.0 + clamp(slope * 2.0, -0.8, 0.8)) * (1.0 + cr * 0.4);
-	ALBEDO = base * max(lit, 0.0) * 2.6;
+	ALBEDO = base * max(lit, 0.0) * 1.9;
 }

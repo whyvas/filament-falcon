@@ -68,7 +68,7 @@ func project_dir(d: Vector3) -> Vector3:
 
 
 func _txt(pos: Vector2, s: String, sz: int = 26, c: Color = CYAN, align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT, width: float = -1.0) -> void:
-	draw_string(font, pos + Vector2(2, 2), s, align, width, sz, Color(0, 0, 0, 0.6 * c.a))
+	draw_string_outline(font, pos, s, align, width, sz, maxi(3, sz / 7), Color(0, 0, 0, 0.55 * c.a))
 	draw_string(font, pos, s, align, width, sz, c)
 
 
@@ -152,20 +152,23 @@ func _draw_world_markers(g: Node, sim: ShipSim) -> void:
 			hf = (-sim.basis.y).slide(up)
 		hf = hf.normalized()
 		var hr := hf.cross(up)
-		# Horizon: long curve across both windows
+		# Horizon: faint curve across both windows, with a gap around the boresight
+		var hcol := Color(GREEN, 0.4)
 		var hpts := PackedVector2Array()
-		for i in 49:
-			var az := lerpf(-PI, PI, float(i) / 48.0)
+		var ctr := Vector2(size.x * 0.5, size.y * 0.5)
+		for i in 97:
+			var az := lerpf(-PI, PI, float(i) / 96.0)
 			var hp := project_dir(hf * cos(az) + hr * sin(az))
-			if hp.z > 0.0:
+			var ok := hp.z > 0.0 and absf(hp.x - ctr.x) > 160.0
+			if ok:
 				hpts.append(Vector2(hp.x, hp.y))
 			elif hpts.size() >= 2:
-				draw_polyline(hpts, GREEN, 3.0)
+				draw_polyline(hpts, hcol, 1.5, true)
 				hpts = PackedVector2Array()
 			else:
 				hpts = PackedVector2Array()
 		if hpts.size() >= 2:
-			draw_polyline(hpts, GREEN, 3.0)
+			draw_polyline(hpts, hcol, 1.5, true)
 		# Pitch ladder rungs at two headings (one per window), oriented along the local horizon
 		for az0: float in [-0.42, 0.42]:
 			for pd in range(-80, 90, 10):
@@ -181,19 +184,19 @@ func _draw_world_markers(g: Node, sim: ShipSim) -> void:
 				var c := Vector2(pc.x, pc.y)
 				var along := (Vector2(prr.x, prr.y) - c).normalized()
 				var nrm := Vector2(-along.y, along.x)
-				var col := Color(GREEN, 0.6) if pd > 0 else Color(AMBER, 0.6)
+				var col := Color(GREEN, 0.4) if pd > 0 else Color(AMBER, 0.4)
 				var tick := nrm * (10.0 if pd > 0 else -10.0)
 				for sgn: float in [-1.0, 1.0]:
 					var a := c + along * sgn * 30.0
 					var b := c + along * sgn * 110.0
 					if pd < 0:
 						# dashed below the horizon
-						draw_line(a, a.lerp(b, 0.4), col, 2.0)
-						draw_line(a.lerp(b, 0.6), b, col, 2.0)
+						draw_line(a, a.lerp(b, 0.4), col, 1.5)
+						draw_line(a.lerp(b, 0.6), b, col, 1.5)
 					else:
-						draw_line(a, b, col, 2.0)
-					draw_line(b, b + tick, col, 2.0)
-				_txt(c + along * 120.0 + Vector2(4, 8), str(absi(pd)), 20, col)
+						draw_line(a, b, col, 1.5)
+					draw_line(b, b + tick, col, 1.5)
+				_txt(c + along * 120.0 + Vector2(4, 8), str(absi(pd)), 18, col)
 	# Prograde / retrograde
 	var sv := sim.surface_vel
 	if sv.length() > 1.0:
@@ -287,124 +290,130 @@ static func _fmt_dist(m: float) -> String:
 	return "%d km" % int(m / 1000.0)
 
 
-func _gauge(pos: Vector2, label: String, frac: float, col: Color, text: String) -> void:
-	draw_rect(Rect2(pos, Vector2(260, 22)), Color(0, 0, 0, 0.45))
-	draw_rect(Rect2(pos, Vector2(260 * clampf(frac, 0.0, 1.0), 22)), col)
-	draw_rect(Rect2(pos, Vector2(260, 22)), Color(col, 0.8), false, 2.0)
-	_txt(pos + Vector2(0, -6), label, 20, col)
-	_txt(pos + Vector2(270, 19), text, 22, WHITE)
+## Thin, background-free bar (window HUD). Vertical when `vert`.
+func _bar(pos: Vector2, sz: Vector2, frac: float, col: Color) -> void:
+	frac = clampf(frac, 0.0, 1.0)
+	draw_rect(Rect2(pos, sz), Color(col, 0.35), false, 1.5)
+	if sz.y > sz.x:
+		draw_rect(Rect2(pos + Vector2(0, sz.y * (1.0 - frac)), Vector2(sz.x, sz.y * frac)), Color(col, 0.7))
+	else:
+		draw_rect(Rect2(pos, Vector2(sz.x * frac, sz.y)), Color(col, 0.7))
 
 
+## Orbit readout shared by the HUD and the touchscreen: [state, apoapsis, periapsis].
+static func orbit_strings(sim: ShipSim) -> Array:
+	var dom: CelestialBody = sim.dominant
+	if dom == null:
+		return ["", "---", "---"]
+	if sim.touching or (sim.agl < 200.0 and sim.surface_vel.length() < 15.0):
+		return ["ON THE GROUND", "---", "---"]
+	var el := OrbitMath.elements(sim.pos.rel(dom.pos), sim.vel - dom.vel, dom.gm, dom.radius)
+	if el["escaping"]:
+		return ["ESCAPING " + dom.display_name, "ESCAPE", _fmt_dist(maxf(float(el["pe_alt"]), 0.0))]
+	var ap := _fmt_dist(float(el["ap_alt"]))
+	if float(el["pe_alt"]) < (dom.atmo_top if dom.atmo_top > 0.0 else 0.0):
+		var pe := "below surface" if float(el["pe_alt"]) < 0.0 else _fmt_dist(float(el["pe_alt"])) + " (in air)"
+		return ["SUBORBITAL", ap, pe]
+	return ["IN ORBIT", ap, _fmt_dist(float(el["pe_alt"]))]
+
+
+const HUD_A := 0.85   # overall HUD opacity on the windows
+
+
+## Minimal pilot HUD: speed / altitude / vertical speed by the lower-left corner,
+## slim throttle + fuel bars, and the flight cues that matter right now. Everything
+## else lives on the touchscreen (top telemetry strip, NAV, SYSTEMS).
 func _draw_pilot_panel(g: Node, sim: ShipSim) -> void:
-	var x := 40.0
-	var y := 170.0
-	draw_rect(Rect2(x - 16, y - 40, 470, 520), Color(0, 0.05, 0.1, 0.35))
+	var x := 70.0
+	var y := size.y - 250.0
+	var c := Color(GREEN, HUD_A)
+	var dim := Color(CYAN, 0.65)
+	var radar_ok: bool = sim.agl < 5000.0 and g.powered.get("sensors", false)
 	var rows := [
-		["ALT", _fmt_dist(sim.altitude)],
-		["RADAR", _fmt_dist(sim.agl) if sim.agl < 20000.0 and g.powered.get("sensors", false) else "---"],
-		["SPEED", "%d m/s" % int(sim.surface_vel.length())],
-		["V/S", "%+.1f m/s" % sim.vspeed],
-		["G", "%.1f g" % sim.g_load],
-		["ASSIST", ShipSim.FA_NAMES[sim.fa_mode]],
+		["SPD", "%d" % int(sim.surface_vel.length()), "m/s"],
+		["ALT", _fmt_dist(sim.agl if radar_ok else sim.altitude), "R" if radar_ok else ""],
+		["V/S", "%+.1f" % sim.vspeed, "m/s"],
 	]
 	for i in rows.size():
-		_txt(Vector2(x, y + i * 44), rows[i][0], 24, Color(CYAN, 0.7))
-		_txt(Vector2(x + 140, y + i * 44), rows[i][1], 32, WHITE)
-	var gy := y + rows.size() * 44 + 20
-	_gauge(Vector2(x, gy), "THROTTLE", sim.throttle, GREEN if sim.engine_on else AMBER, "%d%%%s" % [int(sim.throttle * 100.0), " BOOST" if sim.boost else ""])
-	if sim.booster_attached:
-		_gauge(Vector2(x, gy + 60), "BOOSTER FUEL", sim.booster_fuel / sim.booster_fuel_max, AMBER, "%d%%" % int(sim.booster_fuel / sim.booster_fuel_max * 100.0))
-	else:
-		_gauge(Vector2(x, gy + 60), "FUEL", sim.fuel / sim.fuel_max, GREEN if sim.fuel > 600.0 else RED, "%d kg" % int(sim.fuel))
-	var eng := "ENGINE RUNNING" if sim.engine_on else ("ENGINE ARMED" if InputHub.on("engine_arm") else "ENGINE SAFE")
-	_txt(Vector2(x, gy + 130), eng, 26, GREEN if sim.engine_on else (AMBER if InputHub.on("engine_arm") else Color(WHITE, 0.6)))
-	_txt(Vector2(x, gy + 164), "GEAR %s   FLAPS %s%s" % ["DOWN" if sim.gear_down else "UP", ["UP", "HALF", "DOWN"][int(sim.flaps * 2.0)], "   AIRBRAKE" if sim.airbrake else ""], 22, WHITE)
-	# Orbit summary
-	var dom: CelestialBody = sim.dominant
-	var el := OrbitMath.elements(sim.pos.rel(dom.pos), sim.vel - dom.vel, dom.gm, dom.radius)
-	var ap: float = el["ap_alt"]
-	_txt(Vector2(x, gy + 205), "AP %s   PE %s" % ["ESC" if el["escaping"] else _fmt_dist(ap), _fmt_dist(float(el["pe_alt"]))], 24, CYAN)
-	# Mission specific pilot cues
+		_txt(Vector2(x, y + i * 46), rows[i][0], 20, dim)
+		_txt(Vector2(x + 60, y + i * 46), rows[i][1], 34, c)
+		_txt(Vector2(x + 220, y + i * 46), rows[i][2], 18, dim)
+	# throttle + fuel: two slim vertical bars at the window edge
+	var bx := 24.0
+	var by := size.y - 300.0
+	_bar(Vector2(bx, by), Vector2(10, 180), sim.throttle, GREEN if sim.engine_on else AMBER)
+	var ff := sim.booster_fuel / sim.booster_fuel_max if sim.booster_attached else sim.fuel / sim.fuel_max
+	_bar(Vector2(bx + 18, by), Vector2(10, 180), ff, AMBER if sim.booster_attached else (GREEN if sim.fuel > 600.0 else RED))
+	_txt(Vector2(bx - 4, by + 204), "T  F", 16, dim)
+	if sim.g_load > 2.5:
+		_txt(Vector2(x, y - 40), "%.1f g" % sim.g_load, 28, AMBER if sim.g_load < 5.0 else RED)
+	# Mission cues
 	var gd: Dictionary = g.mission.guidance if g.mission else {}
+	var cue_y := y + 3 * 46 + 10
 	if gd.has("countdown") and g.mission.counting:
 		var cd: float = gd["countdown"]
-		_txt(Vector2(0, size.y * 0.42), "T-%d" % ceili(cd) if cd > 0.0 else "HOLD", 140, AMBER if cd > 0.0 else RED, HORIZONTAL_ALIGNMENT_CENTER, size.x)
+		_txt(Vector2(0, size.y * 0.42), "T-%d" % ceili(cd) if cd > 0.0 else "HOLD", 140, Color(AMBER if cd > 0.0 else RED, 0.9), HORIZONTAL_ALIGNMENT_CENTER, size.x)
 	if gd.has("pitch_target") and g.state == Game.State.ACTIVE:
-		_txt(Vector2(x, gy + 245), "PITCH TARGET %d°" % int(gd["pitch_target"]), 24, GREEN)
+		_txt(Vector2(x, cue_y), "PITCH %d°" % int(gd["pitch_target"]), 22, c)
 	if gd.has("sink_target"):
 		var ok: bool = sim.vspeed > float(gd["sink_target"]) - 2.0 and sim.vspeed < 1.0
-		_txt(Vector2(x, gy + 245), "SINK TARGET %.0f m/s" % float(gd["sink_target"]), 24, GREEN if ok else AMBER)
+		_txt(Vector2(x, cue_y), "SINK %.0f" % float(gd["sink_target"]), 22, GREEN if ok else AMBER)
 	if gd.has("flash") and fmod(_t, 0.8) < 0.5:
-		_txt(Vector2(0, size.y * 0.3), str(gd["flash"]), 72, RED, HORIZONTAL_ALIGNMENT_CENTER, size.x)
+		_txt(Vector2(0, size.y * 0.3), str(gd["flash"]), 64, RED, HORIZONTAL_ALIGNMENT_CENTER, size.x)
 	if gd.has("entry_aoa") and sim.density_now > 0.0:
-		_txt(Vector2(x, gy + 280), "AoA %d°  (target %d°)" % [int(rad_to_deg(sim.aoa)), int(gd["entry_aoa"])], 24, GREEN if absf(rad_to_deg(sim.aoa) - float(gd["entry_aoa"])) < 6.0 else AMBER)
+		_txt(Vector2(x + 200, cue_y), "AoA %d° / %d°" % [int(rad_to_deg(sim.aoa)), int(gd["entry_aoa"])], 22, GREEN if absf(rad_to_deg(sim.aoa) - float(gd["entry_aoa"])) < 6.0 else AMBER)
 	if sim.hull_temp > 900.0:
-		_txt(Vector2(x, gy + 315), "HULL %d K" % int(sim.hull_temp), 26, RED if sim.hull_temp > 1450.0 else AMBER)
+		_txt(Vector2(x, y - 76), "HULL %d K" % int(sim.hull_temp), 26, RED if sim.hull_temp > 1450.0 else AMBER)
 
 
+## Minimal ops HUD: mode + target in the lower-right corner, RCS fuel bar, and the
+## docking reticle when it matters. Power / systems detail is on the SYSTEMS page.
 func _draw_ops_panel(g: Node, sim: ShipSim) -> void:
-	var x := size.x - 520.0
-	var y := 170.0
-	draw_rect(Rect2(x - 16, y - 40, 500, 560), Color(0, 0.05, 0.1, 0.35))
-	_txt(Vector2(x, y), "MODE  " + Game.OPS_MODES[g.ops_mode], 34, CYAN)
-	# RCS translation bars
-	var tr := sim.in_trans
-	var labels := ["L/R", "D/U", "B/F"]
-	for i in 3:
-		var v: float = [tr.x, tr.y, tr.z][i]
-		var by := y + 40 + i * 34
-		_txt(Vector2(x, by + 18), labels[i], 20, Color(CYAN, 0.7))
-		draw_rect(Rect2(Vector2(x + 70, by), Vector2(300, 20)), Color(0, 0, 0, 0.5))
-		var mid := x + 220.0
-		draw_rect(Rect2(Vector2(minf(mid, mid + v * 150.0), by), Vector2(absf(v) * 150.0, 20)), GREEN)
-		draw_line(Vector2(mid, by - 3), Vector2(mid, by + 23), WHITE, 2.0)
-	_gauge(Vector2(x, y + 180), "RCS FUEL", sim.mono / sim.mono_max, CYAN, "%d%%" % int(sim.mono / sim.mono_max * 100.0))
-	var pw_col := GREEN if g.power_ok else RED
-	_gauge(Vector2(x, y + 240), "POWER USE", g.power_draw / maxf(g.power_avail, 1.0), pw_col, "%d / %d" % [int(g.power_draw), int(g.power_avail)])
-	var sys_line := ""
-	for pair in [["REA", g.reactor_out > 90.0], ["LIFE", g.powered.get("life", false)], ["SHLD", g.powered.get("shields", false)], ["COMM", g.powered.get("comms", false)], ["SENS", g.powered.get("sensors", false)]]:
-		sys_line += ("■" if pair[1] else "□") + pair[0] + "  "
-	_txt(Vector2(x, y + 300), sys_line, 22, WHITE)
+	var x := size.x - 420.0
+	var y := size.y - 250.0
+	var dim := Color(CYAN, 0.65)
+	_txt(Vector2(x, y), "MODE " + Game.OPS_MODES[g.ops_mode], 26, Color(CYAN, HUD_A))
 	var tgt: Dictionary = g.current_target()
 	if not tgt.is_empty():
 		var ts: Array = g.target_state()
 		var rel: Vector3 = (ts[0] as BigVec).rel(sim.pos)
 		var rv: Vector3 = sim.vel - (ts[1] as Vector3)
 		var closing := -rv.dot(rel.normalized())
-		_txt(Vector2(x, y + 340), "TGT " + str(tgt["name"]), 26, PURPLE)
-		_txt(Vector2(x, y + 372), "%s   %+.1f m/s" % [_fmt_dist(rel.length()), closing], 26, WHITE)
-	if InputHub.on("jump_arm") or g.jump_charge > 0.0:
-		_gauge(Vector2(x, y + 420), "JUMP DRIVE", g.jump_charge / 100.0, PURPLE, "READY" if g.jump_charge >= 100.0 else "%d%%" % int(g.jump_charge))
+		_txt(Vector2(x, y + 40), str(tgt["name"]), 22, Color(PURPLE, HUD_A))
+		_txt(Vector2(x, y + 78), "%s  %+.1f m/s" % [_fmt_dist(rel.length()), closing], 28, Color(WHITE, HUD_A))
 	if g.ops_mode == 1:
-		_txt(Vector2(x, y + 470), "ARM %s  BEAM %s" % ["OUT" if g.arm_extend > 0.95 else ("MOVING" if g.arm_extend > 0.0 else ("DOORS!" if g.cargo_door < 0.95 else "STOWED")), "ON" if g.beam_on else "OFF"], 24, CYAN)
-	# Docking display
+		_txt(Vector2(x, y + 114), "ARM %s  BEAM %s" % ["OUT" if g.arm_extend > 0.95 else ("MOVING" if g.arm_extend > 0.0 else ("DOORS!" if g.cargo_door < 0.95 else "STOWED")), "ON" if g.beam_on else "OFF"], 20, dim)
+	if InputHub.on("jump_arm") or g.jump_charge > 0.0:
+		_txt(Vector2(x, y + 146), "JUMP " + ("READY" if g.jump_charge >= 100.0 else "%d%%" % int(g.jump_charge)), 22, Color(PURPLE, HUD_A))
+	var bx := size.x - 34.0
+	var by := size.y - 300.0
+	_bar(Vector2(bx, by), Vector2(10, 180), sim.mono / sim.mono_max, CYAN)
+	_txt(Vector2(bx - 6, by + 204), "RCS", 16, dim)
+	if not g.power_ok and fmod(_t, 1.0) < 0.6:
+		_txt(Vector2(x, y - 40), "POWER LOW", 26, RED)
 	var gd: Dictionary = g.mission.guidance if g.mission else {}
 	if gd.has("docking"):
 		var info: Dictionary = gd["docking"]
-		var c := Vector2(size.x * 0.5, size.y * 0.55) if side > 0 else Vector2.ZERO
-		c = Vector2(size.x * 0.32, size.y * 0.6)
+		var cc := Vector2(size.x * 0.3, size.y * 0.62)
 		var lat: Vector2 = info["lat"]
-		var r := 150.0
-		draw_arc(c, r, 0, TAU, 64, Color(CYAN, 0.6), 2.0)
-		draw_arc(c, r * 0.2, 0, TAU, 32, Color(GREEN, 0.8), 2.0)
-		draw_line(c - Vector2(r, 0), c + Vector2(r, 0), Color(CYAN, 0.4), 1.0)
-		draw_line(c - Vector2(0, r), c + Vector2(0, r), Color(CYAN, 0.4), 1.0)
+		var r := 120.0
+		draw_arc(cc, r, 0, TAU, 64, Color(CYAN, 0.45), 1.5)
+		draw_arc(cc, r * 0.2, 0, TAU, 32, Color(GREEN, 0.6), 1.5)
+		draw_line(cc - Vector2(r, 0), cc + Vector2(r, 0), Color(CYAN, 0.25), 1.0)
+		draw_line(cc - Vector2(0, r), cc + Vector2(0, r), Color(CYAN, 0.25), 1.0)
 		var scale_m := 10.0 if float(info["range"]) > 30.0 else 2.0
-		var dot := c + Vector2(lat.x, -lat.y) / scale_m * r
-		dot = c + (dot - c).limit_length(r)
+		var dot := cc + Vector2(lat.x, -lat.y) / scale_m * r
+		dot = cc + (dot - cc).limit_length(r)
 		var ok := lat.length() < 0.4 and float(info["angle"]) < 3.0
-		draw_circle(dot, 14.0, GREEN if ok else AMBER)
+		draw_circle(dot, 10.0, Color(GREEN if ok else AMBER, 0.85))
 		var lv: Vector2 = info["lat_vel"]
-		draw_line(dot, dot + Vector2(lv.x, -lv.y) * 120.0, WHITE, 3.0)
-		_txt(c + Vector2(-r, r + 40), "RANGE %.1f m" % float(info["range"]), 28, WHITE)
+		draw_line(dot, dot + Vector2(lv.x, -lv.y) * 120.0, Color(WHITE, 0.8), 2.0)
 		var cl: float = info["closing"]
-		_txt(c + Vector2(-r, r + 76), "CLOSING %.2f m/s" % cl, 28, GREEN if cl < 0.3 else (AMBER if cl < 0.6 else RED))
-		_txt(c + Vector2(-r, r + 112), "ALIGN %.1f°  OFFSET %.2f m" % [float(info["angle"]), lat.length()], 24, GREEN if ok else AMBER)
-		_txt(c + Vector2(-r, -r - 16), "DOCKING  (scale %d m)" % int(scale_m), 22, CYAN)
+		_txt(cc + Vector2(-r, r + 36), "%.1f m   %.2f m/s" % [float(info["range"]), cl], 24, GREEN if cl < 0.3 else (AMBER if cl < 0.6 else RED))
 	if gd.has("pad_dist"):
-		_txt(Vector2(x, y + 520), "BEACON %s" % _fmt_dist(float(gd["pad_dist"])), 26, GREEN)
+		_txt(Vector2(x, y + 178), "BEACON %s" % _fmt_dist(float(gd["pad_dist"])), 22, Color(GREEN, HUD_A))
 	if gd.has("blackout") and gd["blackout"] and fmod(_t, 1.0) < 0.6:
-		_txt(Vector2(0, size.y * 0.25), "COMMS BLACKOUT - PLASMA", 48, AMBER, HORIZONTAL_ALIGNMENT_CENTER, size.x)
+		_txt(Vector2(0, size.y * 0.25), "COMMS BLACKOUT", 40, Color(AMBER, 0.85), HORIZONTAL_ALIGNMENT_CENTER, size.x)
 
 
 func _draw_banner(g: Node) -> void:
@@ -413,47 +422,43 @@ func _draw_banner(g: Node) -> void:
 	var o: Dictionary = g.mission.current_objective()
 	var role: String = str(o.get("role", "ALL"))
 	var mine := role == "BOTH" or role == "ALL" or (side < 0 and role == "PILOT") or (side > 0 and role == "OPS")
-	var col := GREEN if mine else Color(WHITE, 0.55)
-	draw_rect(Rect2(0, 0, size.x, 92), Color(0, 0.04, 0.08, 0.55))
-	var who := "YOUR JOB" if mine else role
-	_txt(Vector2(30, 40), ("PILOT" if side < 0 else "OPS") + "  |  " + g.mission.title, 24, Color(CYAN, 0.8))
-	_txt(Vector2(30, 78), "%s: %s" % [who, str(o.get("text", ""))], 32 if mine else 26, col)
+	if g.state == Game.State.ACTIVE and mine:
+		_txt(Vector2(0, 46), str(o.get("text", "")), 26, Color(GREEN, HUD_A), HORIZONTAL_ALIGNMENT_CENTER, size.x)
 	if _callout_t > 0.0 and _callout != "":
-		var a := clampf(_callout_t, 0.0, 1.0)
+		var a := clampf(_callout_t, 0.0, 1.0) * 0.9
 		var cc := RED if _callout_pri >= 2 else (AMBER if _callout_pri == 1 else WHITE)
 		cc.a = a
-		draw_rect(Rect2(size.x * 0.15, size.y - 170, size.x * 0.7, 70), Color(0, 0, 0, 0.5 * a))
-		_txt(Vector2(size.x * 0.15, size.y - 122), _callout, 34, cc, HORIZONTAL_ALIGNMENT_CENTER, size.x * 0.7)
+		_txt(Vector2(0, size.y - 60), _callout, 28, cc, HORIZONTAL_ALIGNMENT_CENTER, size.x)
 
 
 func _draw_caution(g: Node) -> void:
 	if g.warnings.is_empty():
 		return
 	var blink: bool = g.caution_active and not g.caution_silenced and fmod(_t, 0.6) < 0.3
-	var y := 110.0
-	var x := size.x * 0.5 - 300.0
-	draw_rect(Rect2(x, y, 600, 46), RED if blink else Color(0.4, 0.05, 0.05, 0.8))
-	_txt(Vector2(x, y + 34), "MASTER CAUTION", 32, WHITE, HORIZONTAL_ALIGNMENT_CENTER, 600)
+	var y := 76.0
+	var x := size.x * 0.5 - 200.0
+	draw_rect(Rect2(x, y, 400, 36), Color(1, 0.15, 0.1, 0.75) if blink else Color(0.4, 0.05, 0.05, 0.45))
+	_txt(Vector2(x, y + 27), "MASTER CAUTION", 24, WHITE, HORIZONTAL_ALIGNMENT_CENTER, 400)
 	var i := 0
 	for k in g.warnings:
-		_txt(Vector2(x, y + 82 + i * 32), str(g.warnings[k]), 26, AMBER, HORIZONTAL_ALIGNMENT_CENTER, 600)
+		_txt(Vector2(x - 100, y + 66 + i * 28), str(g.warnings[k]), 22, Color(AMBER, 0.9), HORIZONTAL_ALIGNMENT_CENTER, 600)
 		i += 1
-		if i >= 4:
+		if i >= 3:
 			break
 
 
 func _draw_state_overlay(g: Node) -> void:
 	match g.state:
 		Game.State.BRIEFING:
-			draw_rect(Rect2(0, size.y * 0.62, size.x, 170), Color(0, 0, 0, 0.55))
-			_txt(Vector2(0, size.y * 0.62 + 70), g.mission.title + " - " + g.mission.tagline, 54, CYAN, HORIZONTAL_ALIGNMENT_CENTER, size.x)
+			draw_rect(Rect2(0, size.y * 0.66, size.x, 150), Color(0, 0, 0, 0.3))
+			_txt(Vector2(0, size.y * 0.66 + 62), g.mission.title + " - " + g.mission.tagline, 48, CYAN, HORIZONTAL_ALIGNMENT_CENTER, size.x)
 			var need: bool = g.mission.requires_checklist and g.checklist_progress < Game.CHECKLIST.size()
 			var msg: String = ("Overhead checklist: flip %s next" % Game.CHECKLIST_NAMES[g.checklist_progress]) if need else "Commander: press START!"
-			_txt(Vector2(0, size.y * 0.62 + 130), msg, 34, AMBER if need else GREEN, HORIZONTAL_ALIGNMENT_CENTER, size.x)
+			_txt(Vector2(0, size.y * 0.66 + 116), msg, 30, AMBER if need else GREEN, HORIZONTAL_ALIGNMENT_CENTER, size.x)
 		Game.State.PAUSED:
 			_txt(Vector2(0, size.y * 0.5), "PAUSED", 90, AMBER, HORIZONTAL_ALIGNMENT_CENTER, size.x)
 		Game.State.COMPLETE:
-			draw_rect(Rect2(0, size.y * 0.3, size.x, 330), Color(0, 0.05, 0.02, 0.6))
+			draw_rect(Rect2(0, size.y * 0.3, size.x, 330), Color(0, 0.05, 0.02, 0.4))
 			_txt(Vector2(0, size.y * 0.3 + 110), "MISSION COMPLETE!", 96, GREEN, HORIZONTAL_ALIGNMENT_CENTER, size.x)
 			var stars := ""
 			for i in 3:

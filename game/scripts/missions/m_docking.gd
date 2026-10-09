@@ -29,7 +29,7 @@ func setup() -> void:
 		{"text": "Fly RCS to the port: centre the cross, slower than 0.3 m/s at the end", "role": "OPS"},
 		{"text": "Flip DOCK CLAMP to lock on!", "role": "OPS"},
 	]
-	game.sun_dir = Vector3(0.5, 0.55, 0.65).normalized()
+	game.sun_dir = Vector3(0.75, 0.55, -0.35).normalized()   # high sun: lit station, daylit Earth below
 	st = game.station
 	# Station at phase 0 moves along -Z; its port faces world -Z (ahead of it along the orbit).
 	st["phase0"] = 0.0
@@ -40,9 +40,9 @@ func setup() -> void:
 	var lateral := Vector3(6.0, -3.5, 0.0)
 	p.add(normal * 205.0 + lateral)
 	sim.pos.set_from(p)
-	sim.vel = st["vel"]
+	sim.vel = frame_vel(sim.pos.rel(st["pos"]))   # co-moving with the station's rotating LVLH frame
 	var aim := Basis(Vector3.UP, deg_to_rad(5.0)) * Basis(Vector3.RIGHT, deg_to_rad(-3.0))
-	sim.basis = aim * ship_basis(-normal, Vector3.UP)
+	sim.basis = aim * ship_basis(-normal, (st["basis"] as Basis).y)
 	sim.fuel = 2000.0
 	game.nav_targets = [{"name": "STATION", "entity": st}, {"name": "STATION PORT", "entity": st, "port": PORT}, {"name": "MOON", "body": moon()}]
 	game.nav_vector = "TARGET"
@@ -52,6 +52,15 @@ func port_world() -> BigVec:
 	var p: BigVec = (st["pos"] as BigVec).copy()
 	p.add((st["basis"] as Basis) * PORT)
 	return p
+
+
+## Velocity of a point fixed in the station's LVLH frame (the frame turns once per orbit), at
+## offset `rel` from the station centre. On the R-bar this matters: 205 m out it's ~0.8 m/s.
+func frame_vel(rel: Vector3) -> Vector3:
+	var r := (st["pos"] as BigVec).rel(earth().pos)
+	var v: Vector3 = st["vel"]
+	var w := r.cross(v) / maxf(r.length_squared(), 1.0)
+	return v + w.cross(rel)
 
 
 func port_normal() -> Vector3:
@@ -67,7 +76,7 @@ func docking_info() -> Dictionary:
 	var along := d.dot(n)
 	var lat := d - n * along
 	var sb: Basis = st["basis"]
-	var rv: Vector3 = sim.vel - (st["vel"] as Vector3)
+	var rv: Vector3 = sim.vel - frame_vel(sim.pos.rel(st["pos"]))
 	var ang := rad_to_deg(sim.forward().angle_to(-n))
 	return {"range": along, "lat": Vector2(lat.dot(sb.x), lat.dot(sb.y)), "closing": -rv.dot(n), "angle": ang, "rel_vel": rv,
 		"lat_vel": Vector2((rv - n * rv.dot(n)).dot(sb.x), (rv - n * rv.dot(n)).dot(sb.y))}
@@ -108,15 +117,16 @@ func physics(_h: float) -> void:
 	var rel := rel_to_entity(st)
 	if rel.length() < 24.0 and (rng > 2.0 or lat.length() > 3.0):
 		var outward := -rel.normalized()
-		var rv: Vector3 = sim.vel - (st["vel"] as Vector3)
+		var rv: Vector3 = sim.vel - frame_vel(-rel)
 		if rv.dot(outward) < 0.0:
 			_bounce(-rv.dot(outward))
 
 
 func _bounce(speed: float) -> void:
 	var n := port_normal()
-	var rv: Vector3 = sim.vel - (st["vel"] as Vector3)
-	sim.vel = (st["vel"] as Vector3) + rv - n * rv.dot(n) * 1.4 + n * 0.05
+	var fv := frame_vel(sim.pos.rel(st["pos"]))
+	var rv: Vector3 = sim.vel - fv
+	sim.vel = fv + rv - n * rv.dot(n) * 1.4 + n * 0.05
 	_bounces += 1
 	Sfx.clunk()
 	game.camera_shake = 0.4
@@ -146,7 +156,7 @@ func _hold_to_port() -> void:
 	var a := port_world().copy()
 	a.add(n * 7.8)
 	sim.anchor_pos = a
-	sim.anchor_vel = st["vel"]
+	sim.anchor_vel = frame_vel(a.rel(st["pos"]))
 	sim.basis = sim.basis.slerp(ship_basis(-n, sim.basis.y), 0.05).orthonormalized()
 
 

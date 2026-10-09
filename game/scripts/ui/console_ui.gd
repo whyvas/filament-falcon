@@ -20,6 +20,7 @@ var current := "MISSION"
 var live := {}                   # key -> Callable updating a widget
 var _acc := 0.0
 var _status: Label
+var _telem: Label
 var _cam_vps: Array[SubViewport] = []
 var _cam_cams: Array[Camera3D] = []
 var nav_map: NavMap
@@ -54,6 +55,14 @@ func _ready() -> void:
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_status.add_theme_font_size_override("font_size", 26)
 	top.add_child(_status)
+	# Flight telemetry strip (the window HUDs stay minimal; the numbers live here, on every page)
+	var strip := PanelContainer.new()
+	root.add_child(strip)
+	_telem = Label.new()
+	_telem.add_theme_font_size_override("font_size", 23)
+	_telem.add_theme_color_override("font_color", Color(0.75, 0.95, 1.0))
+	_telem.clip_text = true
+	strip.add_child(_telem)
 	var tabbar := HBoxContainer.new()
 	tabbar.add_theme_constant_override("separation", 8)
 	root.add_child(tabbar)
@@ -108,6 +117,15 @@ func _process(dt: float) -> void:
 
 
 func _refresh() -> void:
+	var sim: ShipSim = Game.sim
+	if sim and _telem:
+		var orb := Hud.orbit_strings(sim)
+		var thr := "%d%%%s" % [int(sim.throttle * 100.0), "+B" if sim.boost else ""]
+		var fuel := ("BOOSTER %d%%" % int(sim.booster_fuel / sim.booster_fuel_max * 100.0)) if sim.booster_attached else ("FUEL %d kg" % int(sim.fuel))
+		_telem.text = "ALT %s   SPD %d m/s   V/S %+.0f   %.1f g   THR %s   %s   %s  AP %s  PE %s   %s  GEAR %s  FLAPS %s%s" % [
+			Hud._fmt_dist(sim.altitude), int(sim.surface_vel.length()), sim.vspeed, sim.g_load, thr, fuel,
+			orb[0], orb[1], orb[2], ShipSim.FA_NAMES[sim.fa_mode], "DN" if sim.gear_down else "UP",
+			["UP", "HALF", "DN"][int(sim.flaps * 2.0)], "  ENGINE ON" if sim.engine_on else ("  ARMED" if InputHub.on("engine_arm") else "")]
 	var m: Mission = Game.mission
 	var tm := int(Game.mission_time)
 	_status.text = "%s   %s   T+%d:%02d   %s" % [m.title if m else "", Game.STATE_NAMES[Game.state], tm / 60, tm % 60,
@@ -373,14 +391,15 @@ func _build_nav(page: Control) -> void:
 		if dom == null:
 			return
 		var el := OrbitMath.elements(sim.pos.rel(dom.pos), sim.vel - dom.vel, dom.gm, dom.radius)
-		var s := "Orbiting: %s\nAltitude: %s\nSpeed: %d m/s\n" % [dom.display_name, Hud._fmt_dist(sim.altitude), int((sim.vel - dom.vel).length())]
-		if el["escaping"]:
-			s += "Apoapsis: ESCAPE\n"
+		var orb := Hud.orbit_strings(sim)
+		var s := "Near: %s   (%s)\nAltitude: %s\nSpeed: %d m/s\n" % [dom.display_name, orb[0], Hud._fmt_dist(sim.altitude), int((sim.vel - dom.vel).length())]
+		if orb[0] == "ON THE GROUND":
+			s += "Apoapsis: ---   Periapsis: ---\n(no orbit yet: we need about 2,400 m/s sideways)\n"
 		else:
-			s += "Apoapsis: %s  (in %ds)\n" % [Hud._fmt_dist(float(el["ap_alt"])), int(float(el["time_to_ap"]))]
-		s += "Periapsis: %s%s\n" % [Hud._fmt_dist(float(el["pe_alt"])) if float(el["pe_alt"]) > 0.0 else "UNDERGROUND", ""]
-		if not el["escaping"]:
-			s += "Orbit time: %d min\n" % int(float(el["period"]) / 60.0)
+			s += "Apoapsis: %s%s\n" % [orb[1], ("  (in %ds)" % int(float(el["time_to_ap"]))) if orb[1] != "ESCAPE" else ""]
+			s += "Periapsis: %s\n" % orb[2]
+			if orb[0] == "IN ORBIT":
+				s += "Orbit time: %d min\n" % int(float(el["period"]) / 60.0)
 		var tgt: Dictionary = Game.current_target()
 		if not tgt.is_empty():
 			var ts: Array = Game.target_state()

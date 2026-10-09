@@ -39,7 +39,7 @@ func go_to(i: int) -> void:
 			p.add(n * 400.0 + Vector3(30, 20, 0))
 			sim.pos.set_from(p)
 			sim.vel = st["vel"]
-			sim.basis = ship_basis(-n, Vector3.UP)
+			sim.basis = ship_basis(-n, (st["basis"] as Basis).y)
 			game.nav_targets = [{"name": "STATION", "entity": st}, {"name": "STATION PORT", "entity": st, "port": Vector3(0, 0, 21)}, {"name": "MOON", "body": moon()}]
 		"MOON ORBIT":
 			var m := moon()
@@ -56,7 +56,7 @@ func go_to(i: int) -> void:
 			p2.add(Vector3(0, 300, 2600))
 			sim.pos.set_from(p2)
 			sim.vel = f["vel"]
-			sim.basis = ship_basis(Vector3(0, -0.1, -1), Vector3.UP)
+			sim.basis = ship_basis(Vector3(0, -0.1, -1), sim.pos.rel(earth().pos).normalized())
 			game.nav_targets = [{"name": "ASTEROID FIELD", "entity": f}, {"name": "EARTH", "body": earth()}]
 		"RUNWAY APPROACH":
 			var e := earth()

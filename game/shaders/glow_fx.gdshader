@@ -29,6 +29,11 @@ void fragment() {
 		float front = max(dot(n, normalize(flow_dir)), 0.0);
 		float turb = fbm(lp * 0.6 + vec3(0.0, 0.0, time * 6.0), 4);
 		a = pow(front, 2.0) * (0.4 + turb) * (1.0 - pow(fres, 3.0) * 0.5);
+		if (!FRONT_FACING) {
+			// seen from inside (the cockpit): glow licks the window edges, centre stays readable
+			float r = length((SCREEN_UV - 0.5) * vec2(1.6, 1.0));
+			a *= mix(0.12, 0.8, smoothstep(0.25, 0.75, r)) * (0.6 + 0.8 * turb);
+		}
 	} else {
 		float ang = atan(lp.x, lp.z);
 		float streak = pow(vnoise(vec3(ang * 20.0, lp.y * 0.05 - time * 8.0, 0.0)), 6.0);

@@ -32,9 +32,9 @@ func setup() -> void:
 	sim.pos.set_xyz(m.pos.x() + dir.x * r, m.pos.y() + dir.y * r, m.pos.z() + dir.z * r)
 	var e2 := CelestialBody.east_at(dir)
 	sim.vel = m.vel + e2 * 310.0 - dir * 12.0
-	sim.basis = ship_basis(-e2 + dir * 0.15, dir)
+	sim.basis = ship_basis(-e2 - dir * 0.9, dir)   # nose ~40 deg down: the Moon fills the windows
 	sim.fuel = 6500.0
-	game.sun_dir = (east * 0.55 + site * 0.5 + Vector3.UP * 0.35).normalized()
+	game.sun_dir = (east * 0.75 + site * 0.25 + Vector3.UP * 0.3).normalized()   # low sun: long crater shadows
 	game.nav_targets = [{"name": "LANDING SITE", "entity": pad}, {"name": "EARTH", "body": earth()}]
 	game.nav_vector = "RETROGRADE"
 	InputHub.set_group("fa", ShipSim.FA.NAV)

@@ -49,7 +49,10 @@ func _draw() -> void:
 	draw_circle(c, dom.radius * k, Color(0.15, 0.35, 0.7) if dom.id == "earth" else Color(0.45, 0.45, 0.48))
 	draw_string(font, c + Vector2(-60, 8), dom.display_name, HORIZONTAL_ALIGNMENT_CENTER, 120, 22, Color(1, 1, 1, 0.8))
 	# Orbit
-	var pts: PackedVector3Array = OrbitMath.sample_conic(el, 256)
+	var grounded: bool = Hud.orbit_strings(sim)[0] == "ON THE GROUND"
+	if grounded:
+		draw_string(font, _to_screen(r, c, k) + Vector2(14, -10), "ON THE GROUND", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.3, 1.0, 0.5))
+	var pts: PackedVector3Array = PackedVector3Array() if grounded else OrbitMath.sample_conic(el, 256)
 	var line := PackedVector2Array()
 	for p in pts:
 		if p.length() < dom.radius * 0.999 and line.size() > 1:
@@ -59,9 +62,9 @@ func _draw() -> void:
 		line.append(_to_screen(p, c, k))
 	if line.size() > 1:
 		draw_polyline(line, Color(0.3, 1.0, 0.5), 3.0)
-	# Ap / Pe
+	# Ap / Pe (none while sitting on the ground: the "orbit" would be a sliver inside the planet)
 	var ev: Vector3 = el["ecc_vec"]
-	if ev.length() > 0.001:
+	if ev.length() > 0.001 and not grounded:
 		var e_dir := ev.normalized()
 		var p_r: float = el["p"] / (1.0 + float(el["e"]))
 		var pe := _to_screen(e_dir * p_r, c, k)

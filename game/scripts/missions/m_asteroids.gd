@@ -46,7 +46,7 @@ func setup() -> void:
 	p.add(start_off)
 	sim.pos.set_from(p)
 	sim.vel = fld["vel"]
-	sim.basis = ship_basis(Vector3(0.05, -0.02, -1), Vector3.UP)
+	sim.basis = ship_basis(Vector3(0.05, -0.02, -1), sim.pos.rel(earth().pos).normalized())
 	sim.fuel = 4000.0
 	sim.mono_max = 1500.0   # lots of small RCS hops in the field
 	sim.mono = 1500.0

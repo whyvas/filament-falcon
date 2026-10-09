@@ -4,11 +4,30 @@ A two-seat (Pilot + Ops) spaceship cockpit game for Godot 4. Everything (planet,
 station, sounds) is generated procedurally at start-up, so the repo stays small and has no
 downloaded assets (see [CREDITS.md](CREDITS.md)).
 
-![runway approach](screenshots/16_runway_chase.jpg)
+![docking at the station](screenshots/07_docking_ops.jpg)
 
 More in [screenshots/](screenshots/): launch pad, ascent, station, docking, Moon, asteroid field, reentry plasma, runway,
 the celebration screen and all seven touchscreen pages (`18_`–`24_`). They are rendered by `tests/run_screenshots.sh`
-with the software Vulkan driver, so they look softer than on the real GPU.
+with the software Vulkan driver at the Ultra preset (`QUALITY=ultra`), so they look softer than on the real GPU.
+
+### Graphics notes
+
+- **Window views stay clean.** Only a small, semi-transparent HUD is drawn on the windows: speed/altitude/vertical
+  speed bottom-left, throttle and fuel bars, flight-path markers, a faint horizon line with a gap in the middle,
+  and short cues (countdown, sink rate, AoA, g, hull). Everything else (orbit, Ap/Pe, assist, gear, flaps,
+  engine) is on the touchscreen: the telemetry strip under the top bar and the NAV page.
+- **Exposure** is scripted, not automatic, so bots and screenshots are repeatable: the bright daytime sky
+  stops down (about 0.78), space sits at about 0.92, and night inside the atmosphere opens up. ACES tonemapping.
+- **Everything is procedural**, including the "textures": planet (continents, oceans with sun glint and
+  Fresnel, cloud deck with cloud shadows and clear weather over the pad and runway, atmosphere scattering
+  and limb), terrain (farm plots, roads, forest, rock; craters on the Moon), and the PBR panel shader used on
+  the ship and station (panel lines, rivets, roughness variation, grime, MLI foil). Normal maps are
+  "derivative bumps" computed in the shader from the same height functions.
+- **Station** flies a fixed attitude to the local vertical with its docking port facing straight up, so the
+  Falcon docks from above with Earth in the background. Its solar arrays turn to follow the sun.
+- **Launch pad**: lattice service tower with crew and umbilical arms, flame trench, lightning masts, water
+  tower, propellant spheres, floodlights, and a smoke/steam cloud while the engines fire near the pad.
+  Engine plumes add a screen-space heat shimmer.
 
 ## 1. Install Godot (Linux Mint)
 

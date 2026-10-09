@@ -143,7 +143,7 @@ func _build_bodies() -> void:
 	surf.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	surf.extra_cull_margin = 16384.0
 	earth_node.add_child(surf)
-	cloud_mat = ProcGen.shader_mat("res://shaders/clouds.gdshader")
+	cloud_mat = ProcGen.shader_mat("res://shaders/clouds.gdshader", {"site_a": Game.pad_dir, "site_b": Game.runway_dir})
 	var cl := ProcGen.mesh_node(ProcGen.sphere(e.radius + 4500.0, seg, seg / 2), cloud_mat)
 	cl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	cl.extra_cull_margin = 16384.0
@@ -366,12 +366,18 @@ func _process(dt: float) -> void:
 	# Daylight inside the atmosphere dims the stars and adds blue ambient
 	var dom: CelestialBody = sim.dominant
 	day_factor = 0.0
-	if dom != null and dom.has_atmo and sim.altitude < dom.atmo_top:
-		var elev := sim.up_dir.dot(sd)
+	var elev := sim.up_dir.dot(sd)
+	var in_air := dom != null and dom.has_atmo and sim.altitude < dom.atmo_top
+	if in_air:
 		day_factor = smoothstep(-0.12, 0.2, elev) * (1.0 - clampf(sim.altitude / 45000.0, 0.0, 1.0))
-	sky_mat.set_shader_parameter("star_intensity", lerpf(1.0, 0.02, day_factor))
+	sky_mat.set_shader_parameter("star_intensity", lerpf(1.0, 0.0, smoothstep(0.0, 0.25, day_factor)))
 	sky_mat.set_shader_parameter("milky_intensity", lerpf(1.0, 0.0, day_factor))
 	env.ambient_light_color = Color(0.05, 0.06, 0.08).lerp(Color(0.35, 0.45, 0.6), day_factor)
+	# Scripted "physically based" exposure (deterministic, so screenshots and bots match): bright
+	# daytime sky stops down, sunlit space a little less, night in the atmosphere opens up.
+	var night := (1.0 - clampf(sim.altitude / 45000.0, 0.0, 1.0)) * (1.0 - smoothstep(-0.12, 0.05, elev)) if in_air else 0.0
+	var exp_target := lerpf(0.92, 0.78, day_factor) + night * 0.35
+	env.tonemap_exposure = lerpf(env.tonemap_exposure, exp_target, clampf(dt * 1.5, 0.0, 1.0)) if dt < 0.5 else exp_target
 	# Terrain patches: visible only when near
 	for p in patches:
 		var body2: CelestialBody = p["body"]
@@ -381,7 +387,8 @@ func _process(dt: float) -> void:
 		var rel := bc.rel(origin)
 		var node: Node3D = p["node"]
 		node.position = rel
-		node.visible = rel.length() < 400000.0
+		# Earth patches sit under the cloud deck: from high up the planet shader takes over
+		node.visible = rel.length() < 400000.0 and (body2 != g.earth or sim.altitude < 60000.0)
 	# Entities
 	for e in g.entities:
 		var n: Node3D = ent_nodes.get(e["id"])
@@ -430,6 +437,11 @@ func _animate_entity(e: Dictionary, n: Node3D, dt: float) -> void:
 					(c as Node3D).rotate_object_local(Vector3(0, 0, 1), float(c.get_meta("spin")) * dt)
 				if c.has_meta("blink"):
 					(c as Node3D).visible = fmod(_t + c.position.x * 0.1, 1.5) < 0.2
+				if c.has_meta("solar"):
+					# arrays track the sun around their mast (local X)
+					var ls: Vector3 = (e["basis"] as Basis).inverse() * Game.sun_dir
+					var want := atan2(-ls.y, ls.z)
+					(c as Node3D).rotation.x = lerp_angle((c as Node3D).rotation.x, want, clampf(dt * 2.0, 0.0, 1.0)) if dt < 0.5 else want
 		"booster":
 			var pl: Node3D = n.get_node_or_null("Plume")
 			var on: bool = e["mode"] == "attached" and Game.sim.booster_attached and Game.sim.thrust_now > 0.0
@@ -442,6 +454,9 @@ func _animate_entity(e: Dictionary, n: Node3D, dt: float) -> void:
 				pm.set_shader_parameter("throttle", thr)
 				pm.set_shader_parameter("vacuum", vac)
 				pm.set_shader_parameter("time", _t)
+				var hz: ShaderMaterial = pl.get_meta("haze")
+				hz.set_shader_parameter("strength", thr * (1.0 - 0.8 * vac))
+				hz.set_shader_parameter("time", _t)
 			var l: OmniLight3D = n.get_node_or_null("Light")
 			if l:
 				l.light_energy = 10.0 * (Game.sim.thrust_now / Game.sim.booster_thrust) if on else 0.0
@@ -456,6 +471,14 @@ func _animate_entity(e: Dictionary, n: Node3D, dt: float) -> void:
 					if c.has_meta("side"):
 						(c as Node3D).rotation.z = float(c.get_meta("side")) * 1.4
 		"crystal", "pod", "lunar_pad", "pad":
+			if e["kind"] == "pad":
+				var smk: GPUParticles3D = n.get_node_or_null("PadSmoke")
+				if smk:
+					var near_pad: bool = Game.sim.thrust_now > 0.0 and Game.sim.agl < 400.0 and Game.sim.pos.rel(e["pos"]).length() < 600.0
+					if near_pad and not smk.emitting:
+						smk.emitting = true
+					elif not near_pad and smk.emitting and Game.sim.agl > 400.0:
+						smk.emitting = false
 			for c in n.get_children():
 				if c.has_meta("blink"):
 					(c as Node3D).visible = fmod(_t, 1.2) < 0.4
