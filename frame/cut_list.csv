@@ -1,0 +1,70 @@
+group,part,material,length_mm,width_mm,length_in,width_in,notes
+fixed,Sill L,2x4 (38 x 89),2100,,"6' 10.7""",,on edge
+fixed,Front post L,2x4 (38 x 89),1622,,"5' 3.9""",,
+fixed,Knee post L,2x4 (38 x 89),850,,"2' 9.5""",,
+fixed,Mid post L,2x4 (38 x 89),1622,,"5' 3.9""",,
+fixed,Top side rail L,2x4 (38 x 89),1089,,"3' 6.9""",,"on edge, on top of the posts"
+fixed,Lower side rail L,2x4 (38 x 89),311,,"12.2""",,"on edge, carries the actuator header"
+fixed,Sill R,2x4 (38 x 89),2100,,"6' 10.7""",,on edge
+fixed,Front post R,2x4 (38 x 89),1622,,"5' 3.9""",,
+fixed,Knee post R,2x4 (38 x 89),850,,"2' 9.5""",,
+fixed,Mid post R,2x4 (38 x 89),1622,,"5' 3.9""",,
+fixed,Top side rail R,2x4 (38 x 89),1089,,"3' 6.9""",,"on edge, on top of the posts"
+fixed,Lower side rail R,2x4 (38 x 89),311,,"12.2""",,"on edge, carries the actuator header"
+fixed,"Base cross, front",2x4 (38 x 89),1624,,"5' 3.9""",,on edge
+fixed,"Base cross, stop rail",2x4 (38 x 89),1624,,"5' 3.9""",,on edge
+fixed,"Base cross, hinge",2x4 (38 x 89),1624,,"5' 3.9""",,on edge
+fixed,"Base cross, rear",2x4 (38 x 89),1624,,"5' 3.9""",,on edge
+fixed,"Top cross, front",2x4 (38 x 89),1624,,"5' 3.9""",,on edge between the top side rails
+fixed,"Top cross, overhead front",2x4 (38 x 89),1624,,"5' 3.9""",,on edge between the top side rails
+fixed,"Top cross, overhead rear",2x4 (38 x 89),1624,,"5' 3.9""",,on edge between the top side rails
+fixed,"Top cross, mid posts",2x4 (38 x 89),1624,,"5' 3.9""",,on edge between the top side rails
+fixed,Actuator header A,2x4 (38 x 89),1624,,"5' 3.9""",,"doubled 2x4, glued + screwed"
+fixed,Actuator header B,2x4 (38 x 89),1624,,"5' 3.9""",,doubled 2x4
+fixed,Monitor beam,2x4 (38 x 89),1624,,"5' 3.9""",,"on edge, between the front posts"
+fixed,Knee brace front L,2x4 (38 x 89),300,,"11.8""",,"45 deg brace, 300 mm long point-to-point"
+fixed,Knee brace mid L,2x4 (38 x 89),300,,"11.8""",,"45 deg brace, 300 mm long point-to-point"
+fixed,Knee brace front R,2x4 (38 x 89),300,,"11.8""",,"45 deg brace, 300 mm long point-to-point"
+fixed,Knee brace mid R,2x4 (38 x 89),300,,"11.8""",,"45 deg brace, 300 mm long point-to-point"
+fixed,"Dash cheek, outer L",18 mm ply,221,218,"8.7""","8.6""",screwed to the header and side rails
+fixed,"Dash cheek, inner L",18 mm ply,221,218,"8.7""","8.6""",screwed to the header and side rails
+fixed,"Dash cheek, inner R",18 mm ply,221,218,"8.7""","8.6""",screwed to the header and side rails
+fixed,"Dash cheek, outer R",18 mm ply,221,218,"8.7""","8.6""",screwed to the header and side rails
+fixed,"Dash sheet, PILOT (left)",18 mm ply,548,254,"21.6""","10.0""",panel bay 400 x 120 opening + M5 T-nuts on the 40 mm grid
+fixed,"Dash sheet, OPS (right)",18 mm ply,548,254,"21.6""","10.0""",panel bay 400 x 120 opening + M5 T-nuts on the 40 mm grid
+fixed,Front skin,12 mm ply,1700,939,"5' 6.9""","3' 1.0""","12 mm ply, braces the front + guards the actuators"
+fixed,Side skin L,12 mm ply,939,489,"3' 1.0""","19.3""",guards the actuator bay
+fixed,Side skin R,12 mm ply,939,489,"3' 1.0""","19.3""",
+fixed,Overhead console box,12 mm ply,640,220,"2' 1.2""","8.7""","640 x 220 face with 600 x 80 opening, 12 mm ply box, hangs on 4 x M8 rods (+-80 mm height adjust)"
+fixed,Fixed side skirt L,6 mm ply/hardboard,1611,468,"5' 3.4""","18.4""",6 mm ply/hardboard; outer half of the telescoping pinch guard
+fixed,Fixed side skirt R,6 mm ply/hardboard,1611,468,"5' 3.4""","18.4""",6 mm ply/hardboard; outer half of the telescoping pinch guard
+platform,Platform joist outer L,2x4 (38 x 89),1880,,"6' 2.0""",,"on edge; 21 mm hinge-shaft hole 19 mm from the rear end, 27 mm up"
+platform,Platform joist outer R,2x4 (38 x 89),1880,,"6' 2.0""",,"on edge; 21 mm hinge-shaft hole 19 mm from the rear end, 27 mm up"
+platform,Platform nose rim,2x4 (38 x 89),1484,,"4' 10.4""",,"on edge, between the outer joists"
+platform,"Platform cross, seats",2x4 (38 x 89),1484,,"4' 10.4""",,"on edge, between the outer joists"
+platform,"Platform cross, dad",2x4 (38 x 89),1484,,"4' 10.4""",,"on edge, between the outer joists"
+platform,Platform rear rim,2x4 (38 x 89),1484,,"4' 10.4""",,"on edge, between the outer joists"
+platform,Platform joist inner L seg 1,2x4 (38 x 89),692,,"2' 3.2""",,"between rims, joist hangers or pocket screws"
+platform,Platform joist inner L seg 2,2x4 (38 x 89),762,,"2' 6.0""",,"between rims, joist hangers or pocket screws"
+platform,Platform joist inner L seg 3,2x4 (38 x 89),236,,"9.3""",,"between rims, joist hangers or pocket screws"
+platform,Platform joist centre seg 1,2x4 (38 x 89),692,,"2' 3.2""",,"between rims, joist hangers or pocket screws"
+platform,Platform joist centre seg 2,2x4 (38 x 89),762,,"2' 6.0""",,"between rims, joist hangers or pocket screws"
+platform,Platform joist centre seg 3,2x4 (38 x 89),236,,"9.3""",,"between rims, joist hangers or pocket screws"
+platform,Platform joist inner R seg 1,2x4 (38 x 89),692,,"2' 3.2""",,"between rims, joist hangers or pocket screws"
+platform,Platform joist inner R seg 2,2x4 (38 x 89),762,,"2' 6.0""",,"between rims, joist hangers or pocket screws"
+platform,Platform joist inner R seg 3,2x4 (38 x 89),236,,"9.3""",,"between rims, joist hangers or pocket screws"
+platform,Deck L,18 mm ply,1880,780,"6' 2.0""","2' 6.7""",glued + screwed every 150 mm
+platform,Deck R,18 mm ply,1880,780,"6' 2.0""","2' 6.7""",
+platform,Platform skirt L,6 mm ply/hardboard,1880,164,"6' 2.0""","6.5""",inner half of the telescoping pinch guard
+platform,Platform skirt R,6 mm ply/hardboard,1880,164,"6' 2.0""","6.5""",inner half of the telescoping pinch guard
+platform,Toe board,12 mm ply,1560,150,"5' 1.4""","5.9""",keeps feet off the actuators; moves with the feet (no relative motion)
+platform,Kid seat box PILOT,18 mm ply box,340,380,"13.4""","15.0""","outer 340 x 380 x 220 (W x D x H): top 340x380, 2 sides 380x202, front+back 304x202. 18 mm ply box, foam cushion on top"
+platform,Kid seat back PILOT,18 mm ply,850,340,"2' 9.5""","13.4""",harness shoulder slots at 3 heights
+platform,Kid seat box OPS,18 mm ply box,340,380,"13.4""","15.0""","outer 340 x 380 x 220 (W x D x H): top 340x380, 2 sides 380x202, front+back 304x202. 18 mm ply box, foam cushion on top"
+platform,Kid seat back OPS,18 mm ply,850,340,"2' 9.5""","13.4""",harness shoulder slots at 3 heights
+platform,Dad seat box,18 mm ply box,520,480,"20.5""","18.9""","outer 520 x 480 x 450 (W x D x H): top 520x480, 2 sides 480x432, front+back 484x432. "
+platform,Dad seat back,18 mm ply,1250,520,"4' 1.2""","20.5""",
+platform,Centre console box,18 mm ply box,420,460,"16.5""","18.1""","outer 420 x 460 x 198 (W x D x H): top 420x460, 2 sides 460x180, front+back 384x180. touchscreen tray (front) + joystick / OPS_SIDE (rear)"
+platform,Pilot side console,18 mm ply box,200,320,"7.9""","12.6""","outer 200 x 320 x 358 (W x D x H): top 200x320, 2 sides 320x340, front+back 164x340. PILOT_SIDE panel bay + throttle + gear lever"
+platform,Ops side console,18 mm ply box,200,320,"7.9""","12.6""","outer 200 x 320 x 318 (W x D x H): top 200x320, 2 sides 320x300, front+back 164x300. Ops joystick housing on top"
+platform,Commander console,18 mm ply box,240,420,"9.4""","16.5""","outer 240 x 420 x 650 (W x D x H): top 240x420, 2 sides 420x632, front+back 204x632. CMD_A + CMD_B panel bay, seat-lift switch here"

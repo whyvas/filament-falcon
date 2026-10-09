@@ -1,0 +1,133 @@
+{
+  "theta_max_deg": 9.239342488729314,
+  "stroke_mm": 300.0,
+  "retracted_mm": 440.0,
+  "extended_mm": 740.0,
+  "hinge": {
+    "d": 2031.0,
+    "z": 122.3
+  },
+  "actuator": {
+    "x": 500.0,
+    "d": 160.0,
+    "top_z": 850.0,
+    "bottom_z_lowered": 110.0
+  },
+  "forces": [
+    {
+      "theta_deg": 0.0,
+      "moment_Nm": 2712.5631000000003,
+      "arm_m": 1.871,
+      "force_total_N": 1449.793212185997,
+      "force_each_N": 724.8966060929985,
+      "length_mm": 740.0
+    },
+    {
+      "theta_deg": 4.619671244364657,
+      "moment_Nm": 2610.7494430804973,
+      "arm_m": 1.8646475975467907,
+      "force_total_N": 1400.130215765869,
+      "force_each_N": 700.0651078829345,
+      "length_mm": 589.2895276750447
+    },
+    {
+      "theta_deg": 9.239342488729314,
+      "moment_Nm": 2491.97262531935,
+      "arm_m": 1.8317161726334068,
+      "force_total_N": 1360.4578386927221,
+      "force_each_N": 680.2289193463611,
+      "length_mm": 440.00000000000006
+    }
+  ],
+  "masses": [
+    [
+      "two kids (2 x 45 kg, upper bound for 12 yr)",
+      90.0,
+      660.0
+    ],
+    [
+      "adult (dad)",
+      110.0,
+      1520.0
+    ],
+    [
+      "platform, deck, seats, consoles (estimate)",
+      110.0,
+      1150.0
+    ]
+  ],
+  "raised_points": {
+    "kid_cushion": {
+      "d": 725.9,
+      "z": 638.2
+    },
+    "dad_cushion": {
+      "d": 1631.4,
+      "z": 724.0
+    },
+    "nose": {
+      "d": 189.8,
+      "z": 394.2
+    },
+    "console_top_front": {
+      "d": 307.8,
+      "z": 684.0
+    },
+    "kid_knee": {
+      "d": 554.4,
+      "z": 767.4
+    },
+    "toe_board_top": {
+      "d": 315.9,
+      "z": 634.0
+    }
+  },
+  "lowered_points": {
+    "kid_cushion_z": 422.0,
+    "dad_cushion_z": 652.0,
+    "deck_z": 202.0
+  },
+  "clearances": [
+    {
+      "gap_mm": 125.0,
+      "moving": "Toe board",
+      "fixed": "Dash cheek, inner L"
+    },
+    {
+      "gap_mm": 125.0,
+      "moving": "Toe board",
+      "fixed": "Dash cheek, inner R"
+    },
+    {
+      "gap_mm": 260.2,
+      "moving": "Deck L",
+      "fixed": "Dash cheek, inner L"
+    },
+    {
+      "gap_mm": 260.2,
+      "moving": "Deck R",
+      "fixed": "Dash cheek, inner R"
+    },
+    {
+      "gap_mm": 278.0,
+      "moving": "Platform nose rim",
+      "fixed": "Dash cheek, inner L"
+    },
+    {
+      "gap_mm": 278.0,
+      "moving": "Platform nose rim",
+      "fixed": "Dash cheek, inner R"
+    }
+  ],
+  "dims": {
+    "W": 1700.0,
+    "L": 2100.0,
+    "H": 1800.0
+  },
+  "lumber_8ft_boards": 24,
+  "sheet_area_m2": {
+    "18 mm ply": 8.66,
+    "12 mm ply": 2.89,
+    "6 mm ply/hardboard": 2.12
+  }
+}
