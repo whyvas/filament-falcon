@@ -1,0 +1,46 @@
+extends Node
+## Entry point: builds the 3D world, the three views (left/right windows + console) and,
+## when asked on the command line, the automated test / screenshot runners.
+##   godot --path game -- --dev                 single-window tiled dev mode
+##   godot --path game -- --smoke-test          run every mission headless (cheat-advance)
+##   godot --path game -- --flight-test         autopilot bots genuinely fly the missions
+##   godot --path game -- --screenshots=DIR     capture the hero shots (use xvfb + lavapipe)
+
+var world: WorldView
+var display: DisplayManager
+
+
+func _ready() -> void:
+	print("The Filament Falcon v0.1 | Godot %s | renderer %s | input map: %s" % [Engine.get_version_info()["string"],
+		RenderingServer.get_current_rendering_method(), InputHub.map_source])
+	for e in InputHub.map_errors:
+		push_warning("input map: " + e)
+	world = WorldView.new()
+	world.name = "World"
+	add_child(world)
+	display = DisplayManager.new()
+	display.name = "Display"
+	add_child(display)
+	display.setup(world)
+	if Settings.cli.has("smoke-test"):
+		var st: Node = load("res://tests/smoke_test.gd").new()
+		st.name = "SmokeTest"
+		add_child(st)
+	elif Settings.cli.has("flight-test"):
+		var ft: Node = load("res://tests/flight_test.gd").new()
+		ft.name = "FlightTest"
+		add_child(ft)
+	elif Settings.cli.has("screenshots"):
+		var sc: Node = load("res://tests/screenshots.gd").new()
+		sc.name = "Screenshots"
+		add_child(sc)
+
+
+func _unhandled_input(ev: InputEvent) -> void:
+	if ev is InputEventKey and ev.pressed and not ev.echo:
+		var k := ev as InputEventKey
+		if k.keycode == KEY_ESCAPE and k.shift_pressed:
+			get_tree().quit()
+		elif k.keycode == KEY_END and k.shift_pressed:   # Shift+End: dev <-> cockpit layout
+			Settings.set_v("display", "mode", "cockpit" if display.mode == "dev" else "dev")
+			display.apply_layout()
