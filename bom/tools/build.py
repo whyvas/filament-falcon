@@ -7,6 +7,7 @@ from items import I
 V=json.load(open('verified.json'))
 fil=json.load(open('filament_estimate.json'))
 DATE='2026-10-08'
+KENT_DATE='2026-10-09'
 CUR='"$"#,##0.00'
 wb=Workbook(); ws=wb.active; ws.title='BOM'
 H=['Category','Item','Spec/notes','Used for','Qty needed','Have it','Qty to buy','Unit price CAD','Line total','Store','Link','Search link','Price checked date','Price status','Cart #']
@@ -39,11 +40,11 @@ for (cat,item,spec,used,qty,have,store,ref,est,terms) in I:
     elif store=='Amazon.ca*':
         st='Amazon.ca'; search=amz_s(terms); price=est; status='No suitable listing found - estimate'; stats['search']+=1
     elif store=='Kent':
-        link=ref; search=kent_s(terms); price=est; date=DATE; status='Kent.ca web price (Edmundston store shown)'; stats['kent']+=1
+        link=ref; search=kent_s(terms); price=est; date=KENT_DATE; status='Kent.ca web price (Fredericton store)'; stats['kent']+=1
     elif store=='Kent*':
         st='Kent / Home Depot'; search=kent_s(terms); price=est; status='Estimate - check in store'; stats['est']+=1
     elif store=='Local*':
-        st='Local metal supplier'; search='https://www.google.com/search?q='+urllib.parse.quote_plus(terms+' Moncton NB'); price=est; status='Estimate - get a quote'; stats['est']+=1
+        st='Local metal supplier'; search='https://www.google.com/search?q='+urllib.parse.quote_plus(terms+' Fredericton NB'); price=est; status='Estimate - get a quote'; stats['est']+=1
     elif store=='Industrial*':
         st='Industrial supplier'; search=amz_s(terms); price=est; status='Estimate - get a quote'; stats['est']+=1
     if store=='Kent': st='Kent'
@@ -121,11 +122,11 @@ c.freeze_panes='A2'
 # Notes
 nt=wb.create_sheet('Notes')
 notes=[
-'The Filament Falcon - BOM notes (built 2026-10-08, America/Moncton)',
+'The Filament Falcon - BOM notes (built 2026-10-09, Atlantic time ADT/AST; location Fredericton, NB)',
 'Sources: filament-falcon/docs/SPEC.md; ff-fw/docs/electronics/README.md; ff-cad (branch cad, commit b743d58): frame/BOM.md v0.2, frame/cut_list.md, docs/mechanical/README.md, switch_bom.md, displays.md.',
 'Filament method: python trimesh volume V and surface area A of every 3MF (panels: single-material body = black, letter inserts = white; printed parts x quantities from docs/mechanical/README.md). Printed volume = shell + infill x (V - shell), shell = min(V, A x 1.2 mm) (3 perimeters x 0.4 mm, also used as top/bottom skin proxy); infill 25 % (monitor standoffs 50 %, harness hub 45 %). PETG 1.27 g/cm3, +15 % for purge/brim/failed prints.',
 f'Filament result: black {fil["black"]["cm3"]:.0f} cm3 -> {fil["black"]["kg"]} kg (buy 6 x 1 kg); white {fil["white"]["cm3"]:.0f} cm3 -> {fil["white"]["kg"]} kg (buy 1 x 1 kg). Red/grey parts (guard lids, throttle grip, gear arm, adapter plates) are counted in black - print them in red/grey if you have it. PLA would need ~2 % less mass, but PETG is required for the harness hub and recommended everywhere.',
-'Prices: "Verified amazon.ca price" = read from the amazon.ca product page on 2026-10-08 (buy-box price, CAD, before tax). Kent prices are from kent.ca (store shown online: Edmundston); Moncton store prices may differ. Rows marked Estimate/placeholder are NOT verified prices.',
+'Prices: "Verified amazon.ca price" = read from the amazon.ca product page on 2026-10-08 (buy-box price, CAD, before tax). Kent prices were read from kent.ca on 2026-10-09 with the Fredericton store selected (Fredericton South, 809 Bishop Dr, and Fredericton North, 25 Two Nations Crossing showed identical prices); they can change, check before buying. Local metal-supplier rows have Google search links for Fredericton NB. Rows marked Estimate/placeholder are NOT verified prices.',
 'Motion system (v0.2, final per commit b743d58): 2 cradle actuators 10"/1500 N (~364 mm retracted), 2 pod actuators 12"/1000 N (~415 mm retracted), both self-locking; 2 gas struts ~590 N; 25 mm shafts, UCP205/UCF205/SHF25; spring pawls + latch plates + Bowden release; steel hard stops; key, E-stop, 20 A fuse, hold-to-run DPDT, relays as H-bridges, 10 roller limit switches, safety edge. Check actuator retracted length and self-locking before ordering.',
 'SAFETY: the B0B3J1GCVQ buckles are plastic luggage buckles (~50 kg quoted break load, not safety-rated). Positioning harness only for a slow reclining seat. A rated metal-buckle 4-point harness is listed as an ALTERNATIVE row (excluded from totals; switch if you prefer).',
 'Displays: GPU DP1 -> C275B, HDMI -> C275W (HDMI/VGA only), DP2 -> DP-to-DVI-D -> TD2220 (VGA/DVI only), USB-A -> USB-B for touch. GPU USB-C is spare (4th display max).',

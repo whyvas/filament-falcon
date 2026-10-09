@@ -483,7 +483,7 @@ def cover(D: Data, now: datetime) -> str:
   <img class="cover-hero" src="{hero}">
   <div class="cover-shade"></div>
   <div class="cover-text">
-    <div class="kicker">Project book · Moncton, NB, Canada</div>
+    <div class="kicker">Project book · Fredericton, NB, Canada</div>
     <div class="cover-title">THE FILAMENT<br><span>FALCON</span></div>
     <div class="cover-sub">A home-built, three-seat spaceship cockpit simulator for a dad and his two kids:
       reclining launch seats, a drop-down instrument pod, 3D-printed backlit panels, three ESP32-S3
@@ -493,7 +493,7 @@ def cover(D: Data, now: datetime) -> str:
   <img class="cover-inset" src="{inset}">
   <div class="cover-inset-cap">CAD render: flight configuration · background: docking (in-game)</div>
   <div class="cover-meta"><b>Yves Daigle</b> · github.com/whyvas/filament-falcon<br>
-    Book v{BOOK_VERSION} · generated {now.strftime('%Y-%m-%d %H:%M %Z')} (America/Moncton) · {esc(D.git['branch'])} @ {esc(D.git['head'])}{' + local changes' if D.git['dirty'] else ''}<br>
+    Book v{BOOK_VERSION} · generated {now.strftime('%Y-%m-%d %H:%M %Z')} (Atlantic time) · {esc(D.git['branch'])} @ {esc(D.git['head'])}{' + local changes' if D.git['dirty'] else ''}<br>
     Status: {md_html(status, True)}</div>
 </div></section>"""
 
@@ -1361,14 +1361,14 @@ def back_page(D: Data, now: datetime) -> str:
     log = "".join(f"<tr><td><code>{esc(h)}</code></td><td class='num'>{esc(d)}</td><td>{esc(s)}</td></tr>" for h, d, s in D.git["log"])
     miss = "".join(f"<li>{esc(m)}</li>" for m in sorted(set(MISSING))) or "<li>Nothing: every file, section and image the generator looks for was found.</li>"
     ed = (f'<h4>This edition</h4><table class="kv compact"><tbody><tr><td>Book version</td><td>{BOOK_VERSION}</td></tr>'
-          f'<tr><td>Generated</td><td>{now.strftime("%Y-%m-%d %H:%M %Z")} (America/Moncton)</td></tr>'
+          f'<tr><td>Generated</td><td>{now.strftime("%Y-%m-%d %H:%M %Z")} (Atlantic time)</td></tr>'
           f'<tr><td>Source</td><td>github.com/whyvas/filament-falcon, {esc(D.git["branch"])} @ {esc(D.git["head"])}{" + uncommitted changes" if D.git["dirty"] else ""} ({esc(D.git["count"])} commits)</td></tr>'
           f'<tr><td>Generator</td><td><code>docs/book/build_book.py</code>, <code>book.css</code>, <code>template.html</code></td></tr></tbody></table>')
     return f"""
 <section class="page back" id="back"><h2>Version and changelog</h2>
 <div class="g-wide-l">
  <div><h3>Project history (git log)</h3>
-  <table class="compact"><thead><tr><th>Commit</th><th class="num">Date (Moncton)</th><th>Change</th></tr></thead><tbody>{log}</tbody></table>
+  <table class="compact"><thead><tr><th>Commit</th><th class="num">Date (Atlantic time)</th><th>Change</th></tr></thead><tbody>{log}</tbody></table>
  </div>
  <div>
   {card(ed, 'cmd')}
@@ -1394,7 +1394,7 @@ def run_tests(godot: str):
     head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
     now = datetime.now(TZ).strftime("%Y-%m-%d %H:%M %Z")
     lines = ["# Game test results - written by docs/book/build_book.py --run-tests",
-             f"# date: {now} (America/Moncton)", f"# godot: Godot {ver} (headless, Dummy audio)", f"# commit: {head}"]
+             f"# date: {now} (Atlantic time)", f"# godot: Godot {ver} (headless, Dummy audio)", f"# commit: {head}"]
     for name in ("smoke", "flight"):
         lines += [f"[{name}]"] + out[name]
     TEST_RESULTS.write_text("\n".join(lines) + "\n", encoding="utf-8")

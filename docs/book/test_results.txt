@@ -1,5 +1,5 @@
 # Game test results - written by docs/book/build_book.py --run-tests
-# date: 2026-10-09 18:19 ADT (America/Moncton)
+# date: 2026-10-09 18:19 ADT (Atlantic time)
 # godot: Godot 4.7.2.stable.official.ed1daf0bf (headless, Dummy audio)
 # commit: 224848a
 [smoke]
