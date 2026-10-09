@@ -4,18 +4,26 @@ A three-seat home spaceship cockpit: two small front seats (kids) side by side, 
 
 ## Computer
 Linux Mint, AMD Ryzen 9 5900X (12c/24t), Radeon RX 6800 XT (16 GB, Vulkan/Mesa RADV), 32 GB RAM.
-Three displays on the 6800 XT: left curved monitor (left kid's window), right curved monitor (right kid's window), center touchscreen lying almost flat between the kids (center console). Assume 27" 1440p 1500R curved monitors and a 15.6" 1080p USB touchscreen until the owner confirms sizes; keep all mounts parametric.
+Three displays on the 6800 XT (2 x DP 1.4, 1 x HDMI 2.1, 1 x USB-C; max 4 heads), all 1920 x 1080 (updated on the `cad` branch; details in `docs/mechanical/displays.md`):
+- Left kid's window (PILOT): Sceptre C275B-144R, 27" 1800R curved, up to 144 Hz, VESA 100, on DP.
+- Right kid's window (OPS): Sceptre C275W-1920RN, 27" 1800R curved, 75 Hz, VESA 75, HDMI only.
+- Center console: ViewSonic TD2220, 21.5" optical touch (USB-B), VESA 100, DVI-D/VGA only -> DP (or USB-C) to DVI-D adapter. It lies flat in the reclining center console between the kids and faces them when reclined.
+- The USB-C output stays free (one extra display or projector later; see `docs/mechanical/projector_dome_study.md`).
 
 ## Seats and motion
-- Seats sit on a pivoting frame. Two 12 V linear actuators swing the seats up into the "flight position" so the kids line up with the hanging monitors, overhead console, and front panels. Dad's seat swings up too.
-- The seat-lift control lives only at dad's seat. It is hardwired (no microcontroller in the loop): a momentary hold-to-run DPDT switch, end-of-travel limit switches, a fuse, and a keyed master switch. The software may READ the seat position (a separate limit-switch contact) but never drives the actuators.
-- Homemade 4-point harnesses. Seat-up only after the "harnesses fastened" step of the checklist (honour system, game shows it).
+(Changed on the `cad` branch, v0.2: the swinging/raised seat platform is gone. Details in `frame/README.md`.)
+- The seats sit on a floor-level frame. Flight sequence: (1) the kids' seat cradle (both kid seats, side consoles, sticks, center touchscreen) reclines 35 deg backwards, astronaut launch-style; (2) then the instrument POD (both monitors, dash panels, overhead panels) rotates down from its parked position above the kids into place in front of them. Exit = reverse order (pod up first, then seats upright).
+- Both motions use 12 V self-locking linear actuators (2 for the cradle, 2 for the pod), slow (~35-40 s per motion). The pod is counterbalanced with gas struts to near-neutral, its pivot is the reclined head centre so it cannot approach the faces, steel hard stops set the end positions with measured clearances (>= 195 mm to the thighs, >= 250 mm to the head), and spring pawls lock it mechanically both UP and DOWN.
+- Hardwired sequencing with limit switches: the pod can only come down when the seats are fully reclined, and the seats can only move while the pod is up and locked.
+- Controls only at dad's seat, hardwired (no microcontroller in the loop): key switch, E-stop, a momentary hold-to-run FLT/BRD toggle, plus a latch-release lever that must be held for any pod motion (two-hand control). The software may READ cradle/pod positions (separate dry contacts) but never drives the actuators.
+- Dad's seat is fixed (no recline, no pod): he is the safety observer and must see the kids while anything moves.
+- Homemade 4-point harnesses through a printed hub that houses the kit's own buckles (positioning harness, not crash-rated; load path through webbing and a steel ring). Motion only after the "harnesses fastened" step of the checklist (honour system, game shows it).
 
 ## Roles (designed to be equally fun)
 - Left seat, PILOT ("Flight"): rotation and main engine. Joystick = pitch/roll/yaw + trigger. Throttle lever. Engine arm (covered toggle), ignition button, landing gear lever, flight-assist mode rotary (OFF / STAB / PROGRADE / HOLD), airbrake/flaps, boost, view cycle, horn.
 - Right seat, OPS ("Systems/Commander"): translation, systems, and payload. Joystick = RCS translate X/Y + Z(twist) + trigger (also drives the robotic arm, tractor beam, and sensor camera depending on mode). Power distribution toggles (REACTOR, LIFE SUPPORT, SHIELDS, COMMS, SENSORS), mode rotary (RCS / ARM / SCANNER), cargo bay doors, docking clamp, scanner ping, fire suppression, nav target select, jump/warp arm + engage (covered).
 - Each mission gives both seats a hero moment (e.g. Pilot flies the launch and landing; Ops does the docking translation, arm capture, and hyperspace jump).
-- Rear seat, COMMANDER / MISSION CONTROL (dad): seat-lift hold switch (hardwired), key switch MASTER POWER, mission select rotary, START / PAUSE, MASTER CAUTION reset, failure-injection buttons (ENGINE FIRE, CABIN LEAK, POWER FAULT, SENSOR GLITCH), intercom/PA button, cockpit lights dimmer.
+- Rear seat, COMMANDER / MISSION CONTROL (dad): crew-motion hold switch + pod release lever (hardwired), key switch MASTER POWER, mission select rotary, START / PAUSE, MASTER CAUTION reset, failure-injection buttons (ENGINE FIRE, CABIN LEAK, POWER FAULT, SENSOR GLITCH), intercom/PA button, cockpit lights dimmer.
 - Overhead console (shared, above the kids): launch checklist switch row (BATTERY, FUEL PUMPS, AVIONICS, APU START, GUIDANCE, IGNITION ARM), cabin lights, beacon, strobe, EJECT (covered, just for fun), each with a backlit label and status LED.
 - Center touchscreen (game UI): nav map/orbit view, systems/power page, checklists, camera feeds, mission briefing.
 

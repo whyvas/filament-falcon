@@ -39,12 +39,19 @@ PARTS = [
     ("parts/esp32_enclosure.scad", "lid", {"NAME": "COMMAND"}, "esp32_enclosure_lid_COMMAND", BLACK, 1),
     ("parts/cable_clips.scad", "set", {}, "cable_clips_set", BLACK, 3),
     ("parts/limit_switch_mount.scad", "bracket", {}, "limit_switch_mount", BLACK, 3),
-    ("parts/monitor_mount.scad", "beam_bracket", {}, "monitor_beam_bracket", BLACK, 2),
-    ("parts/monitor_mount.scad", "vesa_plate", {}, "monitor_vesa_plate", BLACK, 2),
-    ("parts/touchscreen_bezel.scad", "q_fl", {}, "touchscreen_bezel_front_left", BLACK, 1),
-    ("parts/touchscreen_bezel.scad", "q_fr", {}, "touchscreen_bezel_front_right", BLACK, 1),
-    ("parts/touchscreen_bezel.scad", "q_rl", {}, "touchscreen_bezel_rear_left", BLACK, 1),
-    ("parts/touchscreen_bezel.scad", "q_rr", {}, "touchscreen_bezel_rear_right", BLACK, 1),
+    ("parts/monitor_mount.scad", "standoff", {"MODEL": "C275B"}, "monitor_standoff_C275B_vesa100", BLACK, 1),
+    ("parts/monitor_mount.scad", "standoff", {"MODEL": "C275W"}, "monitor_standoff_C275W_vesa75", BLACK, 1),
+    ("parts/touchscreen_bezel.scad", "c_fl", {}, "td2220_trim_corner_front_left", BLACK, 1),
+    ("parts/touchscreen_bezel.scad", "c_fr", {}, "td2220_trim_corner_front_right", BLACK, 1),
+    ("parts/touchscreen_bezel.scad", "c_rl", {}, "td2220_trim_corner_rear_left", BLACK, 1),
+    ("parts/touchscreen_bezel.scad", "c_rr", {}, "td2220_trim_corner_rear_right", BLACK, 1),
+    ("parts/touchscreen_bezel.scad", "m_f", {}, "td2220_trim_middle_front", BLACK, 1),
+    ("parts/touchscreen_bezel.scad", "m_r", {}, "td2220_trim_middle_rear", BLACK, 1),
+    ("parts/touchscreen_bezel.scad", "riser", {}, "td2220_vesa100_riser", BLACK, 1),
+    ("parts/harness_hub.scad", "base", {}, "harness_hub_base", BLACK, 2),
+    ("parts/harness_hub.scad", "lid", {}, "harness_hub_lid", BLACK, 2),
+    ("parts/pivot_cable_clamp.scad", "base", {}, "pivot_cable_clamp_base", BLACK, 8),
+    ("parts/pivot_cable_clamp.scad", "cap", {}, "pivot_cable_clamp_cap", BLACK, 8),
 ]
 PART_RENDERS = [  # scad, camera rot (x,y,z), name
     ("parts/toggle_guard.scad", (55, 0, 35), "toggle_guard"),
@@ -55,8 +62,12 @@ PART_RENDERS = [  # scad, camera rot (x,y,z), name
     ("parts/esp32_enclosure.scad", (55, 0, 30), "esp32_enclosure"),
     ("parts/cable_clips.scad", (50, 0, 20), "cable_clips"),
     ("parts/limit_switch_mount.scad", (60, 0, 35), "limit_switch_mount"),
-    ("parts/monitor_mount.scad", (75, 0, 150), "monitor_mount"),
+    ("parts/monitor_mount.scad", (70, 0, 145), "monitor_mount"),
     ("parts/touchscreen_bezel.scad", (40, 0, 15), "touchscreen_bezel"),
+    ("parts/harness_hub.scad", (45, 0, 15), "harness_hub"),
+    ("parts/harness_hub.scad", (35, 0, 0), "harness_hub_open", {"PART": "preview_open"}),
+    ("parts/harness_hub.scad", (40, 0, 20), "harness_hub_base_only", {"PART": "base"}),
+    ("parts/pivot_cable_clamp.scad", (60, 0, 30), "pivot_cable_clamp"),
 ]
 
 
@@ -195,10 +206,11 @@ def render_panel(pid):
 
 
 def render_part(e):
-    scad, rot, name = e
+    scad, rot, name = e[:3]
+    defs = e[3] if len(e) > 3 else {}
     p = os.path.join(OUTP, "parts")
     os.makedirs(p, exist_ok=True)
-    return [OS.png(os.path.join(CAD, scad), os.path.join(p, f"{name}.png"), {},
+    return [OS.png(os.path.join(CAD, scad), os.path.join(p, f"{name}.png"), defs,
                    extra=["--viewall", "--autocenter"], camera=f"0,0,0,{rot[0]},{rot[1]},{rot[2]},0", size=(1400, 1100))]
 
 
@@ -271,15 +283,70 @@ def main():
 def render_overview():
     scad = os.path.join(CAD, "assembly", "overview.scad")
     os.makedirs(OUTP, exist_ok=True)
-    views = [("overview_raised", {"SEAT": "raised"}, "0,-950,850,60,0,35,5600"),
-             ("overview_lowered", {"SEAT": "lowered"}, "0,-950,850,60,0,35,5600"),
-             ("overview_front", {"SEAT": "raised"}, "0,-950,850,62,0,215,5600"),
-             ("overview_cockpit_pov", {"SEAT": "raised"}, "0,-330,950,66,0,0,1500"),
-             ("overview_side", {"SEAT": "raised", "HIDE_SIDE": 1}, "0,-1050,900,90,0,90,4800"),
-             ("overview_side_lowered", {"SEAT": "lowered", "HIDE_SIDE": 1}, "0,-1050,900,90,0,90,4800")]
-    for name, defs, cam in views:
-        extra = ["--projection=o", "--viewall", "--autocenter"] if "side" in name else []
-        OS.png(scad, os.path.join(OUTP, f"{name}.png"), defs, camera=cam, size=(1920, 1200), extra=extra)
+    for f in os.listdir(OUTP):          # drop renders of the old tilting-platform design
+        if f.startswith("overview_") and f.endswith(".png"):
+            os.remove(os.path.join(OUTP, f))
+    rear = "0,-1150,800,62,0,35,6200"
+    front = "0,-1150,750,60,0,215,6400"
+    side = "0,-1250,900,90,0,90,5200"
+    views = [("overview_flight", {"STATE": "flight"}, rear),
+             ("overview_boarding", {"STATE": "boarding"}, rear),
+             ("overview_reclined_pod_up", {"STATE": "reclined"}, rear),
+             ("overview_boarding_front", {"STATE": "boarding"}, front),
+             ("overview_flight_front", {"STATE": "flight"}, front),
+             ("overview_dad_view", {"STATE": "flight"}, "0,-915,1300,75,0,0,1900"),
+             ("overview_side_boarding", {"STATE": "boarding", "HIDE_SIDE": 1}, side),
+             ("overview_side_reclined", {"STATE": "reclined", "HIDE_SIDE": 1}, side),
+             ("overview_side_flight", {"STATE": "flight", "HIDE_SIDE": 1}, side)]
+
+    def one(v):
+        name, defs, cam = v
+        extra = ["--projection=o"] if "side" in name else []
+        return OS.png(scad, os.path.join(OUTP, f"{name}.png"), defs, camera=cam, size=(1920, 1200), extra=extra)
+    with cf.ThreadPoolExecutor(4) as ex:
+        list(ex.map(one, views))
+    # motion sequence strip (side views)
+    from PIL import Image, ImageDraw
+    ims = [Image.open(os.path.join(OUTP, f"overview_side_{k}.png")).convert("RGB") for k in ("boarding", "reclined", "flight")]
+    w, h = ims[0].size
+    crop = (int(w * 0.08), int(h * 0.02), int(w * 0.92), int(h * 0.98))
+    ims = [im.crop(crop).resize(((crop[2] - crop[0]) // 2, (crop[3] - crop[1]) // 2)) for im in ims]
+    W_, H_ = ims[0].size
+    strip = Image.new("RGB", (3 * W_, H_ + 40), (30, 31, 34))
+    d = ImageDraw.Draw(strip)
+    from PIL import ImageFont
+    try:
+        fnt = ImageFont.load_default(size=26)
+    except TypeError:
+        fnt = ImageFont.load_default()
+    for i, (im, t) in enumerate(zip(ims, ("1 BOARDING: upright, pod parked up", "2 RECLINE 35 deg (pod still locked up)", "3 FLIGHT: pod down to its stop"))):
+        strip.paste(im, (i * W_, 40))
+        d.text((i * W_ + 20, 8), t, fill=(240, 240, 240), font=fnt)
+    strip.save(os.path.join(OUTP, "overview_motion_sequence.png"))
+    render_dome()
+
+
+def render_dome():
+    """Concept render for docs/mechanical/projector_dome_study.md."""
+    from PIL import Image, ImageDraw, ImageFont
+    scad = os.path.join(CAD, "assembly", "dome_concept.scad")
+    a = os.path.join(OUTP, "dome_concept_3q.png")
+    b = os.path.join(OUTP, "dome_concept_side.png")
+    OS.png(scad, a, {}, camera="0,-900,900,55,0,215,9500", size=(1600, 1100))
+    OS.png(scad, b, {"HIDE_SIDE": 1}, camera="0,-700,900,90,0,90,7000", size=(1600, 1100), extra=["--projection=o"])
+    ims = [Image.open(x).convert("RGB") for x in (a, b)]
+    W_, H_ = ims[0].size
+    out = Image.new("RGB", (2 * W_, H_ + 70), (30, 31, 34))
+    d = ImageDraw.Draw(out)
+    try:
+        f = ImageFont.load_default(size=30)
+    except TypeError:
+        f = ImageFont.load_default()
+    for i, (im, t) in enumerate(zip(ims, ("CONCEPT: 3 x HY300 rear-projecting onto a dome band (R 1200 about the pod pivot)",
+                                          "Side section: in FLIGHT the pod sits between the kids and the dome"))):
+        out.paste(im, (i * W_, 70))
+        d.text((i * W_ + 24, 20), t, fill=(240, 240, 240), font=f)
+    out.save(os.path.join(OUTP, "dome_concept.png"))
 
 
 if __name__ == "__main__":

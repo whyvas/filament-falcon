@@ -1,133 +1,838 @@
 {
-  "theta_max_deg": 9.239342488729314,
-  "stroke_mm": 300.0,
-  "retracted_mm": 440.0,
-  "extended_mm": 740.0,
-  "hinge": {
-    "d": 2031.0,
-    "z": 122.3
+ "dims": {
+  "L": 2450.0,
+  "W": 1960.0,
+  "tower_top": 1112.0,
+  "swept_height": 1828
+ },
+ "cradle": {
+  "pivot_dz": [
+   840.0,
+   200.0
+  ],
+  "recline_deg": 35.0,
+  "mass_kg_design": 257.7,
+  "items": [
+   [
+    "cradle wood (model)",
+    144.7,
+    [
+     692,
+     372
+    ]
+   ],
+   [
+    "TD2220 + trim + wedge",
+    5.0,
+    [
+     750,
+     590
+    ]
+   ],
+   [
+    "controls, ESP32s, cables on the cradle",
+    4.0,
+    [
+     600,
+     520
+    ]
+   ],
+   [
+    "harnesses + hubs + cushions",
+    4.0,
+    [
+     860,
+     700
+    ]
+   ],
+   [
+    "occupant PILOT (design 50 kg)",
+    50.0,
+    [
+     800,
+     760
+    ]
+   ],
+   [
+    "occupant OPS (design 50 kg)",
+    50.0,
+    [
+     800,
+     760
+    ]
+   ]
+  ],
+  "torque_Nm": [
+   -262.8,
+   -225.7,
+   -188.1,
+   -150.2,
+   -112.0,
+   -73.6,
+   -35.1,
+   3.6,
+   42.2,
+   80.7,
+   119.1,
+   157.2,
+   195.0,
+   232.5,
+   269.6
+  ],
+  "thetas": [
+   0.0,
+   2.5,
+   5.0,
+   7.5,
+   10.0,
+   12.5,
+   15.0,
+   17.5,
+   20.0,
+   22.5,
+   25.0,
+   27.5,
+   30.0,
+   32.5,
+   35.0
+  ],
+  "actuator": {
+   "score": 1065.688841965427,
+   "pin": [
+    360.0,
+    190.0
+   ],
+   "anchor": [
+    20.0,
+    30.0
+   ],
+   "Lmin": 375.7658845611187,
+   "Lmax": 606.942678217191,
+   "travel": 231.17679365607228,
+   "act_stroke_in": 10,
+   "act_retracted_mm": 364.0,
+   "F_each_max": 775.0464305203105,
+   "F_each": [
+    775.0464305203105,
+    564.8864123939197,
+    436.31098215329445,
+    366.52651763538256,
+    313.1135891154653,
+    270.4262864798281,
+    235.0501532723128,
+    204.8074773515183,
+    178.2504655770393,
+    154.38404772653618,
+    179.29311128948964,
+    217.4733889035681,
+    254.71660481984784,
+    291.31444129114413,
+    327.48366299490755
+   ],
+   "arm_m": [
+    0.19533439041633227,
+    0.23515051016781272,
+    0.2714881213311047,
+    0.30422276622965994,
+    0.3333741831364374,
+    0.35906876678916355,
+    0.38150373780969504,
+    0.4009168335735954,
+    0.41756293294908065,
+    0.43169743237184877,
+    0.4435653638475102,
+    0.4533949724866424,
+    0.4613945218660758,
+    0.467751294149638,
+    0.472631989206943
+   ],
+   "extends_to_raise": true,
+   "clearance_checked": true,
+   "x": 560.0
+  }
+ },
+ "pod": {
+  "pivot_dz": [
+   1375,
+   1005
+  ],
+  "alpha_down": 40.0,
+  "alpha_up": 95.0,
+  "r_screen": 600.0,
+  "mass_kg": 43.7,
+  "cg_dz": [
+   899,
+   1351
+  ],
+  "cg_radius": 589,
+  "extra": [
+   [
+    "2 monitors (C275B-144R 3.80 + C275W-1920RN 3.40 kg)",
+    7.2
+   ],
+   [
+    "VESA adapters, rails, cables",
+    2.5
+   ],
+   [
+    "7 printed panels + switches + 2 ESP32 boxes",
+    4.5
+   ],
+   [
+    "cheek steel: bearings, crank plates, latch plates",
+    6.0
+   ],
+   [
+    "foam + safety edge + trim",
+    1.5
+   ]
+  ],
+  "alphas": [
+   40.0,
+   42.3,
+   44.6,
+   46.9,
+   49.2,
+   51.5,
+   53.8,
+   56.0,
+   58.3,
+   60.6,
+   62.9,
+   65.2,
+   67.5,
+   69.8,
+   72.1,
+   74.4,
+   76.7,
+   79.0,
+   81.2,
+   83.5,
+   85.8,
+   88.1,
+   90.4,
+   92.7,
+   95.0
+  ],
+  "gravity_torque_Nm": [
+   -203.9,
+   -197.8,
+   -191.4,
+   -184.7,
+   -177.7,
+   -170.4,
+   -162.8,
+   -155.0,
+   -146.9,
+   -138.6,
+   -130.1,
+   -121.3,
+   -112.4,
+   -103.3,
+   -94.0,
+   -84.5,
+   -75.0,
+   -65.3,
+   -55.5,
+   -45.6,
+   -35.7,
+   -25.7,
+   -15.6,
+   -5.5,
+   4.6
+  ],
+  "net_torque_with_struts_Nm": [
+   -48.5,
+   -48.4,
+   -47.9,
+   -47.0,
+   -45.6,
+   -43.9,
+   -41.7,
+   -39.2,
+   -36.3,
+   -33.0,
+   -29.4,
+   -25.5,
+   -21.2,
+   -16.7,
+   -11.9,
+   -6.7,
+   -1.4,
+   4.2,
+   10.0,
+   16.0,
+   22.2,
+   28.6,
+   35.0,
+   41.6,
+   48.3
+  ],
+  "strut": {
+   "residual": 48.49131047412652,
+   "F1": 590.0,
+   "F2": 885.0,
+   "prog": 0.5,
+   "pin_rt": [
+    -100.0,
+    -60.0
+   ],
+   "anchor": [
+    1502.0,
+    1050.0
+   ],
+   "Lmin": 178.92535537598394,
+   "Lmax": 240.09347000011678,
+   "stroke": 61.16811462413284,
+   "pin": [
+    1413.0371877307055,
+    894.7585724442074
+   ]
   },
   "actuator": {
-    "x": 500.0,
-    "d": 160.0,
-    "top_z": 850.0,
-    "bottom_z_lowered": 110.0
+   "score": 203.79194066438154,
+   "pin": [
+    1669.6221627548343,
+    1044.9722555488672
+   ],
+   "anchor": [
+    1422.0,
+    390.0
+   ],
+   "Lmin": 425.70292680346097,
+   "Lmax": 700.2181024696179,
+   "travel": 274.5151756661569,
+   "act_stroke_in": 12,
+   "act_retracted_mm": 414.79999999999995,
+   "F_each_max": 140.54616597543554,
+   "F_each": [
+    140.54616597543554,
+    138.07583476274505,
+    135.00096834256843,
+    131.36130110590653,
+    127.1927712370803,
+    122.52780019602335,
+    117.39550467878087,
+    111.82184451766858,
+    105.82970773829949,
+    99.43893169014764,
+    92.66625667275723,
+    85.52520562986071,
+    78.02588007706473,
+    70.17465820244544,
+    61.97377567703777,
+    53.42076263849293,
+    44.50770086223896,
+    49.49880478570207,
+    59.718646686063714,
+    70.5570325720294,
+    82.08013791687998,
+    94.37402753895249,
+    107.54991720333408,
+    121.75124604820823,
+    137.16330819293012
+   ],
+   "arm_m": [
+    -0.2614490049019595,
+    -0.2658570914514708,
+    -0.2700385448442931,
+    -0.27398189791918376,
+    -0.2776748600616362,
+    -0.2811042240546943,
+    -0.2842557628471438,
+    -0.28711411541747184,
+    -0.28966266096332727,
+    -0.291883380757008,
+    -0.29375670720220937,
+    -0.29526135993829683,
+    -0.29637416930825783,
+    -0.2970698881902509,
+    -0.2973209941605819,
+    -0.29709748529606717,
+    -0.2963666747442006,
+    -0.29509299161924124,
+    -0.2932377989689563,
+    -0.29075924365977257,
+    -0.28761215820339703,
+    -0.28374804091935935,
+    -0.2791151484393517,
+    -0.2736587433003106,
+    -0.2673215488704337
+   ],
+   "extends_to_raise": false,
+   "clearance_checked": true,
+   "F_each_strut_failed": 389.9879188674883
   },
-  "forces": [
-    {
-      "theta_deg": 0.0,
-      "moment_Nm": 2712.5631000000003,
-      "arm_m": 1.871,
-      "force_total_N": 1449.793212185997,
-      "force_each_N": 724.8966060929985,
-      "length_mm": 740.0
-    },
-    {
-      "theta_deg": 4.619671244364657,
-      "moment_Nm": 2610.7494430804973,
-      "arm_m": 1.8646475975467907,
-      "force_total_N": 1400.130215765869,
-      "force_each_N": 700.0651078829345,
-      "length_mm": 589.2895276750447
-    },
-    {
-      "theta_deg": 9.239342488729314,
-      "moment_Nm": 2491.97262531935,
-      "arm_m": 1.8317161726334068,
-      "force_total_N": 1360.4578386927221,
-      "force_each_N": 680.2289193463611,
-      "length_mm": 440.00000000000006
-    }
+  "cheek_pts": [
+   [
+    646.1,
+    1085.3
+   ],
+   [
+    538.9,
+    1175.3
+   ],
+   [
+    1026.7,
+    1756.7
+   ],
+   [
+    1134.0,
+    1666.7
+   ],
+   [
+    1398.6,
+    1181.0
+   ],
+   [
+    1477.0,
+    1064.2
+   ],
+   [
+    1663.6,
+    1089.6
+   ],
+   [
+    1672.4,
+    1089.9
+   ],
+   [
+    1681.1,
+    1088.5
+   ],
+   [
+    1689.3,
+    1085.4
+   ],
+   [
+    1696.9,
+    1080.8
+   ],
+   [
+    1703.3,
+    1074.8
+   ],
+   [
+    1708.5,
+    1067.7
+   ],
+   [
+    1712.2,
+    1059.6
+   ],
+   [
+    1714.2,
+    1051.1
+   ],
+   [
+    1714.5,
+    1042.3
+   ],
+   [
+    1711.8,
+    1029.4
+   ],
+   [
+    1708.0,
+    1021.4
+   ],
+   [
+    1699.5,
+    1011.3
+   ],
+   [
+    1692.4,
+    1006.1
+   ],
+   [
+    1435.8,
+    855.9
+   ],
+   [
+    1423.5,
+    851.0
+   ],
+   [
+    1410.3,
+    849.8
+   ],
+   [
+    1397.4,
+    852.6
+   ],
+   [
+    1385.8,
+    858.9
+   ],
+   [
+    1376.6,
+    868.4
+   ],
+   [
+    1371.4,
+    878.0
+   ],
+   [
+    1205.8,
+    951.2
+   ]
   ],
-  "masses": [
-    [
-      "two kids (2 x 45 kg, upper bound for 12 yr)",
-      90.0,
-      660.0
-    ],
-    [
-      "adult (dad)",
-      110.0,
-      1520.0
-    ],
-    [
-      "platform, deck, seats, consoles (estimate)",
-      110.0,
-      1150.0
-    ]
-  ],
-  "raised_points": {
-    "kid_cushion": {
-      "d": 725.9,
-      "z": 638.2
-    },
-    "dad_cushion": {
-      "d": 1631.4,
-      "z": 724.0
-    },
-    "nose": {
-      "d": 189.8,
-      "z": 394.2
-    },
-    "console_top_front": {
-      "d": 307.8,
-      "z": 684.0
-    },
-    "kid_knee": {
-      "d": 554.4,
-      "z": 767.4
-    },
-    "toe_board_top": {
-      "d": 315.9,
-      "z": 634.0
-    }
-  },
-  "lowered_points": {
-    "kid_cushion_z": 422.0,
-    "dad_cushion_z": 652.0,
-    "deck_z": 202.0
-  },
-  "clearances": [
-    {
-      "gap_mm": 125.0,
-      "moving": "Toe board",
-      "fixed": "Dash cheek, inner L"
-    },
-    {
-      "gap_mm": 125.0,
-      "moving": "Toe board",
-      "fixed": "Dash cheek, inner R"
-    },
-    {
-      "gap_mm": 260.2,
-      "moving": "Deck L",
-      "fixed": "Dash cheek, inner L"
-    },
-    {
-      "gap_mm": 260.2,
-      "moving": "Deck R",
-      "fixed": "Dash cheek, inner R"
-    },
-    {
-      "gap_mm": 278.0,
-      "moving": "Platform nose rim",
-      "fixed": "Dash cheek, inner L"
-    },
-    {
-      "gap_mm": 278.0,
-      "moving": "Platform nose rim",
-      "fixed": "Dash cheek, inner R"
-    }
-  ],
-  "dims": {
-    "W": 1700.0,
-    "L": 2100.0,
-    "H": 1800.0
-  },
-  "lumber_8ft_boards": 24,
-  "sheet_area_m2": {
-    "18 mm ply": 8.66,
-    "12 mm ply": 2.89,
-    "6 mm ply/hardboard": 2.12
+  "window": {
+   "front_wall_slot_bottom": 838.9183874123229,
+   "top_slot_to_d": 1585.3442466968866,
+   "slot_x": [
+    800.0,
+    848.0
+   ]
   }
+ },
+ "ramp": {
+  "p0": [
+   1025.0805227687656,
+   18.0
+  ],
+  "p1": [
+   1646.22241714307,
+   905.0825583546837
+  ]
+ },
+ "clearances": {
+  "pod_vs_reclined_kids": [
+   {
+    "kid": "PILOT",
+    "body": "upper arm",
+    "gap_mm": 157,
+    "pod_alpha": 85.8,
+    "pod_part": "Pod cheek L"
+   },
+   {
+    "kid": "PILOT",
+    "body": "thigh",
+    "gap_mm": 195,
+    "pod_alpha": 40.0,
+    "pod_part": "Pod chin plate"
+   },
+   {
+    "kid": "PILOT",
+    "body": "shin",
+    "gap_mm": 220,
+    "pod_alpha": 40.0,
+    "pod_part": "Pod chin plate"
+   },
+   {
+    "kid": "PILOT",
+    "body": "torso",
+    "gap_mm": 234,
+    "pod_alpha": 85.8,
+    "pod_part": "Pod cheek L"
+   },
+   {
+    "kid": "OPS",
+    "body": "upper arm",
+    "gap_mm": 245,
+    "pod_alpha": 88.1,
+    "pod_part": "Pod cheek R"
+   },
+   {
+    "kid": "PILOT",
+    "body": "head",
+    "gap_mm": 251,
+    "pod_alpha": 40.0,
+    "pod_part": "Pod cheek L"
+   },
+   {
+    "kid": "OPS",
+    "body": "head",
+    "gap_mm": 261,
+    "pod_alpha": 76.7,
+    "pod_part": "Pod cheek R"
+   },
+   {
+    "kid": "OPS",
+    "body": "torso",
+    "gap_mm": 291,
+    "pod_alpha": 88.1,
+    "pod_part": "Pod cheek R"
+   },
+   {
+    "kid": "PILOT",
+    "body": "neck",
+    "gap_mm": 296,
+    "pod_alpha": 88.1,
+    "pod_part": "Pod cheek L"
+   },
+   {
+    "kid": "PILOT",
+    "body": "forearm",
+    "gap_mm": 306,
+    "pod_alpha": 92.7,
+    "pod_part": "Pod cheek L"
+   },
+   {
+    "kid": "OPS",
+    "body": "neck",
+    "gap_mm": 308,
+    "pod_alpha": 90.4,
+    "pod_part": "Pod cheek R"
+   },
+   {
+    "kid": "OPS",
+    "body": "forearm",
+    "gap_mm": 367,
+    "pod_alpha": 90.4,
+    "pod_part": "Pod cheek R"
+   },
+   {
+    "kid": "OPS",
+    "body": "thigh",
+    "gap_mm": 395,
+    "pod_alpha": 40.0,
+    "pod_part": "Pod chin plate"
+   },
+   {
+    "kid": "OPS",
+    "body": "shin",
+    "gap_mm": 412,
+    "pod_alpha": 40.0,
+    "pod_part": "Pod chin plate"
+   },
+   {
+    "kid": "PILOT",
+    "body": "foot",
+    "gap_mm": 525,
+    "pod_alpha": 40.0,
+    "pod_part": "Pod chin plate"
+   },
+   {
+    "kid": "OPS",
+    "body": "foot",
+    "gap_mm": 577,
+    "pod_alpha": 40.0,
+    "pod_part": "Pod chin plate"
+   }
+  ],
+  "pod_down_vs_kids": [
+   {
+    "kid": "PILOT",
+    "body": "upper arm",
+    "gap_mm": 171,
+    "pod_part": "Pod cheek L"
+   },
+   {
+    "kid": "PILOT",
+    "body": "thigh",
+    "gap_mm": 195,
+    "pod_part": "Pod chin plate"
+   },
+   {
+    "kid": "PILOT",
+    "body": "thigh",
+    "gap_mm": 195,
+    "pod_part": "Pod chin plate"
+   },
+   {
+    "kid": "PILOT",
+    "body": "shin",
+    "gap_mm": 220,
+    "pod_part": "Pod chin plate"
+   },
+   {
+    "kid": "PILOT",
+    "body": "shin",
+    "gap_mm": 220,
+    "pod_part": "Pod chin plate"
+   },
+   {
+    "kid": "PILOT",
+    "body": "torso",
+    "gap_mm": 243,
+    "pod_part": "Pod cheek L"
+   },
+   {
+    "kid": "PILOT",
+    "body": "head",
+    "gap_mm": 251,
+    "pod_part": "Pod cheek L"
+   },
+   {
+    "kid": "OPS",
+    "body": "head",
+    "gap_mm": 263,
+    "pod_part": "Pod cheek R"
+   }
+  ],
+  "eyes": {
+   "PILOT": {
+    "eye_dz": [
+     1329,
+     1041
+    ],
+    "eye_to_screen_mm": 542,
+    "gaze_elev_deg": 40.1
+   },
+   "OPS": {
+    "eye_dz": [
+     1256,
+     909
+    ],
+    "eye_to_screen_mm": 590,
+    "gaze_elev_deg": 54.7
+   }
+  },
+  "pod_vs_structure": [
+   {
+    "gap_mm": 176,
+    "moving": "Pod cheek L",
+    "other": "(cradle reclined) Kid seat back PILOT",
+    "pod_alpha": 79.0
+   },
+   {
+    "gap_mm": 176,
+    "moving": "Pod cheek L",
+    "other": "(cradle reclined) Headrest wing PILOT out",
+    "pod_alpha": 90.4
+   }
+  ],
+  "cheek_x_clearance_mm": {
+   "inner_wall": 66.0,
+   "tower_post": 50.0
+  },
+  "cradle_vs_structure": [
+   {
+    "gap_mm": 34,
+    "moving": "Cradle rail L",
+    "other": "Nose box rear wall",
+    "recline_deg": 7.5
+   },
+   {
+    "gap_mm": 35,
+    "moving": "PILOT kid upper arm",
+    "other": "Casing front wall L (inner)",
+    "recline_deg": 32.5
+   },
+   {
+    "gap_mm": 35,
+    "moving": "PILOT kid upper arm",
+    "other": "Casing inner wall L",
+    "recline_deg": 35.0
+   },
+   {
+    "gap_mm": 35,
+    "moving": "Cradle rail R",
+    "other": "Nose box rear wall",
+    "recline_deg": 5.0
+   },
+   {
+    "gap_mm": 40,
+    "moving": "Cradle toe lip",
+    "other": "Nose box rear wall",
+    "recline_deg": 0.0
+   },
+   {
+    "gap_mm": 47,
+    "moving": "PILOT kid foot",
+    "other": "Nose box rear wall",
+    "recline_deg": 0.0
+   },
+   {
+    "gap_mm": 60,
+    "moving": "Kid seat back PILOT",
+    "other": "Casing top L (inner)",
+    "recline_deg": 27.5
+   },
+   {
+    "gap_mm": 60,
+    "moving": "Headrest wing PILOT out",
+    "other": "Casing front wall L (inner)",
+    "recline_deg": 30.0
+   },
+   {
+    "gap_mm": 60,
+    "moving": "Kid seat back OPS",
+    "other": "Casing inner wall R",
+    "recline_deg": 35.0
+   },
+   {
+    "gap_mm": 60,
+    "moving": "Headrest wing OPS out",
+    "other": "Casing inner wall R",
+    "recline_deg": 32.5
+   },
+   {
+    "gap_mm": 64,
+    "moving": "PILOT kid shin",
+    "other": "Nose box lid",
+    "recline_deg": 0.0
+   },
+   {
+    "gap_mm": 81,
+    "moving": "PILOT kid foot",
+    "other": "Nose box lid",
+    "recline_deg": 17.5
+   },
+   {
+    "gap_mm": 89,
+    "moving": "OPS kid upper arm",
+    "other": "Casing front wall R (inner)",
+    "recline_deg": 35.0
+   },
+   {
+    "gap_mm": 104,
+    "moving": "PILOT kid forearm",
+    "other": "Casing front wall L (inner)",
+    "recline_deg": 35.0
+   }
+  ],
+  "pod_up_lowest_z_over_seats": 1639,
+  "pod_up_lowest_point_d": 1132,
+  "overall_height_swept": 1828,
+  "pod_rear_most_d": 1791
+ },
+ "lumber": {
+  "boards_8ft": 22,
+  "boards_10ft": 2
+ },
+ "sheet_area_m2": {
+  "12 mm ply": 9.16,
+  "18 mm ply": 13.46,
+  "6 mm ply/hardboard": 0.15
+ },
+ "kids_reclined": {
+  "PILOT": {
+   "head": [
+    1373,
+    1005
+   ],
+   "hip": [
+    1030,
+    506
+   ],
+   "knee": [
+    758,
+    840
+   ],
+   "toe": [
+    494,
+    522
+   ]
+  },
+  "OPS": {
+   "head": [
+    1295,
+    876
+   ],
+   "hip": [
+    1038,
+    483
+   ],
+   "knee": [
+    805,
+    664
+   ],
+   "toe": [
+    546,
+    461
+   ]
+  }
+ }
 }

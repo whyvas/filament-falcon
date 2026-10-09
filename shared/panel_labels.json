@@ -22,77 +22,77 @@
     {
       "id": "PILOT_DASH_A",
       "title": "Pilot dash, left piece",
-      "location": "front dash in front of the LEFT seat (outboard half)",
+      "location": "pod lower band (drops down in front of the reclined crew), in front of the LEFT seat, outboard half",
       "nominal_w_mm": 200,
       "nominal_h_mm": 160
     },
     {
       "id": "PILOT_DASH_B",
       "title": "Pilot dash, right piece",
-      "location": "front dash in front of the LEFT seat (inboard half)",
+      "location": "pod lower band in front of the LEFT seat, inboard half",
       "nominal_w_mm": 200,
       "nominal_h_mm": 160
     },
     {
       "id": "PILOT_SIDE",
       "title": "Pilot side console (throttle + gear)",
-      "location": "outboard LEFT side console, horizontal, top of panel = forward",
+      "location": "outboard LEFT side console of the reclining cradle, horizontal, top of panel = forward",
       "nominal_w_mm": 200,
       "nominal_h_mm": 160
     },
     {
       "id": "OPS_DASH_A",
       "title": "Ops dash, left piece (power)",
-      "location": "front dash in front of the RIGHT seat (inboard half)",
+      "location": "pod lower band in front of the RIGHT seat, inboard half",
       "nominal_w_mm": 200,
       "nominal_h_mm": 160
     },
     {
       "id": "OPS_DASH_B",
       "title": "Ops dash, right piece (mode + payload)",
-      "location": "front dash in front of the RIGHT seat (outboard half)",
+      "location": "pod lower band in front of the RIGHT seat, outboard half",
       "nominal_w_mm": 200,
       "nominal_h_mm": 160
     },
     {
       "id": "OPS_SIDE",
       "title": "Ops side console (hyperspace)",
-      "location": "inboard side console of the RIGHT seat (next to the touchscreen), horizontal",
+      "location": "front pedestal of the reclining cradle, between the kids just ahead of the TD2220 touchscreen, horizontal, top of panel = forward",
       "nominal_w_mm": 200,
       "nominal_h_mm": 160
     },
     {
       "id": "OVERHEAD_A",
       "title": "Overhead console, left",
-      "location": "overhead, left third (faces down, top of panel = forward)",
+      "location": "pod top band above the monitors, left third (faces the reclined crew, top of panel = up the pod)",
       "nominal_w_mm": 200,
       "nominal_h_mm": 120
     },
     {
       "id": "OVERHEAD_B",
       "title": "Overhead console, centre",
-      "location": "overhead, centre third",
+      "location": "pod top band above the monitors, centre third",
       "nominal_w_mm": 200,
       "nominal_h_mm": 120
     },
     {
       "id": "OVERHEAD_C",
       "title": "Overhead console, right",
-      "location": "overhead, right third",
+      "location": "pod top band above the monitors, right third",
       "nominal_w_mm": 200,
       "nominal_h_mm": 120
     },
     {
       "id": "CMD_A",
       "title": "Commander console, game controls",
-      "location": "dad's right-hand console on the seat platform",
+      "location": "dad's right-hand console on the fixed rear dais",
       "nominal_w_mm": 200,
       "nominal_h_mm": 200
     },
     {
       "id": "CMD_B",
-      "title": "Commander console, failures + seat lift",
-      "location": "dad's right-hand console on the seat platform, behind CMD_A",
+      "title": "Commander console, failures + crew motion",
+      "location": "dad's right-hand console on the fixed rear dais, behind CMD_A",
       "nominal_w_mm": 200,
       "nominal_h_mm": 200
     }
@@ -256,10 +256,10 @@
       "index": 14,
       "id": "SEAT_LIFT",
       "panel": "CMD_B",
-      "text": "SEAT LIFT",
+      "text": "CREW POS",
       "x_mm": 95,
       "y_mm": 60,
-      "box_w_mm": 39.5,
+      "box_w_mm": 39.0,
       "cap_height_mm": 5.5,
       "est_leds_60_per_m": 2
     },
@@ -267,10 +267,10 @@
       "index": 15,
       "id": "SEAT_KEY",
       "panel": "CMD_B",
-      "text": "SEAT KEY",
+      "text": "MOTION",
       "x_mm": 32,
       "y_mm": 60,
-      "box_w_mm": 37.8,
+      "box_w_mm": 30.4,
       "cap_height_mm": 5.5,
       "est_leds_60_per_m": 2
     },
@@ -278,10 +278,10 @@
       "index": 16,
       "id": "SEAT_UP",
       "panel": "CMD_B",
-      "text": "UP",
-      "x_mm": 125,
+      "text": "FLT",
+      "x_mm": 127,
       "y_mm": 50,
-      "box_w_mm": 13.8,
+      "box_w_mm": 17.6,
       "cap_height_mm": 5.5,
       "est_leds_60_per_m": 1
     },
@@ -289,10 +289,10 @@
       "index": 17,
       "id": "SEAT_DN",
       "panel": "CMD_B",
-      "text": "DN",
-      "x_mm": 125,
+      "text": "BRD",
+      "x_mm": 127,
       "y_mm": 30,
-      "box_w_mm": 14.1,
+      "box_w_mm": 18.2,
       "cap_height_mm": 5.5,
       "est_leds_60_per_m": 1
     },

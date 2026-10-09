@@ -1,58 +1,100 @@
-# The Filament Falcon - wooden frame (v0.1)
+# The Filament Falcon - wooden frame (v0.2: reclining seats + drop-down pod)
 
-2x4 lumber + 18 mm (3/4") plywood. Two kid seats (6-12 yr) side by side in front,
-the commander (adult) seat behind and centred. All three seats sit on one pivoting
-platform that two 12 V linear actuators tilt up 9.2 deg into "flight position".
-All dimensions in mm with inches in brackets. 2x4 = 38 x 89 mm (1.5" x 3.5").
+2x4 lumber + 12/18 mm plywood on a floor-level base (no raised platform).
+Two kid seats (6-12 yr) side by side in front, dad's seat behind and centred on a
+250 mm dais. All dimensions mm (inches in brackets). 2x4 = 38 x 89 mm (1.5" x 3.5").
+
+![motion](../cad/export/png/overview_motion_sequence.png)
+
+## How it moves
+
+| Step | What moves | Drive | End stops / locks |
+|---|---|---|---|
+| 1 BOARDING | nothing: seats upright, pod parked UP over the kids (lowest point 1639 mm over the floor) | - | pod locked UP by spring pawls |
+| 2 RECLINE (hold FLT) | the **cradle** (both kid seats, side consoles, sticks, throttle, gear lever, TD2220 centre console) tips back 35 deg about a 25 mm shaft at 840 mm behind the nose, 200 mm up | 2 x 12 V actuators, 10" (254 mm) stroke, in the nose box, PUSH to recline | rubber stop blocks on a steel-angle stop rail at 35 deg; rests on the front pads at 0 deg |
+| 3 POD DOWN (keep holding FLT + release lever) | the **pod** (both monitors, 4 dash panels, 3 overhead panels) swings 55 deg down (95 -> 40 deg) about a 25 mm shaft at the reclined 12 yr's head centre (1375 mm behind the nose, 1005 mm up) | 2 x 12 V actuators, 12" stroke, inside the side casings, PULL to raise; 2 x gas struts make it near-neutral | 6 mm steel stop pins on each cheek; pawls drop into the DOWN notch |
+| EXIT (hold BRD) | pod up first, then cradle upright | same | same |
+
+Each motion takes ~35-40 s (slow on purpose, <= 10 mm/s at the actuator).
+
+**Why the pod pivots on the head:** the pod pivot is the reclined 12 yr's head
+centre, so every pod point moves on a circle *around* the head and can never
+come closer to the face than at its parked positions. The screens stay 600 mm
+from the pivot (~540 mm from the 12 yr's eyes, ~590 mm from the 6 yr's).
+
+**Dad's seat does not recline and has no pod.** He is the safety observer: the
+motion controls are only at his seat, hold-to-run, so he must see both kids'
+heads, hands and the pod gap the whole time it moves. A reclining dad seat would
+put his eyes below the pod's back and hide the kids; a third pod would need its own
+actuators, interlock and clearance envelope next to the kids' pod (pinch point
+between two moving bodies) for little gain. He keeps the CMD console (2 printed
+panels) and gets a view over the kids at the front monitors (`overview_dad_view.png`);
+add a small fixed 3rd display at the CMD console later if wanted (needs a GPU output,
+see `docs/mechanical/displays.md`).
+
+## Files
 
 | File | What |
 |---|---|
-| `drawings/frame_drawings.pdf` | all drawings in one PDF (A3 landscape) |
-| `drawings/01_front_elevation.png/.svg` | front view: posts, monitor beam, actuator header, dash |
-| `drawings/02_side_elevation.png/.svg` | side view, platform lowered + raised, eye heights, hinge, actuator line |
-| `drawings/03_plan_view.png/.svg` | plan: seats, consoles, panel bays, actuators |
-| `drawings/04_seat_lift_actuators.png/.svg` | pivot geometry, stroke/force estimate with assumptions, hardwired circuit, pinch-point rules |
-| `drawings/05_panel_bay_detail.png/.svg` | how a printed panel bolts to the plywood rails (40 mm grid, M5 T-nuts) |
-| `cut_list.md` / `cut_list.csv` | every piece, lumber board packing, sheet count |
-| `BOM.md` | lumber, sheet goods, fasteners, actuators, switches, harness hardware |
-| `frame_model.py` | the parametric model: edit numbers here and re-run (writes `generated/frame.scad`, `generated/geometry.json`, cut list) |
+| `drawings/frame_drawings.pdf` | all drawings in one PDF |
+| `drawings/01_front_elevation` | front view in FLIGHT: casings, pod, seats, monitor positions |
+| `drawings/02_side_motion_geometry` | **side view with both motions**: cradle/pod pivots, arcs, actuators, struts, eye-to-screen, clearances |
+| `drawings/03_plan_view` | plan: seats at x = +-460, consoles, casings, actuators, dad dais |
+| `drawings/04_mechanism_interlock` | actuator/strut sizing, torque curves, hard stops, locks, hardwired interlock |
+| `drawings/05_pinch_points_clearances` | every gap that changes with motion vs. ISO 13854 (finger 25, head 120 ... ) |
+| `drawings/06_pod_cheek_template` | full-size outline of the pod cheeks (print tiled, trace on plywood) |
+| `drawings/07_panel_bay_detail` | printed panel -> plywood rail (40 mm grid, M5 T-nuts) |
+| `cut_list.md` / `.csv` | every piece, board packing, sheet count (generated) |
+| `BOM.md` | lumber, hardware, actuators, struts, bearings, locks, interlock parts |
+| `frame_model.py` | parametric model: geometry, mechanism searches (struts/actuators), clearance check; writes `generated/frame.scad`, `generated/geometry.json`, the cut list |
 | `make_drawings.py` | regenerates `drawings/` from the model |
 
 Regenerate: `python frame/frame_model.py && python frame/make_drawings.py`
-(needs numpy + matplotlib), then `python cad/tools/build.py` for the 3D overview.
+(numpy, scipy, shapely, matplotlib), then `python cad/tools/build.py` for the 3D renders.
 
-## Key dimensions
+## Key numbers (from `generated/geometry.json`)
 
-- Overall 1700 W x 2100 L x 1800 H mm (5' 6.9" x 6' 10.7" x 5' 10.9"). Fits through a door only in pieces: build it in the room.
-- Dash: 18 mm ply sheets at 27 deg, front edge ~780 mm high. Each kid has a 400 x 120 mm panel bay (two 200 x 160 printed panels).
-- Monitor beam: 2x4 on edge between the front posts, underside 1313 mm (4' 3.7"); monitors hang nearly vertical, centres 380 mm left/right of the centre line, ~1200 mm high (+-80 via the slotted hanger + tilt).
-- Kid eye heights (seated, raised): ~1180 (6 yr) / ~1250 (9 yr) / ~1320 (12 yr) mm. Overhead console hangs on M8 rods (+-80 mm).
-- Platform: hinge at the rear (20 mm shaft in two UCP204 pillow blocks on the sills, 2031 mm behind the front, 122 mm up), nose lifts ~300 mm. Kid cushion 422 -> 638 mm, commander cushion 652 -> 724 mm.
-- Actuators: 1000 mm apart (x = +-500), 160 mm behind the front, top clevis on the doubled header (z 850), bottom clevis on the platform nose rim. They PULL to raise. 300 mm stroke, 440 -> 740 mm pin to pin.
+- Footprint 1960 W x 2450 L mm (6' 5" x 8' 0.5"); casings/towers 1112 mm high; **swept height 1828 mm (pod parked up) -> ceiling >= 1950 mm**.
+- Seat centres x = +-460 mm (920 apart) so the 559 mm TD2220 trim fits between them.
+- Pod: ~44 kg (model, incl. 7.2 kg monitors), CG 589 mm from its pivot. Gravity torque -204 .. +5 N m; with 2 gas struts (F1 590 N, progressive to ~885 N, ~61 mm used stroke, ~240 mm extended) net -48 .. +48 N m: it sits firmly on the DOWN stop when down and on the UP stop when up, and is easy to drive between.
+- Pod actuators: 426 -> 700 mm pin-to-pin (12" stroke, ~415 mm retracted), peak 141 N each, 390 N each with both struts failed -> buy **1000 N self-locking**.
+- Cradle: ~258 kg design load (2 x 50 kg kids + frame + consoles). Gravity torque -263 .. +270 N m (stable on both stops). Actuators 376 -> 607 mm (10" stroke, ~364 mm retracted), peak 775 N each -> buy **1500 N self-locking**.
+- Clearances (worst case = 12 yr manikin, pod at every angle): pod chin to thighs 195 mm, shins 220, head >= 251, upper arm to cheek 157; kid arm to casing 35 (finger-safe 25+); seat back to casing 60; cradle to nose wall >= 30; cheek to inner wall / post 66 / 50.
+- Eye -> screen centre: 12 yr 542 mm (gaze 40 deg up from horizontal), 6 yr 590 mm (55 deg) -> a 60-80 mm booster cushion for the 6 yr is recommended.
+
+## Safety concept (heavy pod moving toward kids)
+
+1. **Hard stops define the envelope, not the actuators.** Steel stop pins/blocks at both ends of both motions; the actuators' own limits are 2-3 mm beyond the external limit switches, and the stops are where the clearances above were measured.
+2. **Near-neutral pod.** Gas struts carry ~75 % of the pod torque; if a strut fails, the self-locking actuators (rated 2.5 x the strut-failed load) still hold.
+3. **Slow:** <= 10 mm/s actuators, ~35-40 s per motion.
+4. **Mechanical locks both ends:** spring pawls in each casing drop into notches in a 6 mm steel latch plate on each cheek (UP and DOWN). They click in by themselves; a Bowden-cable lever LEFT of dad's seat lifts both. A micro switch on the lever is in series with the pod motors, so the pod moves only while dad holds the lever with one hand AND the hold-to-run toggle with the other (two-hand control).
+5. **Hardwired interlock** (no microcontroller can move anything; the game only reads dry contacts):
+   - FLIGHT: cradle reclines only while POD_UP_LOCKED; pod comes down only while CRADLE_RECLINED (both sides) AND lever held.
+   - BOARD: pod goes up while lever held; cradle comes upright only while POD_UP AND latched.
+   - => the pod can never come down unless the seats are fully reclined, and the seats never move under a lowered pod.
+   - Key switch, 20 A fuse, latching E-stop (NC), NC roller limit switches each bridged by a 1N5408 so you can always drive back.
+   - Pressure-sensitive safety edge (NC) along the pod chin in series with "pod DOWN".
+6. **Pinch-point rules** (ISO 13854 style): every gap that opens/closes is either >= 120 mm (head/body) or <= 8 mm / covered (finger can't enter) or >= 25 mm at all times. The cheeks run in 48 mm slots in the casings closed with brush strips; a fixed 120 mm crush-zone ramp sits under the reclined seat backs so nothing can be trapped between seat back and floor; the nose-box actuator slots have brush strips. See `drawings/05_pinch_points_clearances`.
+7. **Cables across pivots:** every bundle crossing a pivot gets two printed `pivot_cable_clamp`s (fixed side + moving side, <= 60 mm from the axis) with a 200 mm U service loop in braided sleeve.
 
 ## Assembly steps
 
-1. **Cut** everything in `cut_list.md`. Label each piece. Check real 2x4 sizes and adjust `frame_model.py` if they differ.
-2. **Base**: lay the two 2100 mm sills on edge, screw in the four base cross members (front, stop rail, hinge, rear) - check the diagonals are equal (square). Put the base on its final spot: it is heavy afterwards.
-3. **Side frames**: on each side, screw the front post, knee post and mid post to the sill, then the top side rail on top of the front + mid posts and the short lower side rail between the front and knee posts. Add the 45 deg knee braces. Stand both sides up and join them with the top cross members (front, overhead front/rear, mid). Plumb + square, then screw.
-4. **Actuator header**: glue + screw the two header 2x4s together (doubled), set it on the lower side rails between the front and knee posts, screw through the posts and add the steel angle brackets. This beam carries the full lift load (~1450 N) - do not skip the brackets.
-5. **Monitor beam**: screw between the front posts at 1313 mm underside, back face flush with the posts.
-6. **Dash**: screw the four dash cheeks to the header/side rails, then the two dash sheets on top at 27 deg. Cut the panel-bay openings (400 x 120 mm) and drill + press the M5 T-nuts on the 40 mm grid from the back (see `05_panel_bay_detail`). Press T-nuts with a bolt + washer, then tap in; a dab of epoxy stops spin-out.
-7. **Platform**: build the platform on the floor upside down: two full-length outer joists (with the 21 mm hinge hole), nose rim, seat cross, dad cross, rear rim, and the segmented inner joists (joist hangers or pocket screws). Glue + screw the two deck sheets (every 150 mm). Add the toe board on the nose and the 6 mm platform skirts on both sides.
-8. **Hinge**: bolt the two UCP204 pillow blocks to the sills (M10 coach screws), slide the 20 mm shaft through block - joist - joist - block, add the shaft collars. Lower the nose onto the stop rail.
-9. **Seats and consoles**: build the seat boxes, seat backs (harness slots at three heights), centre console (touchscreen tray + Ops side console top), Pilot side console, Ops side console and the Commander console, and screw them to the deck from below. Panel bays use the same 40 mm grid + M5 T-nuts.
-10. **Harness anchors**: 3/8" (M10) forged eye bolts with fender washers through the platform joists (lap belts) and through the seat-back frame / a 2x4 cross member behind each seat back (shoulder straps). Never anchor into plywood alone. Use bought, rated harnesses (see `BOM.md`); harness hardware is NOT printed.
-11. **Actuators**: mount the steel brackets on the header underside and on the platform nose rim, both exactly at x = +-500 mm, so the actuators hang vertical. With the platform DOWN the actuators are fully EXTENDED (740 mm pin to pin); they pull the nose up. Set both to full extension on the bench (12 V, same time), fit them, then test.
-12. **Limit switches**: screw the printed `limit_switch_mount` brackets to the knee post (DOWN switch hits the nose rim when lowered, UP switch at full lift, 5-10 mm before the actuators' own internal limits). Add the third "seat up" READ-only switch for Falcon Command.
-13. **Wiring (hardwired)**: 12 V PSU -> 15 A fuse -> SEAT KEY -> SEAT STOP (E-stop, NC) -> SEAT LIFT DPDT (ON)-OFF-(ON) hold-to-run -> UP/DOWN limit switches (NC, each bridged by a 1N5408 diode so you can always drive back) -> both actuators in parallel. 14 AWG. All three controls are on CMD_B at the commander seat only. Test with nobody seated: release = stop, E-stop = stop, key out = no motion, limits stop at both ends.
-14. **Skins and guards**: 12 mm front skin and side skins close the actuator bay; 6 mm fixed side skirts outside the moving platform skirts form the telescoping pinch guard (32 mm side gap, overlap at full lift). Check the ISO 13854 minimum gaps in `04_seat_lift_actuators` with the platform both up and down: no finger/hand/foot trap anywhere a child can reach.
-15. **Overhead console**: hang the 12 mm ply box on four M8 rods from the overhead cross members; set height so the 12 yr old's head clears it with the platform up.
-16. **Monitors**: printed beam brackets + VESA plates (or steel VESA tilt brackets), always with a steel safety cable from a VESA screw to the beam.
-17. **Panels**: bolt the printed panels into the bays (see `docs/mechanical/README.md`), run the single WS2812B strip in label order (`shared/panel_labels.json`), clip cables with the printed clips.
+1. **Cut** everything in `cut_list.md`; label each piece. Check real lumber sizes and adjust `frame_model.py`.
+2. **Base**: sills + cross members (the nose-rear and cradle-front crosses are laid FLAT so the actuators pass over them). Square the diagonals. Build it where it will live.
+3. **Nose box**: posts, front skin, rear wall with 2 actuator slots + brush strip, screwed-down lid (foot step).
+4. **Towers and casings**: outer + inner tower posts each side carry the pod shaft (25 mm, UCF205 4-bolt flange bearings on 6 mm steel plates). Casing walls get the 48 mm cheek slot cut from the template (`06`), edged with brush strip.
+5. **Cradle**: two rails on the 25 mm cradle shaft (2 x UCP205 pillow blocks on the base), seat boxes and backs (harness slots), side consoles, centre console with the TD2220 shelf. Fit the stop rail + rubber blocks.
+6. **Cradle actuators** in the nose box (x = +-560, anchor 20 mm behind the nose, 30 mm up; pin on the cradle 360 mm back, 190 mm up). Bench-set both to the same length before fitting. Test the recline empty first.
+7. **Pod**: two cheeks (2 layers 18 mm ply, glued, steel crank/latch plates bolted through), back sheet, dash lower band, overhead upper band. Hang it on the shaft with the pod parked UP and the pawls engaged.
+8. **Gas struts**: fit with the pod UP (struts extended). Check: pod DOWN, released, must sit on its stop; pod UP must sit on its stop.
+9. **Pod actuators** inside the casings; set length with the pod on the UP stop.
+10. **Interlock wiring** per `drawings/04_mechanism_interlock`. Test with NOBODY seated: every limit, every lock, E-stop, key, lever released = no pod motion, safety edge = stop.
+11. **Guards and skins**: brush strips, casing skins, crush-zone ramp, nose lid. Re-check every gap on `05` with a 25 mm dowel and a 120 mm ball at both ends of both motions.
+12. **Monitors, panels, harness**: see `docs/mechanical/README.md` and `docs/mechanical/displays.md`.
 
-## Safety rules (put a copy on the commander console)
+## Safety rules (put a copy on the CMD console)
 
-- Seat lift ONLY from the commander seat, hold-to-run; letting go stops it. Key out when not flying.
-- Everybody seated, hands on lap, harnesses fastened BEFORE "seats moving" (the game checklist shows it; honour system).
-- Nobody under or beside the platform while it moves. The front/side skins and skirts stay on.
-- Check eye bolts, harness webbing, actuator bolts and the hinge collars monthly.
+- Motion ONLY from dad's seat, hold-to-run + release lever (two hands). Let go = stop. Key out when not flying.
+- Harnesses fastened, hands on lap, heads on the headrests BEFORE "FLT". The game checklist shows it; honour system.
+- Nobody stands beside the casings or in front of the nose while anything moves.
+- Monthly: strut force (with the actuator pins pulled, the pod should be movable by hand with <= ~7 kg (70 N) at the chin and drift only slowly toward the nearest stop), actuator bolts, pawls/notches, stop pins, safety cables on the monitors, harness webbing and eye bolts.

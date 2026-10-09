@@ -503,8 +503,8 @@
   "CMD_B": [
    {
     "name": "CMD_B multi-material body",
-    "faces": 17942,
-    "volume_cm3": 139.29,
+    "faces": 18606,
+    "volume_cm3": 139.21,
     "size_mm": [
      199.5,
      199.5,
@@ -515,10 +515,10 @@
    },
    {
     "name": "CMD_B letters",
-    "faces": 12432,
-    "volume_cm3": 3.29,
+    "faces": 13132,
+    "volume_cm3": 3.37,
     "size_mm": [
-     157.2,
+     153.5,
      146.8,
      3.0
     ],
@@ -527,8 +527,8 @@
    },
    {
     "name": "CMD_B single-material body",
-    "faces": 16610,
-    "volume_cm3": 139.59,
+    "faces": 16804,
+    "volume_cm3": 139.57,
     "size_mm": [
      199.5,
      199.5,
@@ -539,10 +539,10 @@
    },
    {
     "name": "CMD_B letter inserts",
-    "faces": 11520,
-    "volume_cm3": 6.05,
+    "faces": 11778,
+    "volume_cm3": 6.06,
     "size_mm": [
-     162.6,
+     158.9,
      152.7,
      3.8
     ],
@@ -804,89 +804,187 @@
    "copies": 3,
    "file": "cad/export/3mf/parts/limit_switch_mount.3mf"
   },
-  "monitor_beam_bracket": {
-   "name": "monitor_beam_bracket",
-   "faces": 2338,
-   "volume_cm3": 106.76,
+  "monitor_standoff_C275B_vesa100": {
+   "name": "monitor_standoff_C275B_vesa100",
+   "faces": 4878,
+   "volume_cm3": 424.04,
    "size_mm": [
-    100.0,
-    149.8,
-    42.2
-   ],
-   "watertight": true,
-   "problems": [],
-   "copies": 2,
-   "file": "cad/export/3mf/parts/monitor_beam_bracket.3mf"
-  },
-  "monitor_vesa_plate": {
-   "name": "monitor_vesa_plate",
-   "faces": 2300,
-   "volume_cm3": 184.37,
-   "size_mm": [
+    190.0,
     130.0,
-    161.0,
-    52.0
+    64.0
+   ],
+   "watertight": true,
+   "problems": [],
+   "copies": 1,
+   "file": "cad/export/3mf/parts/monitor_standoff_C275B_vesa100.3mf"
+  },
+  "monitor_standoff_C275W_vesa75": {
+   "name": "monitor_standoff_C275W_vesa75",
+   "faces": 4656,
+   "volume_cm3": 418.57,
+   "size_mm": [
+    190.0,
+    130.0,
+    61.4
+   ],
+   "watertight": true,
+   "problems": [],
+   "copies": 1,
+   "file": "cad/export/3mf/parts/monitor_standoff_C275W_vesa75.3mf"
+  },
+  "td2220_trim_corner_front_left": {
+   "name": "td2220_trim_corner_front_left",
+   "faces": 890,
+   "volume_cm3": 52.69,
+   "size_mm": [
+    200.0,
+    178.7,
+    19.0
+   ],
+   "watertight": true,
+   "problems": [],
+   "copies": 1,
+   "file": "cad/export/3mf/parts/td2220_trim_corner_front_left.3mf"
+  },
+  "td2220_trim_corner_front_right": {
+   "name": "td2220_trim_corner_front_right",
+   "faces": 1028,
+   "volume_cm3": 53.93,
+   "size_mm": [
+    200.0,
+    178.7,
+    19.0
+   ],
+   "watertight": true,
+   "problems": [],
+   "copies": 1,
+   "file": "cad/export/3mf/parts/td2220_trim_corner_front_right.3mf"
+  },
+  "td2220_trim_corner_rear_left": {
+   "name": "td2220_trim_corner_rear_left",
+   "faces": 1030,
+   "volume_cm3": 56.54,
+   "size_mm": [
+    200.0,
+    194.7,
+    19.0
+   ],
+   "watertight": true,
+   "problems": [],
+   "copies": 1,
+   "file": "cad/export/3mf/parts/td2220_trim_corner_rear_left.3mf"
+  },
+  "td2220_trim_corner_rear_right": {
+   "name": "td2220_trim_corner_rear_right",
+   "faces": 890,
+   "volume_cm3": 55.3,
+   "size_mm": [
+    200.0,
+    194.7,
+    19.0
+   ],
+   "watertight": true,
+   "problems": [],
+   "copies": 1,
+   "file": "cad/export/3mf/parts/td2220_trim_corner_rear_right.3mf"
+  },
+  "td2220_trim_middle_front": {
+   "name": "td2220_trim_middle_front",
+   "faces": 576,
+   "volume_cm3": 29.58,
+   "size_mm": [
+    190.5,
+    22.0,
+    19.0
+   ],
+   "watertight": true,
+   "problems": [],
+   "copies": 1,
+   "file": "cad/export/3mf/parts/td2220_trim_middle_front.3mf"
+  },
+  "td2220_trim_middle_rear": {
+   "name": "td2220_trim_middle_rear",
+   "faces": 2440,
+   "volume_cm3": 20.99,
+   "size_mm": [
+    190.5,
+    22.0,
+    19.0
+   ],
+   "watertight": true,
+   "problems": [],
+   "copies": 1,
+   "file": "cad/export/3mf/parts/td2220_trim_middle_rear.3mf"
+  },
+  "td2220_vesa100_riser": {
+   "name": "td2220_vesa100_riser",
+   "faces": 950,
+   "volume_cm3": 428.23,
+   "size_mm": [
+    190.0,
+    140.0,
+    40.0
+   ],
+   "watertight": true,
+   "problems": [],
+   "copies": 1,
+   "file": "cad/export/3mf/parts/td2220_vesa100_riser.3mf"
+  },
+  "harness_hub_base": {
+   "name": "harness_hub_base",
+   "faces": 3482,
+   "volume_cm3": 73.78,
+   "size_mm": [
+    136.0,
+    117.2,
+    17.0
    ],
    "watertight": true,
    "problems": [],
    "copies": 2,
-   "file": "cad/export/3mf/parts/monitor_vesa_plate.3mf"
+   "file": "cad/export/3mf/parts/harness_hub_base.3mf"
   },
-  "touchscreen_bezel_front_left": {
-   "name": "touchscreen_bezel_front_left",
-   "faces": 3220,
-   "volume_cm3": 117.19,
+  "harness_hub_lid": {
+   "name": "harness_hub_lid",
+   "faces": 6652,
+   "volume_cm3": 33.32,
    "size_mm": [
-    218.5,
-    135.5,
-    15.0
+    136.0,
+    117.2,
+    3.0
    ],
    "watertight": true,
    "problems": [],
-   "copies": 1,
-   "file": "cad/export/3mf/parts/touchscreen_bezel_front_left.3mf"
+   "copies": 2,
+   "file": "cad/export/3mf/parts/harness_hub_lid.3mf"
   },
-  "touchscreen_bezel_front_right": {
-   "name": "touchscreen_bezel_front_right",
-   "faces": 3272,
-   "volume_cm3": 105.21,
+  "pivot_cable_clamp_base": {
+   "name": "pivot_cable_clamp_base",
+   "faces": 1998,
+   "volume_cm3": 48.1,
    "size_mm": [
-    202.5,
-    135.5,
-    15.0
+    110.0,
+    34.0,
+    21.0
    ],
    "watertight": true,
    "problems": [],
-   "copies": 1,
-   "file": "cad/export/3mf/parts/touchscreen_bezel_front_right.3mf"
+   "copies": 8,
+   "file": "cad/export/3mf/parts/pivot_cable_clamp_base.3mf"
   },
-  "touchscreen_bezel_rear_left": {
-   "name": "touchscreen_bezel_rear_left",
-   "faces": 3072,
-   "volume_cm3": 118.46,
+  "pivot_cable_clamp_cap": {
+   "name": "pivot_cable_clamp_cap",
+   "faces": 886,
+   "volume_cm3": 42.3,
    "size_mm": [
-    218.5,
-    151.5,
-    15.0
+    78.0,
+    34.0,
+    21.0
    ],
    "watertight": true,
    "problems": [],
-   "copies": 1,
-   "file": "cad/export/3mf/parts/touchscreen_bezel_rear_left.3mf"
-  },
-  "touchscreen_bezel_rear_right": {
-   "name": "touchscreen_bezel_rear_right",
-   "faces": 2704,
-   "volume_cm3": 101.67,
-   "size_mm": [
-    202.5,
-    151.5,
-    15.0
-   ],
-   "watertight": true,
-   "problems": [],
-   "copies": 1,
-   "file": "cad/export/3mf/parts/touchscreen_bezel_rear_right.3mf"
+   "copies": 8,
+   "file": "cad/export/3mf/parts/pivot_cable_clamp_cap.3mf"
   }
  },
  "files": {
@@ -1042,18 +1140,18 @@
   },
   "cad/export/3mf/panels/CMD_B_multimaterial.3mf": {
    "lib3mf_objects": 1,
-   "lib3mf_triangles": 30374,
-   "trimesh_triangles": 30374
+   "lib3mf_triangles": 31738,
+   "trimesh_triangles": 31738
   },
   "cad/export/3mf/panels/CMD_B_single_body.3mf": {
    "lib3mf_objects": 1,
-   "lib3mf_triangles": 16610,
-   "trimesh_triangles": 16610
+   "lib3mf_triangles": 16804,
+   "trimesh_triangles": 16804
   },
   "cad/export/3mf/panels/CMD_B_single_letter_inserts_WHITE.3mf": {
    "lib3mf_objects": 1,
-   "lib3mf_triangles": 11520,
-   "trimesh_triangles": 11520
+   "lib3mf_triangles": 11778,
+   "trimesh_triangles": 11778
   },
   "cad/export/3mf/parts/toggle_guard_base.3mf": {
    "lib3mf_objects": 1,
@@ -1145,35 +1243,70 @@
    "lib3mf_triangles": 884,
    "trimesh_triangles": 884
   },
-  "cad/export/3mf/parts/monitor_beam_bracket.3mf": {
+  "cad/export/3mf/parts/monitor_standoff_C275B_vesa100.3mf": {
    "lib3mf_objects": 1,
-   "lib3mf_triangles": 2338,
-   "trimesh_triangles": 2338
+   "lib3mf_triangles": 4878,
+   "trimesh_triangles": 4878
   },
-  "cad/export/3mf/parts/monitor_vesa_plate.3mf": {
+  "cad/export/3mf/parts/monitor_standoff_C275W_vesa75.3mf": {
    "lib3mf_objects": 1,
-   "lib3mf_triangles": 2300,
-   "trimesh_triangles": 2300
+   "lib3mf_triangles": 4656,
+   "trimesh_triangles": 4656
   },
-  "cad/export/3mf/parts/touchscreen_bezel_front_left.3mf": {
+  "cad/export/3mf/parts/td2220_trim_corner_front_left.3mf": {
    "lib3mf_objects": 1,
-   "lib3mf_triangles": 3220,
-   "trimesh_triangles": 3220
+   "lib3mf_triangles": 890,
+   "trimesh_triangles": 890
   },
-  "cad/export/3mf/parts/touchscreen_bezel_front_right.3mf": {
+  "cad/export/3mf/parts/td2220_trim_corner_front_right.3mf": {
    "lib3mf_objects": 1,
-   "lib3mf_triangles": 3272,
-   "trimesh_triangles": 3272
+   "lib3mf_triangles": 1028,
+   "trimesh_triangles": 1028
   },
-  "cad/export/3mf/parts/touchscreen_bezel_rear_left.3mf": {
+  "cad/export/3mf/parts/td2220_trim_corner_rear_left.3mf": {
    "lib3mf_objects": 1,
-   "lib3mf_triangles": 3072,
-   "trimesh_triangles": 3072
+   "lib3mf_triangles": 1030,
+   "trimesh_triangles": 1030
   },
-  "cad/export/3mf/parts/touchscreen_bezel_rear_right.3mf": {
+  "cad/export/3mf/parts/td2220_trim_corner_rear_right.3mf": {
    "lib3mf_objects": 1,
-   "lib3mf_triangles": 2704,
-   "trimesh_triangles": 2704
+   "lib3mf_triangles": 890,
+   "trimesh_triangles": 890
+  },
+  "cad/export/3mf/parts/td2220_trim_middle_front.3mf": {
+   "lib3mf_objects": 1,
+   "lib3mf_triangles": 576,
+   "trimesh_triangles": 576
+  },
+  "cad/export/3mf/parts/td2220_trim_middle_rear.3mf": {
+   "lib3mf_objects": 1,
+   "lib3mf_triangles": 2440,
+   "trimesh_triangles": 2440
+  },
+  "cad/export/3mf/parts/td2220_vesa100_riser.3mf": {
+   "lib3mf_objects": 1,
+   "lib3mf_triangles": 950,
+   "trimesh_triangles": 950
+  },
+  "cad/export/3mf/parts/harness_hub_base.3mf": {
+   "lib3mf_objects": 1,
+   "lib3mf_triangles": 3482,
+   "trimesh_triangles": 3482
+  },
+  "cad/export/3mf/parts/harness_hub_lid.3mf": {
+   "lib3mf_objects": 1,
+   "lib3mf_triangles": 6652,
+   "trimesh_triangles": 6652
+  },
+  "cad/export/3mf/parts/pivot_cable_clamp_base.3mf": {
+   "lib3mf_objects": 1,
+   "lib3mf_triangles": 1998,
+   "trimesh_triangles": 1998
+  },
+  "cad/export/3mf/parts/pivot_cable_clamp_cap.3mf": {
+   "lib3mf_objects": 1,
+   "lib3mf_triangles": 886,
+   "trimesh_triangles": 886
   }
  }
 }
