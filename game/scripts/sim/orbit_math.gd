@@ -15,8 +15,9 @@ static func elements(r: Vector3, v: Vector3, gm: float, body_radius: float) -> D
 	var ecc_vec := (v.cross(h) / gm) - r / rl
 	var e := float(ecc_vec.length())
 	var a := -gm / (2.0 * energy) if absf(energy) > 1e-9 else 1e18
-	var pe := a * (1.0 - e) if e < 1.0 else float(h.length_squared()) / gm / (1.0 + e)
-	var ap := a * (1.0 + e) if e < 1.0 else INF
+	var bound := energy < 0.0   # (a ship at rest has e ~ 1 but is still bound: radial ellipse)
+	var pe := a * (1.0 - minf(e, 1.0)) if bound else float(h.length_squared()) / gm / (1.0 + e)
+	var ap := a * (1.0 + minf(e, 1.0)) if bound else INF
 	out["a"] = a
 	out["e"] = e
 	out["energy"] = energy
@@ -24,9 +25,9 @@ static func elements(r: Vector3, v: Vector3, gm: float, body_radius: float) -> D
 	out["p"] = float(h.length_squared()) / gm
 	out["ecc_vec"] = ecc_vec
 	out["pe_alt"] = pe - body_radius
-	out["ap_alt"] = ap - body_radius if e < 1.0 else INF
-	out["escaping"] = e >= 1.0
-	out["period"] = TAU * sqrt(pow(a, 3.0) / gm) if e < 1.0 and a > 0.0 else INF
+	out["ap_alt"] = ap - body_radius if bound else INF
+	out["escaping"] = not bound
+	out["period"] = TAU * sqrt(pow(a, 3.0) / gm) if bound and a > 0.0 else INF
 	# True anomaly
 	var nu := 0.0
 	if e > 1e-6:

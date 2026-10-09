@@ -192,7 +192,7 @@ func _build() -> void:
 	add_child(ProcGen.mesh_node(ProcGen.torus(0.45, 0.7, 32), metal, Vector3(0, 0, -7.75), Vector3(PI * 0.5, 0, 0)))
 	# Landing gear: belly wheels
 	var tire := ProcGen.mat(Color(0.05, 0.05, 0.05), 0.0, 0.9)
-	for wp in [Vector3(0, -1.25, -4.6), Vector3(2.3, -1.25, 2.6), Vector3(-2.3, -1.25, 2.6)]:
+	for wp: Vector3 in [Vector3(0, -1.25, -4.6), Vector3(2.3, -1.25, 2.6), Vector3(-2.3, -1.25, 2.6)]:
 		var g := Node3D.new()
 		g.position = wp
 		add_child(g)
@@ -200,7 +200,7 @@ func _build() -> void:
 		g.add_child(ProcGen.mesh_node(ProcGen.cyl(0.42, 0.42, 0.3, 16), tire, Vector3(0, -0.95, 0), Vector3(0, 0, PI * 0.5)))
 		wheels.append(g)
 	# Tail legs for vertical landings
-	for lp in [Vector3(2.0, 0, 7.0), Vector3(-2.0, 0, 7.0), Vector3(0, 2.0, 7.0), Vector3(0, -2.0, 7.0)]:
+	for lp: Vector3 in [Vector3(2.0, 0, 7.0), Vector3(-2.0, 0, 7.0), Vector3(0, 2.0, 7.0), Vector3(0, -2.0, 7.0)]:
 		var lg := Node3D.new()
 		lg.position = lp
 		add_child(lg)

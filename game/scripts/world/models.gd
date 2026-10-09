@@ -56,12 +56,12 @@ static func station() -> Node3D:
 		var a := TAU * i / 4.0 + PI * 0.25
 		_blink_light(root, Vector3(cos(a) * 1.2, sin(a) * 1.2, 21.0), Color(0.2, 1.0, 0.3), 6.0)
 	# habitat side modules
-	for s in [-1.0, 1.0]:
+	for s: float in [-1.0, 1.0]:
 		root.add_child(ProcGen.mesh_node(ProcGen.cyl(2.0, 2.0, 9.0, 24), white, Vector3(s * 6.5, 0, 2.0), Vector3(0, 0, PI * 0.5)))
 		root.add_child(ProcGen.mesh_node(ProcGen.sphere(2.0), white, Vector3(s * 11.0, 0, 2.0)))
 	# truss along Y with solar arrays
 	root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(1.0, 70.0, 1.0)), metal, Vector3(0, 0, -6.0)))
-	for s in [-1.0, 1.0]:
+	for s: float in [-1.0, 1.0]:
 		for k in 2:
 			var y := s * (18.0 + k * 16.0)
 			var wing := Node3D.new()
@@ -71,7 +71,7 @@ static func station() -> Node3D:
 			wing.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(30.0, 14.0, 0.15)), panel))
 			wing.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(30.0, 0.3, 0.3)), metal))
 	# radiators
-	for s in [-1.0, 1.0]:
+	for s: float in [-1.0, 1.0]:
 		root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.1, 9.0, 12.0)), ProcGen.mat(Color(0.95, 0.95, 0.95), 0.0, 0.3), Vector3(s * 3.6, 0, -9.0)))
 	# rotating ring
 	var ring := Node3D.new()
@@ -147,7 +147,7 @@ static func satellite() -> Node3D:
 	var dish := ProcGen.mesh_node(ProcGen.cyl(0.7, 0.1, 0.3, 24), _white(), Vector3(0, 0.75, 0))
 	root.add_child(dish)
 	var panel := ProcGen.shader_mat("res://shaders/solar_panel.gdshader")
-	for s in [-1.0, 1.0]:
+	for s: float in [-1.0, 1.0]:
 		var w := Node3D.new()
 		w.name = "Wing%d" % int(s)
 		w.position = Vector3(s * 0.6, 0, 0)
@@ -236,7 +236,7 @@ static func pad() -> Node3D:
 	# tower lattice
 	for i in 14:
 		var y := 2.0 + i * 4.0
-		for c in [Vector3(-3, 0, -3), Vector3(3, 0, -3), Vector3(-3, 0, 3), Vector3(3, 0, 3)]:
+		for c: Vector3 in [Vector3(-3, 0, -3), Vector3(3, 0, -3), Vector3(-3, 0, 3), Vector3(3, 0, 3)]:
 			root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.4, 4.0, 0.4)), steel, Vector3(14, y + 2.0, 0) + c))
 		root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(6.4, 0.3, 0.3)), steel, Vector3(14, y, -3)))
 		root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(6.4, 0.3, 0.3)), steel, Vector3(14, y, 3)))
@@ -244,7 +244,7 @@ static func pad() -> Node3D:
 	# crew access arm
 	root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(9.0, 2.2, 2.2)), steel, Vector3(8.0, 44.0, 0)))
 	# floodlight masts
-	for a in [0.0, 2.1, 4.2]:
+	for a: float in [0.0, 2.1, 4.2]:
 		var p := Vector3(cos(a), 0, sin(a)) * 70.0
 		root.add_child(ProcGen.mesh_node(ProcGen.cyl(0.4, 0.6, 40.0, 8), ProcGen.mat(Color(0.5, 0.5, 0.5), 0.7, 0.4), p + Vector3(0, 20, 0)))
 		var sp := SpotLight3D.new()

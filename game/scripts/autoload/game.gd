@@ -356,7 +356,15 @@ func _update_entities(h: float) -> void:
 
 
 # ======================================================================== frame loop
+var external_clock := false     # tests drive tick() themselves (faster than real time)
+
+
 func _process(dt: float) -> void:
+	if not external_clock:
+		tick(dt)
+
+
+func tick(dt: float) -> void:
 	dt = minf(dt, 0.1)
 	_handle_commander()
 	_update_checklist()
@@ -375,6 +383,7 @@ func _process(dt: float) -> void:
 			var body: CelestialBody = b
 			body.update(t)
 		_update_entities(0.0)
+		sim.refresh_frame()
 	scanner_age += dt
 	camera_shake = maxf(0.0, camera_shake - dt * 1.5)
 	stage_flash = maxf(0.0, stage_flash - dt)
@@ -386,8 +395,11 @@ func _step_physics(dt: float) -> void:
 	# time warp only when it is safe and quiet
 	if warp > 1.0:
 		var reason := ""
-		if sim.density_now > 0.0:
-			reason = "atmosphere"
+		if sim.density_now > 0.0 and sim.agl < 1500.0:
+			reason = "low in the atmosphere"
+		elif sim.density_now > 0.0 and warp > 4.0:
+			set_warp(4.0)
+			Voice.say("Time warp limited to times four in the air")
 		elif sim.thrust_now > 0.0 or sim.in_trans.length() > 0.05:
 			reason = "engine or thrusters running"
 		elif sim.touching:
@@ -537,7 +549,7 @@ func _update_checklist() -> void:
 	for i in CHECKLIST.size():
 		var id: String = CHECKLIST[i]
 		if InputHub.just_pressed(id):
-			if i == checklist_progress and (i == 0 or seq_ok[i - 1]):
+			if i == 0 or seq_ok[i - 1]:
 				seq_ok[i] = true
 				Voice.say(CHECKLIST_NAMES[i] + " on.")
 				Sfx.click()

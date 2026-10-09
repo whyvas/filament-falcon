@@ -6,6 +6,8 @@ render_mode unshaded, blend_add, cull_front, depth_draw_never, depth_test_disabl
 
 uniform sampler2D depth_tex : hint_depth_texture, filter_nearest;
 uniform vec3 sun_dir = vec3(0.0, 0.0, 1.0);
+uniform vec3 planet_center = vec3(0.0);   // world metres (real scale)
+uniform float space_scale = 1.0;          // scale applied to the planet mesh (scaled space)
 uniform float planet_r_km = 600.0;
 uniform float atmo_r_km = 690.0;
 uniform vec3 beta_r = vec3(5.8e-3, 13.5e-3, 33.1e-3);
@@ -33,7 +35,7 @@ vec2 ray_sphere(vec3 ro, vec3 rd, float r) {
 }
 
 void fragment() {
-	vec3 center = NODE_POSITION_WORLD;
+	vec3 center = planet_center;
 	vec3 cam = CAMERA_POSITION_WORLD;
 	vec3 ro = (cam - center) * 0.001;
 	vec3 rd = normalize(world_pos - cam);
@@ -44,6 +46,8 @@ void fragment() {
 	if (depth <= 0.0000001) scene_km = 1e9;
 	vec2 at = ray_sphere(ro, rd, atmo_r_km);
 	if (at.x > at.y) discard;
+	// Opaque pixels far beyond half the scaled distance to the air belong to the scaled planet.
+	if (space_scale < 0.999 && scene_km > 0.5 * max(at.x, 0.0) * space_scale) scene_km /= space_scale;
 	float t0 = max(at.x, 0.0);
 	float t1 = at.y;
 	vec2 pl = ray_sphere(ro, rd, planet_r_km);

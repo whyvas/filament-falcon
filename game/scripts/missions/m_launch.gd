@@ -65,12 +65,16 @@ func guidance_dir() -> Vector3:
 	var up := sim.up_dir
 	var east := CelestialBody.east_at(up)
 	var alt := sim.altitude
-	var pitch_deg := 90.0 - 85.0 * clampf(pow(maxf(alt - 300.0, 0.0) / 52000.0, 0.6), 0.0, 1.0)
-	if alt > 52000.0:
-		# above the thick air: aim slightly up while apoapsis is still low
+	# Gravity turn: vertical for the first 300 m, then pitch over toward the horizon by ~40 km.
+	var pitch_deg := 90.0 - 82.0 * clampf(pow(maxf(alt - 300.0, 0.0) / 42000.0, 0.55), 0.0, 1.0)
+	if alt > 22000.0:
+		# Above the thick air: steer the apoapsis onto the 90 km target.
 		var el := orbit_elements()
 		var ap: float = el["ap_alt"]
-		pitch_deg = clampf((TARGET_AP - ap) / 2000.0, -3.0, 8.0)
+		if el["escaping"]:
+			ap = 1.0e9
+		var want := clampf((TARGET_AP - ap) / 1500.0 + (maxf(0.0, 40.0 - sim.vspeed) / 20.0 if alt > 60000.0 else 0.0), -6.0, 12.0)
+		pitch_deg = minf(pitch_deg, want) if ap > TARGET_AP - 8000.0 else pitch_deg
 	guidance["pitch_target"] = pitch_deg
 	var p := deg_to_rad(pitch_deg)
 	return (east * cos(p) + up * sin(p)).normalized()

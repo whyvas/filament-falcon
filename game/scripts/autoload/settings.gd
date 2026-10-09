@@ -23,6 +23,17 @@ const DEFAULTS := {
 		"eye_height_m": 0.0,       # eye above (+) / below (-) monitor centre
 		"toe_in_deg": 0.0,         # each monitor angled toward the centre
 		"view_scale": 1.15,        # >1 widens the field of view a little for drama
+		# Frame pacing. The two side monitors run at different refresh rates (144 Hz and 75 Hz)
+		# and the console at 60 Hz. One render loop drives all windows, so we cap the loop at
+		# max_fps and present every window with MAILBOX vsync (no tearing, never blocks on
+		# the slowest screen). Set the 144 Hz panel to 75 Hz with xrandr for perfectly even pacing.
+		"max_fps": 75,
+		"vsync": "mailbox",        # mailbox | fifo | off
+		# Out-the-window outputs (in order). Each one gets its own camera, off-axis frustum
+		# and optional post-warp shader (for a future projector dome: per-output warp mesh/shader).
+		"views": "left,right",
+		"left_warp": "",           # res:// or absolute path to a canvas_item .gdshader, "" = none
+		"right_warp": "",
 	},
 	"graphics": {"quality": "high"},
 	"audio": {"master_db": 0.0, "voice": true, "voice_engine": "auto", "piper_model": ""},
@@ -67,7 +78,7 @@ func _parse_cli() -> void:
 
 
 func is_test_run() -> bool:
-	return cli.has("smoke-test") or cli.has("screenshots")
+	return cli.has("smoke-test") or cli.has("flight-test") or cli.has("screenshots")
 
 
 func is_headless() -> bool:

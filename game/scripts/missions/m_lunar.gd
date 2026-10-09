@@ -26,7 +26,7 @@ func setup() -> void:
 	pad["revealed"] = false
 	var site: Vector3 = game.lunar_site_dir
 	var east := CelestialBody.east_at(site)
-	var a := 30000.0 / m.radius
+	var a := 10000.0 / m.radius     # ~10 km uprange: braking ends near the beacon
 	var dir := (site * cos(a) - east * sin(a)).normalized()
 	var r := m.radius + 9000.0
 	sim.pos.set_xyz(m.pos.x() + dir.x * r, m.pos.y() + dir.y * r, m.pos.z() + dir.z * r)

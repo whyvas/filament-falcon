@@ -48,6 +48,8 @@ func setup() -> void:
 	sim.vel = fld["vel"]
 	sim.basis = ship_basis(Vector3(0.05, -0.02, -1), Vector3.UP)
 	sim.fuel = 4000.0
+	sim.mono_max = 1500.0   # lots of small RCS hops in the field
+	sim.mono = 1500.0
 	game.nav_targets = [{"name": "ESCAPE POD", "entity": pod}, {"name": "CRYSTAL ROCK 1", "entity": rocks_c[0]}, {"name": "CRYSTAL ROCK 2", "entity": rocks_c[1]}, {"name": "CRYSTAL ROCK 3", "entity": rocks_c[2]}, {"name": "EARTH", "body": earth()}]
 	game.nav_vector = "TGT RETRO"
 

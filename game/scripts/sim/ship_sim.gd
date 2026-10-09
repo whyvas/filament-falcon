@@ -149,6 +149,20 @@ func pick_dominant() -> void:
 	dominant = best
 
 
+## Local-frame telemetry without integrating (used before the mission starts / while paused).
+func refresh_frame() -> void:
+	if dominant == null:
+		pick_dominant()
+	var rel := pos.rel_d(dominant.pos)
+	var rlen: float = sqrt(rel[0] * rel[0] + rel[1] * rel[1] + rel[2] * rel[2])
+	up_dir = Vector3(rel[0] / rlen, rel[1] / rlen, rel[2] / rlen)
+	altitude = rlen - dominant.radius
+	agl = altitude - dominant.terrain_height(up_dir)
+	surface_vel = vel - dominant.vel
+	vspeed = surface_vel.dot(up_dir)
+	hspeed = (surface_vel - up_dir * vspeed).length()
+
+
 func step(dt: float) -> void:
 	if dominant == null:
 		pick_dominant()
@@ -203,7 +217,9 @@ func step(dt: float) -> void:
 			var S := 60.0
 			var c := 8.0
 			var stall := 1.0 if absf(aoa) < deg_to_rad(22.0) else 0.65
-			var cl := (1.25 * sin(2.0 * aoa) + 0.3 * flaps * cos(aoa)) * stall
+			# Hypersonic flow carries less lift per unit drag (Newtonian regime): L/D falls toward ~0.8.
+			var hyper := lerpf(1.0, 0.5, clampf((mach - 2.0) / 3.0, 0.0, 1.0))
+			var cl := (1.25 * sin(2.0 * aoa) + 0.3 * flaps * cos(aoa)) * stall * hyper
 			var cd := 0.045 + 1.25 * pow(sin(aoa), 2.0) + 0.6 * pow(sin(beta), 2.0) + 0.05 * flaps
 			if gear_down:
 				cd += 0.035 * gear_pos

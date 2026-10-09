@@ -305,7 +305,7 @@ func _process(dt: float) -> void:
 				v = float(dev_val) if dev_val != null else t
 			"button":
 				var kb := keyboard_ok and keys.size() > 0 and _key_down(keys[0])
-				v = 1.0 if (kb or (dev_val != null and float(dev_val) > 0.5) or pulses.get(id, 0) > 0) else 0.0
+				v = 1.0 if (kb or (dev_val != null and float(dev_val) > 0.5) or pulses.get(id, 0) > 0 or float(latch.get(id, 0.0)) > 0.5) else 0.0
 			"switch":
 				if keyboard_ok and keys.size() > 0 and _key_edge(keys[0]):
 					latch[id] = 0.0 if float(latch.get(id, 0.0)) > 0.5 else 1.0

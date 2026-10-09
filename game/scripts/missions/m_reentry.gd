@@ -2,10 +2,11 @@ extends Mission
 ## (e) Reentry and runway landing: hold entry attitude through the plasma, find the runway
 ## beacon after blackout, glide through the approach boxes, land and brake to a stop.
 
-const START_ALT := 70000.0
-const START_SPEED := 2250.0
-const START_GAMMA := -2.3
-const GLIDE_DEG := 11.0
+const START_ALT := 40000.0    # just after the deorbit burn: straight into the plasma
+const START_SPEED := 1200.0
+const START_GAMMA := -8.0
+const GLIDE_DEG := 18.0       # steep outer glideslope (like the Space Shuttle), flare at the end
+const GLIDE_AOA := 6.0
 const AIM_X := -1450.0
 
 var rw: Dictionary
@@ -23,25 +24,35 @@ func setup() -> void:
 	id = "reentry"
 	title = "HOMECOMING"
 	tagline = "Reentry & runway landing"
-	briefing = "Time to come home! We hit the air at 2 km per second. The air squeezes and glows like fire around us. Hold the nose up, survive the heat, then glide like a giant paper plane onto the runway."
+	briefing = "Time to come home! We hit the air at over a kilometre per second. The air squeezes and glows like fire around us. Hold the nose up, survive the heat, then glide like a giant paper plane onto the runway."
 	pilot_job = "Hold the nose up on the ENTRY bracket (PROGRADE assist with NAV GUIDANCE does it for you). When we slow down, fly through the green boxes to the runway, GEAR DOWN, land, and AIRBRAKE to stop."
 	ops_job = "SHIELDS on before the heat! After the radio blackout, lock NAV TARGET: RUNWAY and ping the SCANNER to find the landing beacon. Call out the speed and height for the pilot."
-	start_callout = "Entry interface. Seventy kilometres. Here comes the heat!"
+	start_callout = "Deorbit burn complete. Forty kilometres. Here comes the heat!"
 	star_thresholds = [1200, 1700]
 	objectives = [
 		{"text": "SHIELDS on before the heat!", "role": "OPS"},
-		{"text": "Hold the nose up on the ENTRY bracket until below 900 m/s", "role": "PILOT"},
+		{"text": "Hold the nose up on the ENTRY bracket until below 650 m/s", "role": "PILOT"},
 		{"text": "NAV TARGET: RUNWAY, then SCANNER PING to lock the beacon", "role": "OPS"},
 		{"text": "Glide through the boxes, GEAR DOWN, touch down on the runway", "role": "PILOT"},
 		{"text": "AIRBRAKE on and roll to a stop", "role": "PILOT"},
 	]
 	rw = game.entities_of("runway")[0]
-	rw["revealed"] = false
+	rw["revealed"] = true          # selectable as NAV TARGET; the SCANNER PING locks its beacon
 	game.sun_dir = Vector3(-0.2, 0.55, -0.81).normalized()
 	_place_start()
 	game.nav_targets = [{"name": "RUNWAY", "entity": rw}, {"name": "STATION", "entity": game.station}]
 	game.nav_vector = "GUIDANCE"
 	sim.fuel = 900.0
+
+
+## Entry attitude schedule: belly-first (40 deg) through the heat, a high-drag 25 deg phase to
+## bleed speed quickly, then a 9 deg glide for the approach.
+static func entry_aoa(airspeed: float) -> float:
+	if airspeed > 400.0:
+		return 40.0
+	if airspeed > 150.0:
+		return 30.0
+	return GLIDE_AOA
 
 
 static func nominal_dir(s: ShipSim) -> Vector3:
@@ -50,13 +61,13 @@ static func nominal_dir(s: ShipSim) -> Vector3:
 		return Vector3.ZERO
 	var vd := sv.normalized()
 	var upp := s.up_dir.slide(vd).normalized()
-	var a := deg_to_rad(40.0 if s.airspeed > 900.0 else 9.0)
+	var a := deg_to_rad(entry_aoa(s.airspeed))
 	return vd * cos(a) + upp * sin(a)
 
 
 func guidance_dir() -> Vector3:
-	if step >= 3 and beacon_locked:
-		# point down the glide path toward the next approach box
+	if step >= 3 and beacon_locked and (approach_points()[0] as Vector3).length() < 16000.0:
+		# close in: point down the glide path toward the next approach box
 		var pts := approach_points()
 		for p in pts:
 			var v: Vector3 = p
@@ -85,13 +96,13 @@ func _place_start() -> void:
 		s.nav_dir = nominal_dir(s)
 		s.step(0.1)
 		steps += 1
-		if s.altitude < 2600.0:
+		if s.altitude < 5000.0:
 			break
 	var end_dir := s.up_dir
 	var lam_e := atan2(-end_dir.z, end_dir.x)
 	var rd: Vector3 = game.runway_dir
 	var lam_r := atan2(-rd.z, rd.x)
-	var delta := lam_r - lam_e - 11000.0 / e.radius
+	var delta := lam_r - lam_e - 14000.0 / e.radius
 	var rot := Basis(Vector3.UP, delta)
 	var p2 := rot * p
 	sim.pos.set_xyz(p2.x, p2.y, p2.z)
@@ -127,7 +138,7 @@ func update(dt: float) -> void:
 	if blackout:
 		_blackout_seen = true
 	guidance["blackout"] = blackout
-	guidance["entry_aoa"] = 40.0 if sim.airspeed > 900.0 else GLIDE_DEG
+	guidance["entry_aoa"] = entry_aoa(sim.airspeed)
 	match step:
 		0:
 			if game.powered.get("shields", false):
@@ -135,7 +146,7 @@ func update(dt: float) -> void:
 			elif sim.heat_flux > 30000.0:
 				guidance["flash"] = "SHIELDS!"
 		1:
-			if sim.airspeed < 900.0:
+			if sim.airspeed < 650.0:
 				advance("Blackout over! Ops, find the runway!")
 		2:
 			pass
