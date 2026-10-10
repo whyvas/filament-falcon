@@ -46,6 +46,8 @@ with the software Vulkan driver at the Ultra preset (`QUALITY=ultra`), so they l
 
 ## 2. Run it
 
+**Easiest:** `./run.sh --cockpit` (or `./run.sh --dev`) from the `game/` folder. On a fresh clone it imports the project first, which fixes the "Identifier CelestialBody not declared" parse errors you otherwise get on the very first launch. If you use `godot` directly, run `godot --headless --path . --import` once first.
+
 ```bash
 cd game
 godot --path .                 # auto: cockpit mode if >= 3 screens, else dev mode
