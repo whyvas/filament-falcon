@@ -4,11 +4,13 @@ A three-seat home spaceship cockpit: two small front seats (kids) side by side, 
 
 ## Computer
 Linux Mint, AMD Ryzen 9 5900X (12c/24t), Radeon RX 6800 XT (16 GB, Vulkan/Mesa RADV), 32 GB RAM.
-Three displays on the 6800 XT (2 x DP 1.4, 1 x HDMI 2.1, 1 x USB-C; max 4 heads), all 1920 x 1080 (updated on the `cad` branch; details in `docs/mechanical/displays.md`):
-- Left kid's window (PILOT): Sceptre C275B-144R, 27" 1800R curved, up to 144 Hz, VESA 100, on DP.
-- Right kid's window (OPS): Sceptre C275W-1920RN, 27" 1800R curved, 75 Hz, VESA 75, HDMI only.
-- Center console: ViewSonic TD2220, 21.5" optical touch (USB-B), VESA 100, DVI-D/VGA only -> DP (or USB-C) to DVI-D adapter. It lies flat in the reclining center console between the kids and faces them when reclined.
-- The USB-C output stays free (one extra display or projector later; see `docs/mechanical/projector_dome_study.md`).
+Four displays on the 6800 XT (2 x DP 1.4, 1 x HDMI 2.1, 1 x USB-C; max 4 heads, so all four heads are now in use), all 1920 x 1080 (mechanical details in `docs/mechanical/displays.md`). Screen roles, with the owner's xrandr output names as of v0.3:
+- LEFT WINDOW (PILOT): Sceptre C275B-144R, 27" 1800R curved, up to 144 Hz (run at 75 Hz), VESA 100. Output DisplayPort-2.
+- RIGHT WINDOW (OPS): Sceptre C275W-1920RN, 27" 1800R curved, 75 Hz, VESA 75. Output DisplayPort-1.
+- KIDS' CONSOLE: ViewSonic TD2220, 21.5" optical touch (USB-B), VESA 100, DVI-D/VGA only -> DP (or USB-C) to DVI-D adapter. It lies flat in the reclining center console between the kids and faces them when reclined. Output DisplayPort-0. Use it in landscape (the game also handles portrait). The touch input must be mapped to this output (`xinput map-to-output`; `game/tools/setup_displays.sh` does it and `game/run.sh` runs it before every launch).
+- COMMANDER: a 31.5" 1920 x 1080 monitor at dad's seat (mouse + keyboard, no touch). Output HDMI-A-0.
+- The game assigns the roles by output name and physical size (console = the ~22" or portrait panel, commander = the biggest remaining screen, windows left to right). Each role can be pinned to any output in the settings file or on the Commander SETUP page. With only three screens the Commander UI becomes a tab on the kids' console (Esc). With fewer, dev mode tiles all four views in one window.
+- With all four heads used, a later projector dome (`docs/mechanical/projector_dome_study.md`) has to replace the two window monitors, or use a USB/DP-MST splitter.
 
 ## Seats and motion
 (Changed on the `cad` branch, v0.2: the swinging/raised seat platform is gone. Details in `frame/README.md`.)
@@ -25,7 +27,8 @@ Three displays on the 6800 XT (2 x DP 1.4, 1 x HDMI 2.1, 1 x USB-C; max 4 heads)
 - Each mission gives both seats a hero moment (e.g. Pilot flies the launch and landing; Ops does the docking translation, arm capture, and hyperspace jump).
 - Rear seat, COMMANDER / MISSION CONTROL (dad): crew-motion hold switch + pod release lever (hardwired), key switch MASTER POWER, mission select rotary, START / PAUSE, MASTER CAUTION reset, failure-injection buttons (ENGINE FIRE, CABIN LEAK, POWER FAULT, SENSOR GLITCH), intercom/PA button, cockpit lights dimmer.
 - Overhead console (shared, above the kids): launch checklist switch row (BATTERY, FUEL PUMPS, AVIONICS, APU START, GUIDANCE, IGNITION ARM), cabin lights, beacon, strobe, EJECT (covered, just for fun), each with a backlit label and status LED.
-- Center touchscreen (game UI): nav map/orbit view, systems/power page, checklists, camera feeds, mission briefing.
+- Kids' console touchscreen (game UI, only for the two kids): attitude ball, speed/altitude tapes, fuel, engine/gear/flaps/assist, power distribution toggles, RCS/ARM/SCANNER mode, cargo doors, docking clamp, nav target and steer-to, overhead checklist status, camera feeds (docking/arm/chase), each kid's current task and MASTER CAUTION. Every touch control mirrors a hardware control; plugged-in hardware wins.
+- Commander screen (game UI, dad, mouse/keyboard): mission select and briefing, START/PAUSE/RESTART/skip step, harness check, failure injection, MASTER CAUTION reset, difficulty and assist settings, time warp, live score, a mission-control overview (orbit map, telemetry, crew status with both kids' current tasks, ship health, faults), controls test, and SETUP (screen roles, quality, FPS cap, vsync).
 
 ## Panels
 - Dark panel body, white letters that go all the way through the panel so LEDs behind shine through them. Multi-material 3MF (body + letters as separate parts with their own extruder/colour); also provide a single-material fallback with white press-fit letter inserts.
@@ -46,7 +49,7 @@ Three displays on the 6800 XT (2 x DP 1.4, 1 x HDMI 2.1, 1 x USB-C; max 4 heads)
 - `shared/led_protocol.md`: serial protocol from game to Falcon Command.
 
 ## Game
-Godot 4 (latest stable 4.x), Forward+ renderer on Vulkan, three windows (one per display), GDScript. Missions: launch to orbit, dock with a space station, lunar landing, asteroid-field rescue/mining, reentry and runway landing, plus a free-flight sandbox.
+Godot 4 (latest stable 4.x), Forward+ renderer on Vulkan, four windows (one per display: left window, right window, kids' console, commander), GDScript. Missions: launch to orbit, dock with a space station, lunar landing, asteroid-field rescue/mining, reentry and runway landing, plus a free-flight sandbox.
 
 ## Folders
 - `cad/` 3D models (OpenSCAD source + exported 3MF + PNG renders); `frame/` wooden frame drawings, cut list, BOM.

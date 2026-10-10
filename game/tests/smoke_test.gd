@@ -31,6 +31,7 @@ func _run() -> void:
 		if only != "" and id != only:
 			continue
 		await _run_mission(id)
+	var ui_ok := await _check_ui()
 	print("")
 	print("==== SMOKE TEST SUMMARY ====")
 	var failed := 0
@@ -39,7 +40,65 @@ func _run() -> void:
 		if not r[0]:
 			failed += 1
 	print("RESULT: %d/%d missions passed" % [results.size() - failed, results.size()])
-	get_tree().quit(1 if failed > 0 else 0)
+	print("DISPLAY/UI CHECKS: %s" % ("PASS" if ui_ok else "FAIL"))
+	get_tree().quit(1 if failed > 0 or not ui_ok else 0)
+
+
+## Screen-role resolver against real rigs (no real monitors needed) and every console /
+## Commander page, including the three-screen "Commander as a console tab" fallback.
+func _check_ui() -> bool:
+	var ok := true
+	var dm: DisplayManager = get_parent().get_node("Display")
+	# Yves's rig, verbatim from `xrandr --listmonitors`
+	var xr := DisplayManager.parse_xrandr("""Monitors: 4
+ 0: +*HDMI-A-0 1920/698x1080/393+0+0  HDMI-A-0
+ 1: +DisplayPort-2 1920/598x1080/336+1920+0  DisplayPort-2
+ 2: +DisplayPort-0 1080/480x1920/270+3271+1080  DisplayPort-0
+ 3: +DisplayPort-1 1920/600x1080/330+3840+0  DisplayPort-1""")
+	var saved := dm.monitors.duplicate(true)
+	var cases := [
+		["4 screens, console by name", xr, "DisplayPort-0", {"left": 1, "right": 3, "console": 2, "commander": 0}],
+		["4 screens, console by size", xr, "", {"left": 1, "right": 3, "console": 2, "commander": 0}],
+		["3 screens (no HDMI)", xr.slice(1), "DisplayPort-0", {"left": 1, "right": 3, "console": 2, "commander": -1}],
+	]
+	var keep := str(Settings.get_v("display", "console_output"))
+	for c: Array in cases:
+		dm.monitors.clear()
+		var src: Array = c[1]
+		for x: Dictionary in src:
+			var i := xr.find(x)
+			dm.monitors.append({"i": i, "name": x["name"], "pos": x["pos"], "size": x["size"], "mm": x["mm"], "diag": (x["mm"] as Vector2).length() / 25.4, "hz": 60.0})
+		Settings.cfg.set_value("display", "console_output", c[2])
+		dm.resolve_roles()
+		var want: Dictionary = c[3]
+		var good := true
+		for r in want:
+			if dm.screen_of(r) != int(want[r]):
+				good = false
+		print("  display roles [%s]: %s  %s" % [c[0], "ok" if good else "WRONG", str(dm.assign)])
+		ok = ok and good
+	Settings.cfg.set_value("display", "console_output", keep)
+	dm.monitors = saved
+	dm.resolve_roles()
+	# every page of both UIs refreshes without errors
+	for p in ConsoleUI.PAGES:
+		dm.console.show_page(p)
+		await _frames(2)
+	for p in CommanderUI.PAGES:
+		dm.commander.show_page(p)
+		await _frames(2)
+	var cc: Control = dm.cont["commander"]
+	var parent := cc.get_parent()
+	dm.console.embed_commander(cc)
+	dm.console.toggle_commander()
+	await _frames(2)
+	ok = ok and dm.console.current == "COMMANDER"
+	dm.console.release_commander()
+	if parent:
+		parent.add_child(cc)
+	ok = ok and not dm.console.has_commander_tab()
+	print("  console + commander pages, commander tab fallback: %s" % ("ok" if ok else "FAIL"))
+	return ok
 
 
 func _run_mission(id: String) -> void:

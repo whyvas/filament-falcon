@@ -12,9 +12,18 @@ const QUALITY_LEVELS := ["low", "medium", "high", "ultra"]
 const DEFAULTS := {
 	"display": {
 		"mode": "auto",            # auto | cockpit | dev
-		"left_screen": 1,
-		"right_screen": 2,
-		"console_screen": 0,
+		# Four screen roles: left/right windows, kids' console (touch), commander.
+		# <role>_output = output name from `xrandr --listmonitors` (wins when present),
+		# <role>_screen = Godot screen index; -1 / "" = automatic (see DisplayManager).
+		"left_output": "",
+		"right_output": "",
+		"console_output": "DisplayPort-0",
+		"commander_output": "",
+		"left_screen": -1,
+		"right_screen": -1,
+		"console_screen": -1,
+		"commander_screen": -1,
+		"layout_version": 2,
 		"fullscreen": true,
 		"monitor_width_m": 0.597,  # 27" 16:9 panel width
 		"monitor_height_m": 0.336,
@@ -38,7 +47,7 @@ const DEFAULTS := {
 	"graphics": {"quality": "high"},
 	"audio": {"master_db": 0.0, "voice": true, "voice_engine": "auto", "piper_model": ""},
 	"led": {"enabled": true, "udp_port": 47800, "serial_port": "auto", "brightness": 160},
-	"game": {"start_mission": "launch"},
+	"game": {"start_mission": "launch", "difficulty": "normal", "skip_checklist": false},
 }
 
 var cfg := ConfigFile.new()
@@ -50,10 +59,18 @@ func _enter_tree() -> void:
 	var err := cfg.load(PATH)
 	if err != OK:
 		cfg = ConfigFile.new()
+	var old_layout := err == OK and int(cfg.get_value("display", "layout_version", 1)) < 2
 	for section in DEFAULTS:
 		for key in DEFAULTS[section]:
 			if not cfg.has_section_key(section, key):
 				cfg.set_value(section, key, DEFAULTS[section][key])
+	# v0.1 saved fixed screen numbers (left 1, right 2, console 0); v2 assigns roles automatically
+	if old_layout:
+		for r in ["left", "right", "console", "commander"]:
+			cfg.set_value("display", r + "_screen", -1)
+		cfg.set_value("display", "layout_version", 2)
+		if FileAccess.file_exists(PATH) and not is_test_run():
+			cfg.save(PATH)
 	if cli.has("quality"):
 		cfg.set_value("graphics", "quality", cli["quality"])
 	if cli.has("dev"):

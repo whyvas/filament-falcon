@@ -573,9 +573,10 @@ def ch_crew(D: Data) -> str:
  {card(f'<h3>Ops · right seat</h3><p class="small"><em>{md_html(gpick("OPS"), True)}</em></p><p class="small">{md_html(strip_role(pick("Right seat")), True)}</p>{dev("Falcon Ops")}', 'ops')}
  {card(f'<h3>Mission Control · Dad</h3><p class="small"><em>{md_html(gpick("COMMANDER"), True)}</em></p><p class="small">{md_html(strip_role(pick("Rear seat")), True)}</p>{dev("Falcon Command")}', 'cmd')}
 </div>
-<div class="g2">
+<div class="g3">
  {card('<h4>Shared overhead console</h4><p class="small">' + md_html(strip_role(pick("Overhead")), True) + '</p>')}
- {card('<h4>Centre touchscreen</h4><p class="small">' + md_html(strip_role(pick("Center touchscreen")), True) + '</p>')}
+ {card('<h4>Kids\' console touchscreen</h4><p class="small">' + md_html(strip_role(pick("Kids' console touchscreen")), True) + '</p>')}
+ {card('<h4>Commander screen</h4><p class="small">' + md_html(strip_role(pick("Commander screen")), True) + '</p>', 'cmd')}
 </div>"""
     hero_rows = [[f"<b>{md_html(r[1], True)}</b><br><span class='dim'>{md_html(r[2], True)}</span>", md_html(r[3], True), md_html(r[4], True)] for r in D.hero]
     balanced = f"""
@@ -992,7 +993,7 @@ def ch_displays(D: Data) -> str:
   {card('<h4>Fit between the kids</h4><p class="small">' + md_html(td[2] if len(td) > 2 else '', True) + '</p>')}
  </div>
 </div>"""
-    return chapter("Displays and cabling", p1, "Two curved window monitors and a touchscreen") + page("GPU outputs and cable routing", p2, "RX 6800 XT: 2 × DP, HDMI, USB-C")
+    return chapter("Displays and cabling", p1, "Two curved window monitors, a touchscreen and the Commander monitor") + page("GPU outputs and cable routing", p2, "RX 6800 XT: 2 × DP, HDMI, USB-C")
 
 
 def ch_electronics(D: Data) -> str:
@@ -1131,19 +1132,20 @@ def ch_game(D: Data) -> str:
     gr = "docs/game/README.md"
     intro = md_section(gr, "The Filament Falcon: game").split("![")[0]
     gfx = md_bullets(md_section(gr, "Graphics notes"))
-    disp = md_section(gr, "3. The three displays")
-    dparts = [x for x in disp.split("\n\n") if not x.strip().startswith("|")]
+    disp = md_section(gr, "3. The four screens")
+    dparts = [x for x in md_section(gr, "Which screen gets which role").split("\n\n")
+              if x.strip() and not x.strip().startswith(("|", "```", "1.", "-"))]
     p1 = f"""
 <div class="g-wide-r">
  <div>
   <p class="lead">{md_html(intro, True)}</p>
-  {card('<h4>Engine</h4><p class="small">Godot 4 (README: 4.7.x stable, standard build), Forward+ renderer on Vulkan (Mesa RADV on the RX 6800 XT), GDScript. <code>godot --path game</code> opens cockpit mode (one fullscreen window per screen) when it finds ≥ 3 screens, otherwise a tiled dev mode.</p>')}
+  {card('<h4>Engine</h4><p class="small">Godot 4 (README: 4.7.x stable, standard build), Forward+ renderer on Vulkan (Mesa RADV on the RX 6800 XT), GDScript. <code>godot --path game</code> opens cockpit mode (one fullscreen window per screen) when it finds ≥ 3 screens, otherwise a tiled dev mode. Four windows: left and right out-the-window views, the kids\' touch console and the Commander screen (with three screens the Commander becomes a console tab).</p>')}
   <h4>Graphics notes</h4><ul class="tiny">{''.join(f'<li>{md_html(b, True)}</li>' for b in gfx[:3])}</ul>
  </div>
  <div>
-  {fig('docs/game/screenshots/02_cockpit_tiled_briefing.jpg', '<b>Dev mode:</b> both window views and the touchscreen console tiled in one window, showing a mission briefing.', 'h22')}
+  {fig('docs/game/screenshots/02_cockpit_tiled_briefing.jpg', '<b>Dev mode:</b> both window views, the kids\' console and the Commander screen tiled in one window.', 'h22')}
   {md_tbl(md_table(disp), 'compact')}
-  <p class="tiny">{md_html(dparts[0] if dparts else '', True)} {md_html(dparts[1] if len(dparts) > 1 else '', True)}</p>
+  <p class="tiny">{" ".join(md_html(x, True) for x in dparts[:3])}</p>
  </div>
 </div>"""
     sim = rd("game/scripts/sim/ship_sim.gd")
@@ -1177,7 +1179,7 @@ def ch_game(D: Data) -> str:
   {card('<h4>Before every mission</h4><ol class="small">' + ''.join(f'<li>{md_html(b, True)}</li>' for b in before) + '</ol>', 'cmd')}
  </div>
 </div>"""
-    out = chapter("The game", p1, "Godot 4, three displays, six missions") + page("Flight model", p2, "real physics, friendly assists")
+    out = chapter("The game", p1, "Godot 4, four screens, six missions") + page("Flight model", p2, "real physics, friendly assists")
     flight = {t["id"]: t for t in D.tests.get("flight", [])}
     for i, m in enumerate(D.missions):
         hero = D.hero[i] if i < len(D.hero) else ["", "", "", "", ""]
@@ -1202,16 +1204,22 @@ def ch_game(D: Data) -> str:
  <div>{grid}</div>
 </div>"""
         out += page(f"Mission {i + 1} · {m['title'].title()}", inner, esc(m["tagline"]), cls="mission")
-    pages = [("18_console_mission.jpg", "MISSION", "briefing, current step with ▶, start/pause"),
-             ("19_console_nav.jpg", "NAV", "orbit map, nav target, time WARP"),
-             ("20_console_systems.jpg", "SYSTEMS", "power buses, consumables, the fault list for MASTER CAUTION"),
-             ("21_console_checklist.jpg", "CHECKLIST", "the six overhead switches, green when done in order"),
-             ("22_console_cameras.jpg", "CAMERAS", "camera feeds, e.g. the docking camera for Ops"),
-             ("23_console_controls.jpg", "CONTROLS", "live state of every action, device list, LED test"),
-             ("24_console_setup.jpg", "SETUP", "screens, graphics, frame cap, display geometry, LED bridge")]
-    tp = '<div class="g4">' + "".join(fig("docs/game/screenshots/" + f, f"<b>{n}</b> · {d}", "h15", maxw=900, q=78) for f, n, d in pages) + \
-        card('<h4>Made for 22" touch</h4><p class="tiny">Buttons at least 64 px (16 mm), mostly 80-120 px; body text 22-32 px, readable from the seat. When a Falcon board is connected, its physical switches win and the matching touch buttons are disabled.</p>') + "</div>"
-    out += page("Touchscreen console pages", tp, "ViewSonic TD2220 in the centre console")
+    pages = [("18_console_flight.jpg", "FLIGHT", "attitude ball, speed/altitude tapes, fuel; Pilot and Ops controls, live camera"),
+             ("19_console_nav.jpg", "NAV", "orbit map, steer-to vectors, nav target"),
+             ("20_console_systems.jpg", "SYSTEMS", "power distribution, ship health, the fault list for MASTER CAUTION"),
+             ("21_console_cameras.jpg", "CAMERAS", "docking, arm and chase camera feeds"),
+             ("22_console_checklist.jpg", "CHECKLIST", "the overhead start-up switches, green when done in order")]
+    tp = '<div class="g3">' + "".join(fig("docs/game/screenshots/" + f, f"<b>{n}</b> · {d}", "h15", maxw=900, q=78) for f, n, d in pages) + \
+        card('<h4>Made for 22" touch, only for the kids</h4><p class="tiny">Buttons 76-100 px (19-25 mm), text 22-34 px, readable from the seats. A task strip shows each kid\'s current job; MASTER CAUTION flashes at the top. When a Falcon board is connected, its physical switches win and the matching touch buttons only mirror them. Touch is mapped to this monitor by <code>game/tools/setup_displays.sh</code> (run by <code>run.sh</code>).</p>') + "</div>"
+    out += page("Kids' touchscreen console", tp, "ViewSonic TD2220 in the centre console")
+    cpages = [("23_commander_mission_control.jpg", "MISSION CONTROL", "missions, start/pause/restart, failures, score; orbit map, warp; both kids' tasks, ship health"),
+              ("24_commander_briefing.jpg", "BRIEFING", "briefing, both jobs, every objective, read aloud"),
+              ("25_commander_training.jpg", "TRAINING", "difficulty, skip checklist, assist override, voice"),
+              ("26_commander_controls.jpg", "CONTROLS", "live test of every switch and axis, devices, LED test"),
+              ("27_commander_setup.jpg", "SETUP", "screen roles, quality, FPS cap, vsync, geometry, LED bridge"),
+              ("28_console_commander_tab.jpg", "3-SCREEN FALLBACK", "no Commander monitor: the same UI as a console tab (Esc)")]
+    tc = '<div class="g3">' + "".join(fig("docs/game/screenshots/" + f, f"<b>{n}</b> · {d}", "h15", maxw=900, q=78) for f, n, d in cpages) + "</div>"
+    out += page("Commander screen", tc, "31.5\" monitor at dad's seat, mouse and keyboard")
     T = D.tests
     if T:
         def rows(sec, fl):
@@ -1298,7 +1306,7 @@ def ch_dome(D: Data) -> str:
 CROSS_CHECKS = [
     "<b>Electronics vs. frame v0.2.</b> docs/electronics/README.md (\"Seat lift\" parts) and diagram 04 still describe the v0.1 single seat lift (2 actuators, ~7.5 A fuse, 6A10 diodes, one seat-up sense). The v0.2 frame uses 4 actuators, relays as two H-bridges, a 20 A fuse, 1N5408 diodes, lock and lever switches and a safety edge (frame/BOM.md, frame drawing 04). The electronics doc and diagram 04 need updating for the cradle + pod.",
     "<b>Read-only position contacts.</b> frame/BOM.md provides two dry contacts (cradle reclined, pod down) for Falcon Command, but the firmware and input map expose a single <code>seat_up</code> input (button 15, GPIO39). Decide which states the game should see and add the second input.",
-    "<b>xrandr example.</b> The example in docs/game/README.md puts the console on HDMI-A-1, while the cabling plan puts the C275W (OPS) on HDMI and the TD2220 on DP via DVI. Use your real output names from <code>xrandr --listmonitors</code>.",
+    "<b>Cabling plan vs. the real rig.</b> docs/mechanical/displays.md plans the C275W (OPS) on HDMI, but on the owner's rig HDMI-A-0 drives the 31.5\" Commander monitor and the windows are on DisplayPort-2/-1. The game maps roles by output name and size, so this works. Update the cabling table when the final cables are in.",
 ]
 
 
@@ -1308,7 +1316,7 @@ def ch_status(D: Data, now: datetime) -> str:
         f"Master spec; CAD for {len(D.labels.get('panels', []))} panels and {len(D.val.get('parts', {}))} printed part files, all 3MF exports validated.",
         "Parametric wooden frame with motion geometry, clearance checks, drawings, cut list and frame BOM (v0.2 reclining cradle + drop-down pod).",
         "ESP32-S3 firmware for the three boards, wiring diagrams, udev rules, LED protocol.",
-        f"Godot game v0.1: six missions, three-display setup, touchscreen console. Tests: {esc(T.get('smoke_result', 'n/a'))} (smoke), {esc(T.get('flight_result', 'n/a'))} (flight).",
+        f"Godot game v0.1: six missions, four-screen setup (two windows, kids' touch console, Commander screen). Tests: {esc(T.get('smoke_result', 'n/a'))} (smoke), {esc(T.get('flight_result', 'n/a'))} (flight).",
         f"Editable BOM with {sum(v['lines'] for v in D.bom['cats'].values())} lines: {cad(D.bom['grand'])} CAD still to buy.",
     ]
     p1 = f"""
@@ -1347,7 +1355,7 @@ def ch_status(D: Data, now: datetime) -> str:
         ("Interlock", "Wire the hardwired interlock (frame drawing 04); test every limit, lock, key, E-stop, lever and the safety edge with nobody seated (step 10)."),
         ("Guards and gaps", "Brush strips, skins, crush-zone ramp; re-check every gap with the 25 mm dowel and the 120 mm ball (step 11)."),
         ("Panels, displays, harness", "Bolt in the panels and the monitors with their safety cables, route cables through the pivot clamps, fit the harnesses (step 12)."),
-        ("LEDs and game", "Lay the strip, measure the real segment map, rebuild Falcon Command; set up xrandr, touch mapping and the display geometry on the SETUP page."),
+        ("LEDs and game", "Lay the strip, measure the real segment map, rebuild Falcon Command; set up xrandr, autostart the touch mapping and set the display geometry on the Commander SETUP page."),
         ("First flight", "Checklist, harnesses on, hands on laps, heads back, hold FLT... and launch First Light."),
     ]
     p3 = '<div class="g3">' + "".join(

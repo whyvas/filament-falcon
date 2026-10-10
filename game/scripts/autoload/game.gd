@@ -12,6 +12,9 @@ enum State { BRIEFING, ACTIVE, PAUSED, COMPLETE, FAILED }
 const STATE_NAMES := ["BRIEFING", "ACTIVE", "PAUSED", "COMPLETE", "FAILED"]
 
 const MISSION_ORDER := ["launch", "docking", "lunar", "asteroids", "reentry", "sandbox"]
+const MISSION_TITLES := {"launch": "FIRST LIGHT", "docking": "SPACE HUG", "lunar": "EAGLE EYE",
+	"asteroids": "ROCK HOPPERS", "reentry": "HOMECOMING", "sandbox": "FREE FLIGHT"}
+const DIFFICULTIES := ["easy", "normal", "hard"]
 const MISSION_SCRIPTS := {
 	"launch": "res://scripts/missions/m_launch.gd",
 	"docking": "res://scripts/missions/m_docking.gd",
@@ -173,6 +176,7 @@ func load_mission(id: String) -> void:
 	mission = scr.new()
 	mission.game = self
 	mission.setup()
+	_apply_difficulty()
 	sim.pick_dominant()
 	_update_entities(0.0)
 	nav_index = clampi(nav_index, -1, nav_targets.size() - 1)
@@ -181,6 +185,38 @@ func load_mission(id: String) -> void:
 	objective_changed.emit()
 	if LedLink:
 		LedLink.clear_all()
+	if not test_mode and bool(Settings.get_v("game", "skip_checklist")):
+		auto_checklist()
+
+
+## Commander setting (Settings game/difficulty). Tests always fly "normal".
+func difficulty() -> String:
+	if test_mode:
+		return "normal"
+	var d := str(Settings.get_v("game", "difficulty"))
+	return d if d in DIFFICULTIES else "normal"
+
+
+## easy: +30% fuel and RCS, half damage. hard: -15% fuel, 1.5x damage.
+func _apply_difficulty() -> void:
+	match difficulty():
+		"easy":
+			sim.fuel = minf(sim.fuel * 1.3, sim.fuel_max)
+			sim.mono_max = maxf(sim.mono_max, sim.mono) * 1.3
+			sim.mono *= 1.3
+		"hard":
+			sim.fuel *= 0.85
+
+
+func restart_mission() -> void:
+	load_mission(mission_id)
+	Voice.say("Mission reset. " + mission.title)
+
+
+## Commander override: mark the current objective done (the crew is stuck, or for demos).
+func skip_step() -> void:
+	if state == State.ACTIVE and mission:
+		mission.cheat_advance()
 
 
 func _reset_ship() -> void:
@@ -718,6 +754,7 @@ func _set_warning(id: String, text: String) -> void:
 
 
 func _damage(amount: float, announce: bool = true) -> void:
+	amount *= {"easy": 0.5, "hard": 1.5}.get(difficulty(), 1.0)
 	hull = maxf(0.0, hull - amount)
 	damage_taken += amount
 	if announce and amount > 2.0:

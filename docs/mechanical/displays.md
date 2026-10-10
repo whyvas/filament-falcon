@@ -65,12 +65,17 @@ mode)** and drives at most **4 displays at once**.
 | HDMI 2.1 | HDMI cable, 3-5 m | C275W-1920RN (OPS) HDMI in (its only digital input) | 1920 x 1080 @ 75 Hz |
 | DP 2 | **DP -> DVI-D single-link** adapter or cable (passive is fine: DP++) | TD2220 DVI-D in | 1920 x 1080 @ 60 Hz |
 | USB-A (PC) | USB-A -> USB-B, <= 5 m (or active extension) | TD2220 touch | HID touch |
-| USB-C | spare | 4th display (e.g. dad's small screen or 1 projector) via USB-C -> HDMI | |
+| USB-C | USB-C -> DP/HDMI | 4th display: the COMMANDER monitor (31.5" 1080p at dad's seat) | 1920 x 1080 @ 60 Hz |
+
+All four heads are now in use. The actual cabling may differ from this plan. The game
+assigns screen roles by xrandr output name and physical size, not by port. On the owner's
+rig (v0.3) the outputs are DisplayPort-2 = left window, DisplayPort-1 = right window,
+DisplayPort-0 = TD2220 and HDMI-A-0 = 31.5" Commander (see `docs/game/README.md`,
+"The four screens").
 
 Alternative for the TD2220: USB-C -> DVI-D adapter, keeping DP 2 free. Avoid VGA
-(analog, soft picture). Mixed refresh rates (144/75/60) are fine with Godot's three
-windows, but set each window's V-Sync to its own display or cap the game at 60 fps
-if you see stutter.
+(analog, soft picture). Mixed refresh rates (144/75/60) are fine with Godot's four
+windows: the game caps at 75 fps and uses MAILBOX vsync on every window.
 
 Routing: the two monitor cables + power cross the **pod pivot**, the TD2220 DVI +
 USB + power cross the **cradle pivot**. Each bundle gets 2 printed

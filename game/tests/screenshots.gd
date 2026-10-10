@@ -52,7 +52,7 @@ func _shot(file_name: String, solo: String = "") -> void:
 
 func _run() -> void:
 	var only: String = str(Settings.cli.get("only", ""))
-	var shots := ["launch_pad", "launch_ascent", "orbit_station", "docking", "lunar", "asteroids", "reentry", "runway", "celebration", "console_pages"]
+	var shots := ["launch_pad", "launch_ascent", "orbit_station", "docking", "lunar", "asteroids", "reentry", "runway", "celebration", "console_pages", "commander"]
 	for s in shots:
 		if only != "" and not only.split(",").has(s):
 			continue
@@ -191,11 +191,13 @@ func _shot_celebration() -> void:
 
 
 func _shot_console_pages() -> void:
-	_start("launch")
-	_ticks(2.0)
+	# the kids' console mid-docking: camera on the port, Ops in RCS mode
+	_start("docking")
+	InputHub.set_group("ops", 0)
+	_ticks(3.0)
 	var con: ConsoleUI = display.console
 	var i := 18
-	for p in ["MISSION", "NAV", "SYSTEMS", "CHECKLIST", "CAMERAS", "CONTROLS", "SETUP"]:
+	for p in ["FLIGHT", "NAV", "SYSTEMS", "CAMERAS"]:
 		con.show_page(p)
 		if p == "SYSTEMS":
 			Game.inject_failure("leak")
@@ -203,3 +205,40 @@ func _shot_console_pages() -> void:
 		await _frames(3)
 		await _shot("%02d_console_%s" % [i, p.to_lower()], "console")
 		i += 1
+	# checklist before launch, half done
+	Game.load_mission("launch")
+	for id in Game.CHECKLIST:
+		InputHub.set_switch(id, false)
+	_ticks(0.2)
+	for k in 3:
+		InputHub.set_switch(Game.CHECKLIST[k], true)
+		_ticks(0.2)
+	con.show_page("CHECKLIST")
+	await _frames(3)
+	await _shot("%02d_console_checklist" % i, "console")
+	con.show_page("FLIGHT")
+
+
+func _shot_commander() -> void:
+	_start("docking")
+	_ticks(4.0)
+	Game.inject_failure("power")
+	_ticks(1.0)
+	var cmd: CommanderUI = display.commander
+	var i := 23
+	for p in ["MISSION CONTROL", "BRIEFING", "TRAINING", "CONTROLS", "SETUP"]:
+		cmd.show_page(p)
+		await _frames(3)
+		await _shot("%02d_commander_%s" % [i, p.to_lower().replace(" ", "_")], "commander")
+		i += 1
+	cmd.show_page("MISSION CONTROL")
+	# three-screen fallback: the Commander UI as a tab on the console
+	var c: Control = display.cont["commander"]
+	display.console.embed_commander(c)
+	display.console.show_page("COMMANDER")
+	await _frames(4)
+	await _shot("%02d_console_commander_tab" % i, "console")
+	display.console.release_commander()
+	display.dev_root.add_child(c)
+	display._layout_tiles()
+	await _frames(2)

@@ -1,11 +1,19 @@
 class_name DisplayManager
 extends Node
-## Owns the three views and maps them to physical screens.
+## Owns the four screen roles and maps them to physical monitors.
 ## - LEFT / RIGHT: forward windows. Both cameras share the ship eye point and use
 ##   asymmetric (off-axis) frusta computed from the real monitor geometry, so the two
 ##   monitors read as one continuous windscreen (the bezel gap is a real "window post").
-## - CONSOLE: the centre touchscreen UI.
-## Cockpit mode: one OS window per screen (fullscreen). Dev mode: all three tiled in one window.
+## - CONSOLE: the kids' touchscreen instrument panel (ConsoleUI), landscape or portrait.
+## - COMMANDER: the grown-up's screen (CommanderUI). With only three screens it becomes a
+##   tab on the console (Escape toggles it).
+## Cockpit mode: one OS window per screen (fullscreen). Dev mode: all four tiled in one window.
+##
+## Which monitor gets which role: per role, `display/<role>_output` (an output name such as
+## "DisplayPort-0", from `xrandr --listmonitors`) wins, then `display/<role>_screen` (Godot
+## screen index), else automatic: the ~22" panel (or a portrait one) is the console, the
+## biggest remaining one is the Commander when there are enough screens, and the rest are the
+## windows from left to right. The SETUP page on the Commander screen edits these.
 ##
 ## The out-the-window outputs are generic: `out_views` (from settings display/views) lists
 ## them, and each is described by a physical screen rectangle in eye space
@@ -13,6 +21,9 @@ extends Node
 ## Adding more outputs (e.g. three projectors on a dome) means: add names to display/views,
 ## teach `screen_rect_for` their geometry, and set display/<name>_warp to a canvas_item
 ## shader that pre-distorts that output for the dome (the hook is already wired below).
+
+const ROLES := ["left", "right", "console", "commander"]
+const ROLE_NAMES := {"left": "LEFT WINDOW", "right": "RIGHT WINDOW", "console": "KIDS' CONSOLE", "commander": "COMMANDER"}
 
 var NEAR := 1.0     # far/near must stay <= ~1e6 (float32 frustum planes)
 var FAR := 1.0e6
@@ -22,12 +33,18 @@ var vp := {}            # name -> SubViewport
 var cont := {}          # name -> SubViewportContainer
 var cams := {}          # "left"/"right" -> Camera3D
 var huds := {}
-var console: Control
+var console: ConsoleUI
+var commander: CommanderUI
 var windows: Array[Window] = []
 var mode := "dev"
 var dev_root: Control
 var out_views: Array[String] = []   # out-the-window outputs, e.g. ["left", "right"]
 var solo_view := ""                 # screenshot helper: this view gets a centred, forward frustum
+var monitors: Array = []            # [{i, name, pos, size, mm, diag, hz}]
+var assign := {}                    # role -> screen index (-1 = none)
+var reasons := {}                   # role -> "auto" | "output" | "screen" | ""
+var commander_embedded := false
+var _esc_was := false
 
 
 func setup(w: WorldView) -> void:
@@ -39,13 +56,14 @@ func setup(w: WorldView) -> void:
 	out_views.clear()
 	for n0 in str(Settings.get_v("display", "views")).split(",", false):
 		var nn: String = n0.strip_edges()
-		if nn != "" and nn != "console" and not out_views.has(nn):
+		if nn != "" and nn != "console" and nn != "commander" and not out_views.has(nn):
 			out_views.append(nn)
 	if out_views.is_empty():
 		out_views = ["left", "right"]
 	Engine.max_fps = int(Settings.get_v("display", "max_fps"))
 	var all_views: Array[String] = out_views.duplicate()
 	all_views.append("console")
+	all_views.append("commander")
 	for n: String in all_views:
 		var c := SubViewportContainer.new()
 		c.name = n.capitalize() + "View"
@@ -59,7 +77,21 @@ func setup(w: WorldView) -> void:
 		c.add_child(v)
 		vp[n] = v
 		cont[n] = c
-		if n != "console":
+		if n == "console":
+			v.transparent_bg = false
+			console = ConsoleUI.new()
+			console.name = "Console"
+			console.display = self
+			console.set_anchors_preset(Control.PRESET_FULL_RECT)
+			v.add_child(console)
+		elif n == "commander":
+			v.transparent_bg = false
+			commander = CommanderUI.new()
+			commander.name = "Commander"
+			commander.display = self
+			commander.set_anchors_preset(Control.PRESET_FULL_RECT)
+			v.add_child(commander)
+		else:
 			var cam := Camera3D.new()
 			cam.name = "Camera"
 			cam.projection = Camera3D.PROJECTION_FRUSTUM
@@ -78,20 +110,21 @@ func setup(w: WorldView) -> void:
 			hud.set_anchors_preset(Control.PRESET_FULL_RECT)
 			v.add_child(hud)
 			huds[n] = hud
-		else:
-			v.transparent_bg = false
-			console = ConsoleUI.new()
-			console.name = "Console"
-			console.display = self
-			console.set_anchors_preset(Control.PRESET_FULL_RECT)
-			v.add_child(console)
 	apply_quality()
 	apply_layout()
 	Settings.changed.connect(func(section: String) -> void:
 		if section == "graphics":
 			apply_quality()
 		elif section == "display":
-			Engine.max_fps = int(Settings.get_v("display", "max_fps")))
+			Engine.max_fps = int(Settings.get_v("display", "max_fps"))
+			resolve_roles())
+
+
+func role_list() -> Array[String]:
+	var r: Array[String] = out_views.duplicate()
+	r.append("console")
+	r.append("commander")
+	return r
 
 
 func resolved_mode() -> String:
@@ -101,12 +134,236 @@ func resolved_mode() -> String:
 	return m
 
 
+# ======================================================================== monitors + roles
+## Godot screens, with output names and physical size from `xrandr --listmonitors` when
+## available (X11), else physical size from the screen DPI.
+func detect_monitors() -> void:
+	monitors.clear()
+	var xr := _xrandr_monitors()
+	for i in DisplayServer.get_screen_count():
+		var pos := DisplayServer.screen_get_position(i)
+		var sz := DisplayServer.screen_get_size(i)
+		# (refresh rate comes from XRandR; skip it when XRandR sees fewer outputs, e.g. Xvfb + Xinerama)
+		var hz := DisplayServer.screen_get_refresh_rate(i) if xr.size() >= DisplayServer.get_screen_count() or OS.get_name() != "Linux" else -1.0
+		var m := {"i": i, "name": "", "pos": pos, "size": sz, "mm": Vector2.ZERO, "hz": hz}
+		for x: Dictionary in xr:
+			if x["pos"] == pos and x["size"] == sz:
+				m["name"] = x["name"]
+				m["mm"] = x["mm"]
+		if (m["mm"] as Vector2) == Vector2.ZERO:
+			var dpi := DisplayServer.screen_get_dpi(i)
+			if dpi > 20:
+				m["mm"] = Vector2(sz) / float(dpi) * 25.4
+		m["diag"] = (m["mm"] as Vector2).length() / 25.4
+		monitors.append(m)
+
+
+func _xrandr_monitors() -> Array:
+	var out: Array = []
+	if OS.get_name() != "Linux" or Settings.is_headless() or Settings.is_test_run():
+		return out
+	var lines: Array = []
+	if OS.execute("xrandr", ["--listmonitors"], lines) != 0 or lines.is_empty():
+		return out
+	out = parse_xrandr(str(lines[0]))
+	return out
+
+
+## Parses `xrandr --listmonitors` lines like " 2: +DisplayPort-0 1080/480x1920/270+3271+1080  DisplayPort-0".
+static func parse_xrandr(text: String) -> Array:
+	var out: Array = []
+	var re := RegEx.new()
+	re.compile("^\\s*\\d+:\\s+[+*]*(\\S+)\\s+(\\d+)/(\\d+)x(\\d+)/(\\d+)\\+(-?\\d+)\\+(-?\\d+)")
+	for line in text.split("\n"):
+		var mt := re.search(line)
+		if mt == null:
+			continue
+		out.append({"name": mt.get_string(1), "size": Vector2i(int(mt.get_string(2)), int(mt.get_string(4))),
+			"mm": Vector2(float(mt.get_string(3)), float(mt.get_string(5))), "pos": Vector2i(int(mt.get_string(6)), int(mt.get_string(7)))})
+	return out
+
+
+func monitor_name(i: int) -> String:
+	for m: Dictionary in monitors:
+		if int(m["i"]) == i:
+			return str(m["name"])
+	return ""
+
+
+func _setting_str(key: String) -> String:
+	var v: Variant = Settings.get_v("display", key)
+	return "" if v == null else str(v)
+
+
+func _setting_int(key: String, def: int) -> int:
+	var v: Variant = Settings.get_v("display", key)
+	return def if v == null else int(v)
+
+
+## Decide which screen each role uses (see the header comment for the rules).
+func resolve_roles() -> void:
+	if monitors.is_empty():
+		detect_monitors()
+	assign.clear()
+	reasons.clear()
+	var n := monitors.size()
+	var used := {}
+	for role: String in role_list():
+		assign[role] = -1
+		reasons[role] = ""
+		var out := _setting_str(role + "_output")
+		var idx := _setting_int(role + "_screen", -1)
+		if out != "":
+			for m: Dictionary in monitors:
+				if str(m["name"]) == out:
+					assign[role] = int(m["i"])
+					reasons[role] = "output"
+		if int(assign[role]) < 0 and idx >= 0 and idx < n:
+			assign[role] = idx
+			reasons[role] = "screen"
+		if int(assign[role]) >= 0:
+			used[int(assign[role])] = true
+	var free: Array = []
+	for m: Dictionary in monitors:
+		if not used.has(int(m["i"])):
+			free.append(m)
+	# console: the ~22" panel, else a portrait one, else the lowest screen
+	if int(assign["console"]) < 0 and not free.is_empty():
+		var best: Dictionary = {}
+		var best_score := 1e9
+		for m: Dictionary in free:
+			var d := float(m["diag"])
+			var sz: Vector2i = m["size"]
+			var score := absf(d - 22.0) if d > 18.0 and d < 24.5 else 100.0
+			if sz.y > sz.x:
+				score = minf(score, 50.0)
+			score -= float((m["pos"] as Vector2i).y) * 0.001
+			if score < best_score:
+				best_score = score
+				best = m
+		if best_score < 99.0 or free.size() > out_views.size():
+			if best_score >= 99.0:
+				# no size hint: the lowest screen (the console sits below the windows)
+				for m: Dictionary in free:
+					if (m["pos"] as Vector2i).y > (best["pos"] as Vector2i).y:
+						best = m
+			assign["console"] = int(best["i"])
+			reasons["console"] = "auto"
+			free.erase(best)
+	# commander: only if there is a screen to spare beyond the windows; the biggest one
+	var need_out := 0
+	for v in out_views:
+		if int(assign[v]) < 0:
+			need_out += 1
+	if int(assign["commander"]) < 0 and free.size() > need_out:
+		var big: Dictionary = free[0]
+		for m: Dictionary in free:
+			if float(m["diag"]) > float(big["diag"]) + 0.5:
+				big = m
+		assign["commander"] = int(big["i"])
+		reasons["commander"] = "auto"
+		free.erase(big)
+	# windows: left to right
+	free.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var pa: Vector2i = a["pos"]
+		var pb: Vector2i = b["pos"]
+		return pa.x < pb.x or (pa.x == pb.x and pa.y < pb.y))
+	for v in out_views:
+		if int(assign[v]) < 0 and not free.is_empty():
+			assign[v] = int(free[0]["i"])
+			reasons[v] = "auto"
+			free.remove_at(0)
+
+
+func screen_of(role: String) -> int:
+	if assign.is_empty():
+		resolve_roles()
+	return int(assign.get(role, -1))
+
+
+## Setup page: cycle a role through AUTO, screen 0, 1, ... (stored by output name when known).
+func cycle_role_screen(role: String, d: int) -> void:
+	detect_monitors()
+	var n := monitors.size()
+	var cur := -1
+	var out := _setting_str(role + "_output")
+	if out != "":
+		for m: Dictionary in monitors:
+			if str(m["name"]) == out:
+				cur = int(m["i"])
+	elif _setting_int(role + "_screen", -1) >= 0:
+		cur = _setting_int(role + "_screen", -1)
+	var nxt := posmod(cur + 1 + d, n + 1) - 1
+	var nm := monitor_name(nxt) if nxt >= 0 else ""
+	Settings.set_v("display", role + "_output", nm, false)
+	Settings.set_v("display", role + "_screen", -1 if nm != "" else nxt)
+
+
+func _mon_text(i: int) -> String:
+	for m: Dictionary in monitors:
+		if int(m["i"]) == i:
+			var sz: Vector2i = m["size"]
+			return "#%d %s %d\" %dx%d%s" % [i, str(m["name"]), int(round(float(m["diag"]))), sz.x, sz.y, " portrait" if sz.y > sz.x else ""]
+	return "#%d" % i
+
+
+func describe_role(role: String) -> String:
+	if mode != "cockpit":
+		return "dev layout: tile   (cockpit: %s)" % _describe_cockpit(role)
+	return _describe_cockpit(role)
+
+
+func _describe_cockpit(role: String) -> String:
+	var i := screen_of(role)
+	var how := {"auto": "AUTO → ", "output": "", "screen": ""}.get(str(reasons.get(role, "")), "") as String
+	if i < 0:
+		if role == "commander":
+			return "AUTO → tab on the kids' console (Esc)"
+		return "not shown (no screen left)"
+	return how + _mon_text(i)
+
+
+func describe_monitors() -> String:
+	if monitors.is_empty():
+		detect_monitors()
+	var s := "Screens detected: %d\n" % monitors.size()
+	for m: Dictionary in monitors:
+		var hz := float(m["hz"])
+		s += "  %s%s at %s\n" % [_mon_text(int(m["i"])), ("  @ %.0f Hz" % hz) if hz > 0.0 else "", str(m["pos"])]
+	return s
+
+
+func layout_summary() -> String:
+	var s := mode
+	for r: String in role_list():
+		s += "\n  %s: %s" % [ROLE_NAMES.get(r, r.to_upper()), describe_role(r) if mode == "cockpit" else "tile"]
+	return s
+
+
+## Remember the resolved output names for game/tools/setup_displays.sh (touch mapping).
+func _write_role_env() -> void:
+	if Settings.is_test_run():
+		return
+	var f := FileAccess.open("user://displays.env", FileAccess.WRITE)
+	if f == null:
+		return
+	f.store_line("# Written by the game at start-up: which output each role uses (read by tools/setup_displays.sh)")
+	for r: String in role_list():
+		f.store_line("%s_OUTPUT=%s" % [r.to_upper(), monitor_name(screen_of(r))])
+
+
+# ======================================================================== layout
 func apply_layout() -> void:
 	mode = resolved_mode()
+	detect_monitors()
+	resolve_roles()
+	console.release_commander()
+	commander_embedded = false
 	for c in cont.values():
 		var cc: Control = c
 		if cc.get_parent():
 			cc.get_parent().remove_child(cc)
+		cc.visible = true
 	for w in windows:
 		w.queue_free()
 	windows.clear()
@@ -114,18 +371,36 @@ func apply_layout() -> void:
 		dev_root.queue_free()
 		dev_root = null
 	var root_win := get_window()
+	(vp["console"] as SubViewport).size_2d_override = Vector2i(1920, 1080)
 	if mode == "cockpit":
+		_write_role_env()
 		var fs := bool(Settings.get_v("display", "fullscreen"))
-		_place_window(root_win, int(Settings.get_v("display", "console_screen")), fs)
+		var cs := screen_of("console")
+		if cs < 0:
+			cs = 0
+		var csz := DisplayServer.screen_get_size(cs)
+		if csz.y > csz.x:
+			(vp["console"] as SubViewport).size_2d_override = Vector2i(1080, 1920)   # portrait panel
+		_place_window(root_win, cs, fs)
 		var host := Control.new()
 		host.set_anchors_preset(Control.PRESET_FULL_RECT)
 		get_parent().add_child.call_deferred(host)
 		dev_root = host
 		host.add_child(cont["console"])
 		cont["console"].set_anchors_preset(Control.PRESET_FULL_RECT)
-		for n: String in out_views:
+		var win_roles: Array[String] = out_views.duplicate()
+		if screen_of("commander") >= 0:
+			win_roles.append("commander")
+		else:
+			commander_embedded = true
+			console.embed_commander(cont["commander"])
+		for n: String in win_roles:
+			var scr := screen_of(n)
+			if scr < 0:
+				push_warning("display: no screen for %s" % n)
+				continue
 			var w := Window.new()
-			w.title = "Filament Falcon - " + n.to_upper() + " WINDOW"
+			w.title = "Filament Falcon - " + str(ROLE_NAMES.get(n, n.to_upper()))
 			w.borderless = true
 			w.unresizable = false
 			w.close_requested.connect(func() -> void: pass)
@@ -133,8 +408,10 @@ func apply_layout() -> void:
 			w.add_child(cont[n])
 			cont[n].set_anchors_preset(Control.PRESET_FULL_RECT)
 			windows.append(w)
-			var scr: Variant = Settings.get_v("display", n + "_screen")
-			_place_window.call_deferred(w, int(scr) if scr != null else 0, fs)
+			_place_window.call_deferred(w, scr, fs)
+		print("display: cockpit layout on %d screens" % monitors.size())
+		for r: String in role_list():
+			print("  %-14s %s" % [str(ROLE_NAMES.get(r, r)), _describe_cockpit(r)])
 	else:
 		if root_win.mode == Window.MODE_FULLSCREEN or root_win.mode == Window.MODE_EXCLUSIVE_FULLSCREEN:
 			root_win.mode = Window.MODE_WINDOWED
@@ -203,6 +480,7 @@ func _apply_warp(n: String) -> void:
 	c.material = mat
 
 
+## Dev mode: windows across the top, console and Commander side by side underneath.
 func _layout_tiles() -> void:
 	if dev_root == null:
 		return
@@ -211,15 +489,19 @@ func _layout_tiles() -> void:
 		s = Vector2(get_window().size)
 	var nv := out_views.size()
 	var tile_w := floorf(s.x / nv)
-	var top_h := minf(floorf(tile_w * 9.0 / 16.0), floorf(s.y * 0.55))
+	var top_h := minf(floorf(tile_w * 9.0 / 16.0), floorf(s.y * 0.5))
 	for i in nv:
 		var c: Control = cont[out_views[i]]
 		c.position = Vector2(i * tile_w + 2, 0)
 		c.size = Vector2(tile_w - 4, top_h)
 	var ch := s.y - top_h - 4
-	var cw := minf(ch * 16.0 / 9.0, s.x)
-	(cont["console"] as Control).position = Vector2((s.x - cw) * 0.5, top_h + 4)
+	var cw := minf(ch * 16.0 / 9.0, s.x * 0.5 - 4)
+	ch = cw * 9.0 / 16.0
+	var x0 := (s.x - cw * 2.0 - 4.0) * 0.5
+	(cont["console"] as Control).position = Vector2(x0, top_h + 4)
 	(cont["console"] as Control).size = Vector2(cw, ch)
+	(cont["commander"] as Control).position = Vector2(x0 + cw + 4, top_h + 4)
+	(cont["commander"] as Control).size = Vector2(cw, ch)
 
 
 func apply_quality() -> void:
@@ -272,6 +554,11 @@ func frustum_for(side: int) -> Array:
 
 
 func _process(_dt: float) -> void:
+	# Escape: show/hide the Commander tab on the console (three-screen rigs)
+	var esc := Input.is_physical_key_pressed(KEY_ESCAPE) and not Input.is_key_pressed(KEY_SHIFT)
+	if esc and not _esc_was and commander_embedded:
+		console.toggle_commander()
+	_esc_was = esc
 	if world == null:
 		return
 	for n: String in out_views:
@@ -296,11 +583,14 @@ func solo(which: String) -> void:
 	solo_view = which
 	if which == "":
 		for n in cont:
-			(cont[n] as Control).visible = true
+			if (cont[n] as Control).get_parent() == dev_root:
+				(cont[n] as Control).visible = true
 		_layout_tiles()
 		return
 	for n in cont:
 		var c: Control = cont[n]
+		if c.get_parent() != dev_root:
+			continue          # e.g. the Commander embedded as a console tab
 		c.visible = (n == which)
 		if n == which:
 			c.position = Vector2.ZERO
