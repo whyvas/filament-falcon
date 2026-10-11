@@ -1,4 +1,4 @@
-# Frame bill of materials (v0.2: reclining cradle + drop-down pod)
+# Frame bill of materials (v0.3: reclining cradle + drop-down pod on ONE actuator)
 
 Metric first, imperial in brackets. Lumber and sheet quantities come from
 `frame_model.py` (see `cut_list.md` for every piece and the board packing).
@@ -34,9 +34,12 @@ Printed parts are listed in `docs/mechanical/README.md`; switches per panel in
 | Qty | Item | Notes |
 |---|---|---|
 | 2 | **Cradle actuators**: 12 V DC linear actuator, 10" (254 mm) stroke, >= 1500 N (330 lbf), self-locking (acme/worm), ~364 mm (14.3") retracted pin-to-pin, <= 10 mm/s, internal limits | PUSH to recline; worst case ~775 N each (model). Retracted length must be 364 +-10 mm, else move the anchor in `frame_model.py` and re-run |
-| 2 | **Pod actuators**: 12 V DC, 12" (305 mm) stroke, >= 1000 N (225 lbf), self-locking, ~415 mm (16.3") retracted, <= 10 mm/s | PULL to raise; 141 N each normally, 390 N each if both struts fail |
-| 2 | **Gas struts** (lift supports), 10 mm rod / 22 mm body, ~240 mm extended, >= 70 mm stroke, F1 = 590 N (progressive ~1.5) with ball-stud ends | buy 550-600 N, or an adjustable-valve strut (bleed down to the right force). Fit with the pod UP |
-| 4 | Steel angle brackets 50 x 50 x 5 mm with M8 hole | strut and actuator anchors on the tower posts / casings |
+| 1 | **Pod actuator** (ONE, left casing): 12 V DC, 12" (300 mm) stroke, >= 1500 N (330 lbf), self-locking, 420 mm (16.5") retracted pin-to-pin, <= 10 mm/s, internal limits, 8 mm clevis holes. Chosen: RVMARINEPAT LA03-12-300-1500N (amazon.ca B0FKMVCQPC, CA$67.82 on 2026-10-10; same family as the cradle actuators) | extends to lower, retracts to raise; uses 436 -> 706 mm of its 420 -> 720; <= 561 N normally, 850 N if both struts fail (1.8x margin). A different part -> edit POD_ACT_SPEC in `frame_model.py` and re-run |
+| 2 | **Gas struts** (one per side), 10 mm rod / 22-28 mm body, ~240 mm extended, >= 71 mm stroke, F1 ~1050 N (235 lbf), progressive ~1.5, M8 eye (or M8 thread + eye) ends on 5 mm steel angle brackets with M8 grade 8.8 bolts (10 mm ball studs are only ~890 N rated), damped end of stroke | sized so the pod is LIFT-biased (+16..+88 N m): fail-safe UP if the actuator lets go. Buy 1000-1100 N, or an adjustable-valve 1200 N strut bled down. Mount rod DOWN, fit with the pod UP |
+| 1 | **Torque tube**: 2" x 2" x 1/8" (50.8 x 50.8 x 3.2 mm) square steel tube (A500 / HSS), 1600 mm, with 2 welded 6 mm end plates 150 x 61 mm (4 x 11 mm holes each) | ties the right cheek to the driven left cheek (local metal shop; or no-weld: 2 x 50x50x5 steel angles per end) |
+| 2 | 6 mm steel backing plates 150 x 61 mm (4 x 11 mm holes) | outside face of each cheek at the tube end |
+| 8 | M10 x 70 bolts, grade 8.8 + nylocks + washers | torque tube end plates through the 36 mm cheeks |
+| 3 | Steel angle brackets 50 x 50 x 5 mm with M8 hole | 2 strut anchors + 1 pod actuator anchor |
 | 2 | 6 mm steel latch plates (laser cut / filed from the cheek template `06`), with UP and DOWN notches | bolted to the cheeks |
 | 2 | Spring-loaded steel pawls (gate latch / barrel bolt with spring) | engage the latch plates, one per casing |
 | 2 | Bowden cable + lever (bicycle brake lever + inner/outer cable) | release both pawls from the lever box left of dad's seat |
@@ -52,8 +55,8 @@ Printed parts are listed in `docs/mechanical/README.md`; switches per panel in
 | 1 | Key switch (2-position) driving a 30 A relay | MOTION key on CMD_B: key out = no motion |
 | 1 | 22 mm mushroom E-stop, NC, latching, twist release | on CMD_B |
 | 1 | DPDT (ON)-OFF-(ON) momentary toggle, 12 mm bushing | FLT / BRD hold-to-run on CMD_B |
-| 4 | 12 V 30 A automotive relays SPDT (Bosch type) | wired as 2 H-bridges (cradle, pod) |
-| 8 | V-15 roller-lever micro switches 15 A (NC used) + printed `limit_switch_mount` | CRADLE_UPRIGHT, CRADLE_RECLINED (x2, one per side, in series), POD_UP, POD_DOWN, POD_UP_LOCKED (x2 on the pawls), lever switch |
+| 4 | 12 V 30 A automotive relays SPDT (Bosch type) | wired as 2 H-bridges (cradle: 2 actuators in parallel; pod: the single actuator) |
+| 8 | V-15 roller-lever micro switches 15 A (NC used) + printed `limit_switch_mount` | CRADLE_UPRIGHT, CRADLE_RECLINED (x2, one per side, in series), ONE pod limit set POD_UP + POD_DOWN (left, driven cheek only), POD_UP_LOCKED (x2, one per pawl, in series), lever switch |
 | 2 | Extra micro switches | dry contacts READ by Falcon Command (cradle reclined, pod down) |
 | 8 | 1N5408 diodes | across each motor-path limit switch so you can always drive back |
 | 1 | Pressure-sensitive safety edge (NC), ~900 mm, with mounting profile | along the pod chin, in series with "pod DOWN" |

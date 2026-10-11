@@ -88,8 +88,8 @@ Groups: **fixed** = base, nose box, towers/casings, ramp, dad dais; **cradle** =
 | 81 | pod | Pod top cap | 12 mm ply | 1612 (5' 3.5") | 102 (4.0") |  |
 | 82 | pod | Pod stiffener rail 1 | 2x4 (38 x 89) | 1612 (5' 3.5") |  | 2x4 flat behind the back sheet |
 | 83 | pod | Pod stiffener rail 2 | 2x4 (38 x 89) | 1612 (5' 3.5") |  | 2x4 flat behind the back sheet |
-| 84 | pod | Pod cheek L | 18 mm ply | 1176 (3' 10.3") | 907 (2' 11.7") | 2 x 18 mm ply laminated (glue + screws); UCF205 flange bearing at the pivot, crank pins for strut + actuator (profile: see drawing 04) |
-| 85 | pod | Pod cheek R | 18 mm ply | 1176 (3' 10.3") | 907 (2' 11.7") | 2 x 18 mm ply laminated (glue + screws); UCF205 flange bearing at the pivot, crank pins for strut + actuator (profile: see drawing 04) |
+| 84 | pod | Pod cheek L | 18 mm ply | 1183 (3' 10.6") | 907 (2' 11.7") | 2 x 18 mm ply laminated (glue + screws); UCF205 flange bearing at the pivot, crank pins for strut + actuator (profile: see drawing 04) |
+| 85 | pod | Pod cheek R | 18 mm ply | 1183 (3' 10.6") | 907 (2' 11.7") | 2 x 18 mm ply laminated (glue + screws); UCF205 flange bearing at the pivot, crank pins for strut + actuator (profile: see drawing 04) |
 | 86 | fixed | Casing inner wall L | 12 mm ply | 1112 (3' 7.8") | 698 (2' 3.5") | 12 mm ply between kid and mechanism (full height) |
 | 87 | fixed | Casing front wall L (inner) | 12 mm ply | 1112 (3' 7.8") | 110 (4.3") | slot for the cheek next to it, brush strip on both slot edges |
 | 88 | fixed | Casing front wall L (outer) | 12 mm ply | 1112 (3' 7.8") | 120 (4.7") |  |
@@ -138,5 +138,5 @@ Board packing:
 **Sheet goods** (area incl. seat/console boxes; 4 x 8 ft = 1220 x 2440 mm sheets, ~30 % waste allowance; the pod cheeks are 2 layers each):
 
 - 12 mm ply: 9.16 m2 (99 sq ft) -> **4 sheet(s)**
-- 18 mm ply: 13.46 m2 (145 sq ft) -> **6 sheet(s)**
+- 18 mm ply: 13.48 m2 (145 sq ft) -> **6 sheet(s)**
 - 6 mm ply/hardboard: 0.15 m2 (2 sq ft) -> **1 sheet(s)**

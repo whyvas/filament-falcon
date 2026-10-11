@@ -295,6 +295,7 @@ def render_overview():
              ("overview_boarding_front", {"STATE": "boarding"}, front),
              ("overview_flight_front", {"STATE": "flight"}, front),
              ("overview_dad_view", {"STATE": "flight"}, "0,-915,1300,75,0,0,1900"),
+             ("overview_pod_drive", {"STATE": "flight", "HIDE_SIDE": 2}, "0,-1250,850,50,0,245,7000"),
              ("overview_side_boarding", {"STATE": "boarding", "HIDE_SIDE": 1}, side),
              ("overview_side_reclined", {"STATE": "reclined", "HIDE_SIDE": 1}, side),
              ("overview_side_flight", {"STATE": "flight", "HIDE_SIDE": 1}, side)]

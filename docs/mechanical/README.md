@@ -6,14 +6,20 @@ renders in `cad/export/png/`. Units: mm (inches in brackets where useful).
 
 ![overview](../../cad/export/png/overview_flight.png)
 
-Motion (v0.2): the kid seats **recline** 35 deg, then the instrument **pod** (both
+Motion (v0.3): the kid seats **recline** 35 deg, then the instrument **pod** (both
 monitors, dash and overhead panels) swings down in front of them. Reverse to get
-out. Details, safety concept and interlock: [`frame/README.md`](../../frame/README.md).
+out. The pod is driven by a **single** 1500 N self-locking actuator in the left
+casing; a 2" square steel torque tube behind the pod's back sheet ties the right
+cheek to it, and two gas struts keep the pod slightly lift-biased so an actuator
+failure sends it up, away from the kids. Details, safety concept and interlock:
+[`frame/README.md`](../../frame/README.md).
+
+![pod drive](../../cad/export/png/overview_pod_drive.png)
 
 ![motion sequence](../../cad/export/png/overview_motion_sequence.png)
 
 More: `cad/export/png/overview_*.png` (boarding/flight from front and rear, dad's
-view, side sections). Displays and cabling: [`displays.md`](displays.md).
+view, side sections, `overview_pod_drive` = left casing opened: actuator, strut, torque tube). Displays and cabling: [`displays.md`](displays.md).
 Projector dome feasibility: [`projector_dome_study.md`](projector_dome_study.md).
 
 ## Folder map
