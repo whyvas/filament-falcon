@@ -7,10 +7,17 @@ extends FalconPanel
 ##   BRIEFING         the full briefing, crew jobs, objectives, Commander tips.
 ##   TRAINING         difficulty, checklist shortcuts, failure injection, time warp, voice.
 ##   CONTROLS         live test of every switch, axis and button, devices, LEDs.
-##   SETUP            which screen is which (4 roles), layout mode, quality, FPS cap, vsync.
+##   PANEL            the Falcon Command panels on screen (virtual while the board is
+##                    unplugged, a live mirror when it is), ALL-CALL, sense test switches.
+##   ICS              intercom: headsets per seat, VOX/PTT, levels, volumes, radio effect.
+##   SETUP            which screen is which (4 roles), headsets, virtual panels, layout
+##                    mode, quality, FPS cap, vsync.
+## Top bar: board status (PILOT / OPS / CMD: plugged in or VIRTUAL), crew position (pod and
+## seats, from the read-only senses) and intercom state.
 ## On a 3-screen rig this whole UI is a tab on the kids' console (Escape toggles it).
 
-const PAGES := ["MISSION CONTROL", "BRIEFING", "TRAINING", "CONTROLS", "SETUP"]
+const PAGES := ["MISSION CONTROL", "BRIEFING", "TRAINING", "CONTROLS", "PANEL", "ICS", "SETUP"]
+const SEAT_COL := {"pilot": FalconPanel.C_PILOT, "ops": FalconPanel.C_OPS, "commander": FalconPanel.C_AMBER}
 
 var pages := {}
 var tabs := {}
@@ -34,12 +41,16 @@ func _ready() -> void:
 	var status := label("", 26, C_TEXT, false)
 	status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	status.clip_text = true
+	status.custom_minimum_size.x = 200
 	top.add_child(status)
 	live["status"] = func() -> void:
 		var m: Mission = Game.mission
 		var tm := int(Game.mission_time)
 		status.text = "%s   %s   T+%d:%02d   %s%s" % [m.title if m else "", Game.STATE_NAMES[Game.state], tm / 60, tm % 60,
 			("WARP x%d   " % int(Game.warp)) if Game.warp > 1.0 else "", Game.difficulty().to_upper()]
+	var ind := hbox(root, 8)
+	_build_indicators(ind)
 	var tabbar := hbox(root, 8)
 	var holder := Control.new()
 	holder.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -59,6 +70,8 @@ func _ready() -> void:
 	_build_briefing(pages["BRIEFING"])
 	_build_training(pages["TRAINING"])
 	_build_controls(pages["CONTROLS"])
+	_build_panel(pages["PANEL"])
+	_build_ics(pages["ICS"])
 	_build_setup(pages["SETUP"])
 	show_page("MISSION CONTROL")
 
@@ -71,6 +84,229 @@ func show_page(p: String) -> void:
 		(pages[k] as Control).visible = (k == p)
 		(tabs[k] as Button).set_pressed_no_signal(k == p)
 	refresh()
+
+
+# ======================================================================== top-bar status
+func _chip(parent: Control) -> Label:
+	var l := label("", 20, C_TEXT, false)
+	l.add_theme_stylebox_override("normal", sb(Color(0.03, 0.06, 0.1), C_EDGE * 0.5, 2, 8))
+	parent.add_child(l)
+	return l
+
+
+func _build_indicators(top: HBoxContainer) -> void:
+	top.add_child(label("STATUS", 18, C_DIM, false))
+	var chips := {}
+	for dev: String in InputHub.BOARDS:
+		chips[dev] = _chip(top)
+	var pod := _chip(top)
+	var ics := _chip(top)
+	live["indicators"] = func() -> void:
+		for dev: String in chips:
+			var l: Label = chips[dev]
+			var short := dev.replace("Falcon ", "").to_upper().replace("COMMAND", "CMD")
+			if InputHub.device_connected(dev):
+				l.text = "%s ✔" % short
+				l.add_theme_color_override("font_color", C_GREEN)
+			else:
+				l.text = "%s: VIRTUAL" % short
+				l.add_theme_color_override("font_color", C_AMBER)
+		pod.text = "POD %s · SEATS %s" % [Game.pod.pod_text(), Game.pod.seats_text()]
+		var moving := Game.pod.pod == PodMonitor.Pod.MOVING or Game.pod.seats == PodMonitor.Seats.MOVING
+		pod.add_theme_color_override("font_color", C_AMBER if moving else (C_GREEN if Game.pod.pod == PodMonitor.Pod.DOWN_LOCKED else C_TEXT))
+		ics.text = "ICS " + _ics_short()
+		ics.add_theme_color_override("font_color", C_GREEN if Ics.ok() else (C_AMBER if Ics.enabled else C_DIM))
+
+
+func _ics_short() -> String:
+	if not Ics.connected():
+		return "OFF" if not Ics.enabled else "…"
+	if not Ics.ok():
+		return "ERROR"
+	var on := []
+	for s: String in Ics.SEATS:
+		if Ics.keyed(s):
+			on.append(Ics.SEAT_NAMES[s])
+	if Ics.status.get("allcall", false):
+		return "ALL-CALL"
+	return ("ON AIR: " + ",".join(on)) if not on.is_empty() else "OK"
+
+
+## Crew position + intercom box (MISSION CONTROL right column; meters and settings on ICS).
+func _build_crew_ics(parent: Control) -> void:
+	var ip := panel(parent, "", true, false, C_AMBER)
+	var cpl := label("", 20, C_TEXT, false)
+	ip.add_child(cpl)
+	live["mc_pod"] = func() -> void:
+		var p: PodMonitor = Game.pod
+		cpl.text = "CREW POSITION   POD %s · SEATS %s" % [p.pod_text(), p.seats_text()]
+		cpl.add_theme_color_override("font_color", C_AMBER if p.pod == PodMonitor.Pod.MOVING or p.seats == PodMonitor.Seats.MOVING else C_TEXT)
+	var r := hbox(ip, 8)
+	var talk := ptt_pad("commander", "TALK", "hold ( ` )", C_AMBER)
+	talk.custom_minimum_size = Vector2(110, 64)
+	talk.font_size = 24
+	talk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	r.add_child(talk)
+	var ac := HoldPad.new()
+	ac.text = "ALL-CALL"
+	ac.sub = "hold ( ' )"
+	ac.color = C_RED
+	ac.font_size = 24
+	ac.custom_minimum_size = Vector2(110, 64)
+	ac.lit = func() -> bool: return bool(Ics.status.get("allcall", false))
+	ac.held.connect(func(d: bool) -> void: Ics.touch_allcall = d)
+	ac.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	r.add_child(ac)
+	for s: String in ["pilot", "ops"]:
+		var mb := button("", func() -> void: Ics.toggle_mute(s), 16, 64)
+		mb.custom_minimum_size.x = 88
+		r.add_child(mb)
+		live["mute_" + s] = func() -> void:
+			mb.text = ("MUTE\n%s" % Ics.SEAT_NAMES[s]) if not Ics.mute[s] else ("%s\nMUTED" % Ics.SEAT_NAMES[s])
+			mb.modulate = C_RED if Ics.mute[s] else Color.WHITE
+	var st := label("", 16, C_DIM, false)
+	st.clip_text = true
+	ip.add_child(st)
+	live["mc_ics"] = func() -> void:
+		st.text = ("INTERCOM: " + Ics.state_text) if not Ics.ok() else "INTERCOM " + _ics_short() + "  ·  levels + settings on the ICS page"
+
+
+# ======================================================================== PANEL (Falcon Command)
+func _build_panel(page: Control) -> void:
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 8)
+	page.add_child(v)
+	var head := label("", 22, C_AMBER)
+	v.add_child(head)
+	var h := hbox(v, 12)
+	h.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	for id: String in ["CMD_A", "CMD_B"]:
+		var pp := panel(h, str(VirtualPanel.load_all().get(id, {}).get("title", id)).to_upper(), true, true)
+		pp.get_parent().size_flags_stretch_ratio = 1.3
+		var vp := VirtualPanel.make(id)
+		vp.show_title = false
+		pp.add_child(vp)
+	var side := panel(h, "INTERCOM + SENSES", true, true, C_AMBER)
+	var ac := HoldPad.new()
+	ac.text = "ALL-CALL / PA"
+	ac.sub = "hold: talk to both kids"
+	ac.color = C_RED
+	ac.custom_minimum_size.y = 110
+	ac.lit = func() -> bool: return bool(Ics.status.get("allcall", false))
+	ac.held.connect(func(d: bool) -> void: Ics.touch_allcall = d)
+	side.add_child(ac)
+	side.add_child(label("SENSE TEST (no board: pretend the contacts close)", 18, C_DIM))
+	for sid: Array in [["cradle_reclined", "CRADLE RECLINED"], ["pod_down_locked", "POD DOWN + LOCKED"], ["pod_up_locked", "POD UP + LOCKED (optional)"]]:
+		side.add_child(switch_button(str(sid[0]), str(sid[1]), 20, 60))
+	var pos := label("", 22)
+	pos.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	side.add_child(pos)
+	live["panel_head"] = func() -> void:
+		if current != "PANEL":
+			return
+		var conn := InputHub.device_connected(InputHub.DEV_CMD)
+		head.text = ("Falcon Command is plugged in: these panels mirror the real switches (buttons still work)." if conn
+			else "Falcon Command is NOT plugged in: use these on-screen panels (mouse). MOTION key, CREW POS and STOP are hardwired to the actuators and only exist on the real panel.")
+		head.add_theme_color_override("font_color", C_GREEN if conn else C_AMBER)
+		pos.text = "POD: %s\nSEATS: %s\nTravel time %.0f s · UP sense: %s" % [Game.pod.pod_text(), Game.pod.seats_text(), Game.pod.travel_s, "fitted" if Game.pod.has_up_sense() else "not seen"]
+
+
+# ======================================================================== ICS (intercom)
+func _build_ics(page: Control) -> void:
+	var h := hbox(page, 12)
+	var a := panel(h, "HEADSETS", true, true, C_AMBER)
+	a.get_parent().size_flags_stretch_ratio = 1.15
+	_headset_rows(a, true)
+	var tr := hbox(a, 8)
+	var rs := button("RESCAN USB", func() -> void: Ics.rescan(), 20, 56)
+	rs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tr.add_child(rs)
+	tr.add_child(setting_toggle("ics", "enabled", "INTERCOM", 20, 56))
+	var stl := label("", 18, C_DIM)
+	stl.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	a.add_child(stl)
+	live["ics_status"] = func() -> void:
+		if current != "ICS":
+			return
+		var t := "State: %s\n" % Ics.state_text
+		if Ics.ok():
+			t += "Sound server: %s\nLatency ≈ %d ms (mic → other headsets) · dropouts %d\nGame audio → %s · callouts → %s\n" % [
+				str(Ics.status.get("server", "")), int(Ics.status.get("latency_ms", 0)), int(Ics.status.get("xruns", 0)),
+				str(Ics.status.get("game_sink", "")), str(Ics.status.get("mc_sink", ""))]
+		t += "Troubleshooting: log in ~/.local/share/filament-falcon/ics.log ·\npython3 game/tools/falcon_ics.py --list  /  --ident pilot  /  --latency-test pilot"
+		stl.text = t
+	for s: String in Ics.SEATS:
+		var c := panel(h, Ics.SEAT_NAMES[s], true, true, SEAT_COL[s])
+		var mr := hbox(c, 6)
+		for m: String in ["vox", "ptt"]:
+			var mb := button(m.to_upper(), func() -> void: Settings.set_v("ics", s + "_mode", m), 20, 52)
+			mb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			mr.add_child(mb)
+			live["icsmode_%s_%s" % [s, m]] = func() -> void: mb.modulate = C_GREEN if str(Settings.get_v("ics", s + "_mode")) == m else Color.WHITE
+		var lm := level_meter(s)
+		lm.custom_minimum_size.y = 30
+		c.add_child(lm)
+		var air := label("", 18, C_DIM, false)
+		c.add_child(air)
+		live["icsair_" + s] = func() -> void:
+			var st := Ics.seat(s)
+			var on := bool(st.get("open", false))
+			air.text = ("● ON AIR" if on else "○ quiet") + ("   MUTED" if Ics.mute.get(s, false) else "") + "   %d dB" % int(float(st.get("level", -90.0)))
+			air.add_theme_color_override("font_color", C_GREEN if on else C_DIM)
+		setting_stepper(c, "ics", s + "_vox_db", "VOX level", 2.0, -70.0, -10.0, "%.0f dB", 110, 18)
+		setting_stepper(c, "ics", s + "_attack_ms", "Attack", 5.0, 0.0, 200.0, "%.0f ms", 110, 18)
+		setting_stepper(c, "ics", s + "_hang_ms", "Hang", 100.0, 100.0, 3000.0, "%.0f ms", 110, 18)
+		setting_stepper(c, "ics", s + "_mic_gain", "Mic gain", 0.25, 0.25, 4.0, "x%.2f", 110, 18)
+		setting_stepper(c, "ics", s + "_ics_vol", "Intercom vol", 0.1, 0.0, 2.0, "%.1f", 110, 18)
+		setting_stepper(c, "ics", s + "_game_vol", "Game vol", 0.1, 0.0, 2.0, "%.1f", 110, 18)
+		setting_stepper(c, "ics", s + "_sidetone", "Sidetone", 0.05, 0.0, 0.5, "%.2f|OFF", 110, 18)
+		if s == "commander":
+			c.add_child(ptt_pad("commander", "TALK", "hold", C_AMBER))
+		else:
+			var mb2 := button("", func() -> void: Ics.toggle_mute(s), 20, 52)
+			c.add_child(mb2)
+			live["icsmute_" + s] = func() -> void:
+				mb2.text = "MIC MUTED (click to unmute)" if Ics.mute[s] else "MUTE MIC"
+				mb2.modulate = C_RED if Ics.mute[s] else Color.WHITE
+	var g := panel(h, "RADIO / MIX", true, true)
+	g.get_parent().size_flags_stretch_ratio = 0.8
+	for t: Array in [["radio_fx", "RADIO EFFECT"], ["static", "STATIC"], ["squelch_tail", "SQUELCH TAIL"], ["beeps", "CLICK + ROGER"], ["speakers", "ROOM SPEAKERS"]]:
+		g.add_child(setting_toggle("ics", str(t[0]), str(t[1]), 18, 50))
+	setting_stepper(g, "ics", "mc_vol", "Callouts", 0.1, 0.0, 2.0, "%.1f", 96, 18)
+	setting_stepper(g, "ics", "allcall_duck", "Duck", 0.05, 0.0, 1.0, "%.2f", 96, 18)
+	g.add_child(label("VOX: the mic opens above the white tick and stays open for the hang time. Kids default to VOX; set PTT if they chatter. Radio effect = 300-3400 Hz band + light compression.", 16, C_DIM))
+
+
+## Seat -> headset rows (used on ICS and SETUP).
+func _headset_rows(parent: Control, meters: bool) -> void:
+	for s: String in Ics.SEATS:
+		var row := hbox(parent, 6)
+		var l := label(Ics.SEAT_NAMES[s], 20, SEAT_COL[s], false)
+		l.custom_minimum_size.x = 120
+		row.add_child(l)
+		var lb := button("◀", func() -> void: Ics.cycle_headset(s, -1), 22, 50)
+		lb.custom_minimum_size.x = 56
+		row.add_child(lb)
+		var val := label("", 18, C_GREEN)
+		val.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		val.custom_minimum_size.x = 140
+		val.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		row.add_child(val)
+		var rb := button("▶", func() -> void: Ics.cycle_headset(s, 1), 22, 50)
+		rb.custom_minimum_size.x = 56
+		row.add_child(rb)
+		row.add_child(button("IDENTIFY", func() -> void:
+			Ics.identify(str(Settings.get_v("ics", s + "_headset"))), 18, 50))
+		if meters:
+			var m := level_meter(s)
+			m.custom_minimum_size = Vector2(120, 18)
+			parent.add_child(m)
+		live["hs_%s_%d" % [s, row.get_instance_id()]] = func() -> void:
+			var id := str(Settings.get_v("ics", s + "_headset"))
+			var st := Ics.seat(s)
+			val.text = Ics.device_label(id)
+			var conn := bool(st.get("connected", false))
+			val.add_theme_color_override("font_color", C_GREEN if conn else (C_AMBER if id != "" else C_DIM))
 
 
 # ======================================================================== MISSION CONTROL
@@ -211,11 +447,12 @@ func _build_control(page: Control) -> void:
 	bar(right, "FUEL", "mc_fuel", func() -> Array:
 		var s: ShipSim = Game.sim
 		return [s.fuel / s.fuel_max, "%d kg" % int(s.fuel), C_GREEN if s.fuel > 1500.0 else C_RED], 130, 20)
-	var faults := label("", 22, C_AMBER)
+	var faults := label("", 20, C_AMBER)
 	faults.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right.add_child(faults)
-	var cr := button("MASTER CAUTION RESET", func() -> void: Game.reset_caution(), 24, 64)
+	var cr := button("MASTER CAUTION RESET", func() -> void: Game.reset_caution(), 22, 56)
 	right.add_child(cr)
+	_build_crew_ics(right)
 	live["mc_right"] = func() -> void:
 		var m: Mission = Game.mission
 		if m == null:
@@ -397,7 +634,7 @@ func _build_controls(page: Control) -> void:
 func _build_setup(page: Control) -> void:
 	var h := hbox(page, 12)
 	var a := panel(h, "SCREENS", true, true)
-	a.get_parent().size_flags_stretch_ratio = 1.4
+	a.get_parent().size_flags_stretch_ratio = 1.3
 	var mode_row := hbox(a, 8)
 	mode_row.add_child(label("LAYOUT", 20, C_DIM, false))
 	for m: String in ["auto", "cockpit", "dev"]:
@@ -410,16 +647,20 @@ func _build_setup(page: Control) -> void:
 	for role: String in DisplayManager.ROLES:
 		var row := hbox(a, 8)
 		var l := label(DisplayManager.ROLE_NAMES[role], 22, C_TEXT, false)
-		l.custom_minimum_size.x = 230
+		l.custom_minimum_size.x = 190
 		row.add_child(l)
-		row.add_child(button("◀", func() -> void: _cycle_screen(role, -1), 24, 52))
+		var lb := button("◀", func() -> void: _cycle_screen(role, -1), 24, 52)
+		lb.custom_minimum_size.x = 56
+		row.add_child(lb)
 		var val := label("", 18, C_GREEN, false)
 		val.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		val.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART   # long "AUTO → #2 22\" … DisplayPort-0" texts wrap
 		val.custom_minimum_size.x = 120
 		val.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		row.add_child(val)
-		row.add_child(button("▶", func() -> void: _cycle_screen(role, 1), 24, 52))
+		var rb := button("▶", func() -> void: _cycle_screen(role, 1), 24, 52)
+		rb.custom_minimum_size.x = 56
+		row.add_child(rb)
 		row.add_child(button("IDENTIFY", func() -> void: _identify(role), 20, 52))
 		live["scr_" + role] = func() -> void:
 			val.text = display.describe_role(role) if display else "?"
@@ -481,6 +722,36 @@ func _build_setup(page: Control) -> void:
 	var info := label("", 20)
 	b.add_child(info)
 	b.add_child(button("QUIT GAME", func() -> void: get_tree().quit(), 22, 56))
+	var c := panel(h, "HEADSETS + PANELS", true, true, C_AMBER)
+	c.get_parent().size_flags_stretch_ratio = 1.1
+	c.add_child(label("Intercom headset per seat (matched by name + USB serial/port, so re-plugging keeps them). IDENTIFY beeps in that headset.", 17, C_DIM))
+	_headset_rows(c, false)
+	var cr := hbox(c, 6)
+	var rsb := button("RESCAN", func() -> void: Ics.rescan(), 20, 52)
+	rsb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cr.add_child(rsb)
+	var more := button("INTERCOM ▶", func() -> void: show_page("ICS"), 20, 52)
+	more.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cr.add_child(more)
+	c.add_child(label("VIRTUAL PANELS (on-screen controls)", 20, C_EDGE))
+	c.add_child(setting_toggle("input", "force_virtual_panels", "ALWAYS SHOW", 20, 56))
+	var bst := label("", 18)
+	c.add_child(bst)
+	c.add_child(label("CREW POSITION SENSES", 20, C_EDGE))
+	c.add_child(setting_toggle("pod", "callouts", "POD CALLOUTS", 20, 52))
+	setting_stepper(c, "pod", "travel_s", "Travel time", 5.0, 10.0, 120.0, "%.0f s", 150, 18)
+	var ub := button("", func() -> void:
+		var order := ["auto", "yes", "no"]
+		Settings.set_v("pod", "up_sense", order[(order.find(str(Settings.get_v("pod", "up_sense"))) + 1) % 3]), 18, 50)
+	c.add_child(ub)
+	live["setup_c"] = func() -> void:
+		if current != "SETUP":
+			return
+		var t := ""
+		for dev: String in InputHub.BOARDS:
+			t += "%s: %s\n" % [dev, "plugged in" if InputHub.device_connected(dev) else "missing → virtual panel"]
+		bst.text = t.strip_edges()
+		ub.text = "POD UP SENSE fitted: " + str(Settings.get_v("pod", "up_sense")).to_upper()
 	live["setup"] = func() -> void:
 		if current != "SETUP":
 			return

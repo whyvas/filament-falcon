@@ -8,12 +8,16 @@ extends FalconPanel
 ##   NAV        orbit map, STEER TO buttons, NAV TARGET.
 ##   SYSTEMS    power distribution, ship health bars, faults and how to fix them.
 ##   CAMERAS    docking, arm and chase cameras.
-##   CHECKLIST  the overhead start-up switches, in order.
+##   CHECKLIST  the overhead start-up switches, in order (the overhead panels are drawn here
+##              too while Falcon Command is unplugged).
+##   PANELS     only while the Pilot or Ops board is unplugged (or SETUP forces it): that
+##              seat's real panels on screen (dash, side console) plus a touch joystick.
+## Each kid's task strip has a big TALK pad (intercom push-to-talk; multi-touch).
 ##   COMMANDER  only when there is no 4th screen: the Commander UI as a tab (also: Escape key).
 ## Every control here also exists on the hardware; touch buttons are the fallback and mirror
 ## the real switches when a board is plugged in. Works in landscape (recommended) or portrait.
 
-const PAGES := ["FLIGHT", "NAV", "SYSTEMS", "CAMERAS", "CHECKLIST"]
+const PAGES := ["FLIGHT", "NAV", "SYSTEMS", "CAMERAS", "CHECKLIST", "PANELS"]
 
 var pages := {}
 var tabs := {}
@@ -25,6 +29,8 @@ var _splits: Array[BoxContainer] = []      # flip to vertical in portrait
 var _commander_host: Control = null
 var _prev_page := "FLIGHT"
 var _pending_commander: Control = null
+var _virt := {}            # board -> Array[Control] shown while it is missing
+var _virt_any := []        # tab button etc.
 
 
 func _ready() -> void:
@@ -52,7 +58,13 @@ func _ready() -> void:
 	_build_systems(pages["SYSTEMS"])
 	_build_cameras(pages["CAMERAS"])
 	_build_checklist(pages["CHECKLIST"])
+	_build_panels(pages["PANELS"])
 	show_page("FLIGHT")
+	InputHub.devices_changed.connect(update_virtual)
+	Settings.changed.connect(func(sec: String) -> void:
+		if sec == "input":
+			update_virtual())
+	update_virtual()
 	resized.connect(_on_resized)
 	_on_resized()
 	if _pending_commander:
@@ -185,11 +197,17 @@ func _build_top(root: VBoxContainer) -> void:
 	top.add_child(clock)
 	var tasks := hbox(root, 12)
 	var pp := panel(tasks, "", true, false)
+	var ph := hbox(pp, 10)
 	var pl := label("", 28, C_PILOT)
-	pp.add_child(pl)
+	pl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ph.add_child(pl)
+	ph.add_child(_talk_pad("pilot", C_PILOT))
 	var op := panel(tasks, "", true, false)
+	var oh := hbox(op, 10)
+	oh.add_child(_talk_pad("ops", C_OPS))
 	var ol := label("", 28, C_OPS)
-	op.add_child(ol)
+	ol.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	oh.add_child(ol)
 	for l: Label in [pl, ol]:
 		l.custom_minimum_size.y = 66
 		l.max_lines_visible = 2
@@ -223,6 +241,58 @@ func _build_top(root: VBoxContainer) -> void:
 				ol.text = "OPS ▸ " + (txt if role in ["OPS", "BOTH", "ALL"] else "Watch the screens and help the Pilot.")
 		pl.modulate = Color.WHITE if role in ["PILOT", "BOTH", "ALL"] or Game.state != Game.State.ACTIVE else Color(1, 1, 1, 0.55)
 		ol.modulate = Color.WHITE if role in ["OPS", "BOTH", "ALL"] or Game.state != Game.State.ACTIVE else Color(1, 1, 1, 0.55)
+
+
+## Intercom push-to-talk for one kid (works in VOX mode too: holding it forces the mic open).
+func _talk_pad(seat: String, col: Color) -> HoldPad:
+	var hp := ptt_pad(seat, "TALK", "", col)
+	hp.custom_minimum_size = Vector2(170, 76)
+	hp.font_size = 28
+	live["talk_" + seat] = func() -> void:
+		var vox := str(Settings.get_v("ics", seat + "_mode")) == "vox"
+		hp.sub = ("ON AIR" if Ics.keyed(seat) else ("voice on" if vox else "hold")) if Ics.ok() else "no intercom"
+		hp.modulate = Color.WHITE if Ics.ok() or not Ics.enabled else Color(1, 1, 1, 0.6)
+	return hp
+
+
+# ======================================================================== PANELS (virtual hardware)
+func _build_panels(page: Control) -> void:
+	var sp := _split(page)
+	for seat: Array in [[InputHub.DEV_PILOT, "PILOT", C_PILOT, ["PILOT_DASH_A", "PILOT_DASH_B"], "PILOT_SIDE", "pilot"],
+			[InputHub.DEV_OPS, "OPS", C_OPS, ["OPS_DASH_A", "OPS_DASH_B"], "OPS_SIDE", "ops"]]:
+		var col := panel(sp, "%s PANELS  (board not plugged in: touch these)" % seat[1], true, true, seat[2])
+		var dash := hbox(col, 8)
+		dash.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		for id: String in seat[3]:
+			var vp := VirtualPanel.make(id)
+			dash.add_child(vp)
+		var low := hbox(col, 8)
+		low.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		var side := VirtualPanel.make(str(seat[4]))
+		low.add_child(side)
+		var st := VirtualStick.new()
+		st.seat = str(seat[5])
+		st.color = seat[2]
+		low.add_child(st)
+		_virt[seat[0]] = [col.get_parent()]
+
+
+## Show / hide the on-screen panels for unplugged boards (hot-plug, or SETUP forcing them).
+func update_virtual() -> void:
+	if not is_node_ready():
+		return
+	var any := false
+	for dev: String in _virt:
+		var need := InputHub.virtual_needed(dev)
+		for c: Control in _virt[dev]:
+			c.visible = need
+		any = any or (dev != InputHub.DEV_CMD and need)
+	var tb: Button = tabs["PANELS"]
+	tb.visible = any
+	tb.text = "PANELS ●" if any and not bool(Settings.get_v("input", "force_virtual_panels")) else "PANELS"
+	tb.modulate = C_AMBER if any and not bool(Settings.get_v("input", "force_virtual_panels")) else Color.WHITE
+	if not any and current == "PANELS":
+		show_page("FLIGHT")
 
 
 # ======================================================================== FLIGHT
@@ -470,10 +540,20 @@ func _build_cameras(page: Control) -> void:
 
 # ======================================================================== CHECKLIST
 func _build_checklist(page: Control) -> void:
-	var sp := _split(page)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 10)
+	page.add_child(v)
+	# the overhead consoles, on screen while Falcon Command (which reads them) is unplugged
+	var ovh := hbox(v, 8)
+	ovh.custom_minimum_size.y = 250
+	for id: String in ["OVERHEAD_A", "OVERHEAD_B", "OVERHEAD_C"]:
+		ovh.add_child(VirtualPanel.make(id))
+	_virt[InputHub.DEV_CMD] = [ovh]
+	var sp := _split(v)
 	var a := panel(sp, "OVERHEAD START-UP CHECKLIST  (flip the switches in order)", true, true)
 	a.get_parent().size_flags_stretch_ratio = 1.6
 	var rows: Array = []
+	var btns: Array[Button] = []
 	for i in Game.CHECKLIST.size():
 		var row := hbox(a, 12)
 		var num := label("%d" % (i + 1), 44, C_EDGE, false)
@@ -482,6 +562,7 @@ func _build_checklist(page: Control) -> void:
 		var b := switch_button(Game.CHECKLIST[i], Game.CHECKLIST_NAMES[i], 32, 92)
 		b.custom_minimum_size.x = 380
 		row.add_child(b)
+		btns.append(b)
 		var st := label("", 30, C_TEXT, false)
 		st.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(st)
@@ -492,6 +573,9 @@ func _build_checklist(page: Control) -> void:
 	var seat := label("", 26)
 	b2.add_child(seat)
 	live["check"] = func() -> void:
+		var compact := ovh.visible
+		for b: Button in btns:
+			b.custom_minimum_size.y = 58 if compact else 92
 		for i in rows.size():
 			var st: Label = rows[i]
 			var on := InputHub.on(Game.CHECKLIST[i])

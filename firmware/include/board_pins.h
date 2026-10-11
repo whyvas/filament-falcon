@@ -70,8 +70,16 @@
 #ifndef PIN_LED_DATA
 #define PIN_LED_DATA    21  // WS2812B data -> 74AHCT125 -> 330R -> strip DIN
 #endif
+// Read-only position senses (PC817 collector + 10k pull-up to 3V3, active LOW = contact
+// closed). GPIO39-41 are the JTAG pins; free because we use native USB, not USB-JTAG.
 #ifndef PIN_SEAT_SENSE
-#define PIN_SEAT_SENSE  39  // optocoupler output (PC817 collector), active LOW = seat up
+#define PIN_SEAT_SENSE  39  // CRADLE_RECLINED contact: LOW = cradle fully reclined
+#endif
+#ifndef PIN_POD_DOWN_SENSE
+#define PIN_POD_DOWN_SENSE 40  // POD_DOWN contact: LOW = pod down on its stop and latched
+#endif
+#ifndef PIN_POD_UP_SENSE
+#define PIN_POD_UP_SENSE   41  // optional POD_UP_LOCKED contact: LOW = pod parked up, latched
 #endif
 
 // ---- Status LED -----------------------------------------------------------

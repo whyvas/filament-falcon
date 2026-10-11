@@ -6,16 +6,22 @@
 # Usage: ./run.sh [--cockpit|--dev] [--quality=ultra] [--mission=docking] ...
 #        ./run.sh --landscape-console     also rotate the console monitor to landscape
 #        ./run.sh --no-display-setup      skip the touch mapping
+#        ./run.sh --no-ics                no intercom helper (headsets off)
+# It also starts the intercom helper (tools/falcon_ics.py: 3 USB headsets, PTT/VOX, radio
+# effect). It needs python3-numpy + pulseaudio-utils; if anything is missing it logs why to
+# ~/.local/share/filament-falcon/ics.log and the game runs without intercom.
 set -e
 cd "$(dirname "$0")"
 GODOT="${GODOT:-godot}"
 SETUP_ARGS=()
 GAME_ARGS=()
 DO_SETUP=1
+DO_ICS=1
 for a in "$@"; do
   case "$a" in
     --landscape-console) SETUP_ARGS+=("--landscape") ;;
     --no-display-setup) DO_SETUP=0 ;;
+    --no-ics) DO_ICS=0; GAME_ARGS+=("$a") ;;
     *) GAME_ARGS+=("$a") ;;
   esac
 done
@@ -25,5 +31,11 @@ if [ ! -f .godot/global_script_class_cache.cfg ]; then
 fi
 if [ "$DO_SETUP" = 1 ] && [ -x tools/setup_displays.sh ]; then
   tools/setup_displays.sh "${SETUP_ARGS[@]}" || true
+fi
+if [ "$DO_ICS" = 1 ] && command -v python3 >/dev/null 2>&1; then
+  LOGDIR="${XDG_DATA_HOME:-$HOME/.local/share}/filament-falcon"
+  mkdir -p "$LOGDIR"
+  # --parent-pid $$: exec below keeps this pid, so the helper exits when the game does.
+  nohup python3 tools/falcon_ics.py --parent-pid $$ --log "$LOGDIR/ics.log" >/dev/null 2>&1 &
 fi
 exec "$GODOT" --path . -- "${GAME_ARGS[@]}"

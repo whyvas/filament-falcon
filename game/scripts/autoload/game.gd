@@ -64,6 +64,9 @@ var checklist_progress := 0
 var checklist_error := -1
 var harness_confirmed := false
 
+## Crew position (cradle recline + kids' pod), from read-only contacts. Display + callouts only.
+var pod := PodMonitor.new()
+
 var master_power := true
 var reactor_out := 0.0
 var power_avail := 0.0
@@ -410,6 +413,7 @@ func _process(dt: float) -> void:
 func tick(dt: float) -> void:
 	dt = minf(dt, 0.1)
 	_handle_commander()
+	_update_pod(dt)
 	_update_checklist()
 	_update_systems(dt)
 	if state == State.ACTIVE:
@@ -500,10 +504,11 @@ func _handle_commander() -> void:
 			inject_failure("power")
 		if InputHub.just_pressed("fail_sensor"):
 			inject_failure("sensor")
-	if InputHub.just_pressed("intercom"):
-		Sfx.tone(1200.0, 0.06, 0.2)
-		Sfx.tone(1600.0, 0.06, 0.2, "sine", -1.0, 0.08)
-		game_event.emit("intercom", {})
+	if InputHub.just_pressed("ptt_commander") or InputHub.just_pressed("all_call"):
+		if not Ics.ok():       # no intercom: a room "attention" chirp instead (the helper beeps itself)
+			Sfx.tone(1200.0, 0.06, 0.2)
+			Sfx.tone(1600.0, 0.06, 0.2, "sine", -1.0, 0.08)
+		game_event.emit("intercom", {"all_call": InputHub.just_pressed("all_call")})
 	if InputHub.just_pressed("eject"):
 		Voice.say("Ejection seats are disabled. Nice try, Commander!", 1)
 		Sfx.tone(200.0, 0.4, 0.3, "saw", 90.0)
@@ -579,6 +584,19 @@ func fix_failure(kind: String) -> void:
 	add_score("Fixed %s in %ds" % [kind.to_upper(), int(took)], maxi(50, 300 - int(took * 5.0)))
 	Voice.say({"fire": "Fire is out. Good work!", "leak": "Leak sealed.", "power": "Reactor reset. Power restored.", "sensor": "Sensors back online."}[kind], 1)
 	Sfx.chime()
+
+
+func _update_pod(dt: float) -> void:
+	pod.travel_s = float(Settings.get_v("pod", "travel_s"))
+	pod.up_sense_mode = str(Settings.get_v("pod", "up_sense"))
+	var ev := pod.update(dt, InputHub.on("cradle_reclined"), InputHub.on("pod_down_locked"), InputHub.on("pod_up_locked"))
+	for e in ev:
+		game_event.emit("pod", {"event": e, "pod": pod.pod_text(), "seats": pod.seats_text()})
+		if bool(Settings.get_v("pod", "callouts")) and e != "reclined":
+			var t := PodMonitor.callout_text(e)
+			if e == "pod_coming_down" and not pod.has_up_sense():
+				t = "Seats reclined. " + t
+			Voice.say(t, 2 if e == "pod_coming_down" else 1)
 
 
 func reset_caution() -> void:
@@ -1119,11 +1137,13 @@ func _update_leds() -> void:
 	LedLink.set_signal("failures", white * 0.6)
 	for f in ["fire", "leak", "power", "sensor"]:
 		LedLink.set_signal("fail_" + f, red if failures[f] else white * 0.4, "FAST" if failures[f] else "SOLID")
-	LedLink.set_signal("intercom", white * 0.6)
+	LedLink.set_signal("intercom", green if Ics.keyed("commander") else (amber if Ics.ok() else white * 0.4), "PULSE" if Ics.status.get("allcall", false) else "SOLID")
 	LedLink.set_signal("dimmer", white * 0.6)
 	LedLink.set_signal("crew_ready", green if checklist_progress >= CHECKLIST.size() else white, "SOLID" if checklist_progress >= CHECKLIST.size() else "BLINK")
 	LedLink.set_signal("pilot_ready", green if InputHub.on("engine_arm") or state == State.ACTIVE else amber)
 	LedLink.set_signal("ops_ready", green if InputHub.on("pwr_reactor") else amber)
-	LedLink.set_signal("seat_up", green if InputHub.on("seat_up") else dim)
-	LedLink.set_signal("seat_dn", amber if not InputHub.on("seat_up") else dim)
+	# FLT (seat_up LED id) = "pod down, ready to fly"; BRD (seat_dn) = "seats up, ready to board".
+	var pod_moving := pod.pod == PodMonitor.Pod.MOVING or pod.seats == PodMonitor.Seats.MOVING
+	LedLink.set_signal("seat_up", green if pod.pod == PodMonitor.Pod.DOWN_LOCKED else (amber if pod_moving else dim), "BLINK" if pod_moving else "SOLID")
+	LedLink.set_signal("seat_dn", green if pod.pod == PodMonitor.Pod.UP and pod.seats == PodMonitor.Seats.UPRIGHT else dim)
 	LedLink.set_signal("seat_static", white * 0.5)

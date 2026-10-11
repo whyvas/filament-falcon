@@ -2,7 +2,8 @@ extends Node
 ## Persistent settings stored in user://falcon_settings.cfg
 ## (on Linux: ~/.local/share/filament-falcon/falcon_settings.cfg).
 ## Command-line overrides (after `--`): --dev, --cockpit, --quality=low|medium|high|ultra,
-## --mission=<id>, --no-voice, --no-led, --smoke-test, --screenshots=<dir>
+## --mission=<id>, --no-voice, --no-led, --no-ics, --ics-mock, --virtual-panels, --smoke-test,
+## --screenshots=<dir>
 
 signal changed(section: String)
 
@@ -48,6 +49,28 @@ const DEFAULTS := {
 	"audio": {"master_db": 0.0, "voice": true, "voice_engine": "auto", "piper_model": ""},
 	"led": {"enabled": true, "udp_port": 47800, "serial_port": "auto", "brightness": 160},
 	"game": {"start_mission": "launch", "difficulty": "normal", "skip_checklist": false},
+	# Virtual panels: on-screen copies of a Falcon board's controls appear while that board is
+	# unplugged. force_virtual_panels shows them even with the boards connected (demo / testing).
+	"input": {"force_virtual_panels": false},
+	# Read-only crew-position senses on Falcon Command (the actuators are hardwired, see SPEC).
+	# travel_s = how long one motion takes (pod or cradle, ~35-40 s); up_sense = whether the
+	# optional POD_UP_LOCKED contact is wired: auto (yes once it has been seen closed) | yes | no.
+	"pod": {"travel_s": 40.0, "up_sense": "auto", "callouts": true},
+	# Intercom (tools/falcon_ics.py). <seat>_headset = "product|serial|usb-path" picked on
+	# Commander > ICS. Per seat: mode vox|ptt, vox_db threshold, attack_ms, hang_ms, game_vol,
+	# ics_vol, sidetone (0 = off), mic_gain. Global radio effect toggles.
+	"ics": {
+		"enabled": true, "udp_port": 47810, "game_port": 47811,
+		"pilot_headset": "", "ops_headset": "", "commander_headset": "",
+		"radio_fx": true, "static": true, "squelch_tail": true, "beeps": true, "speakers": true,
+		"mc_vol": 0.9, "allcall_duck": 0.25,
+		"pilot_mode": "vox", "pilot_vox_db": -38.0, "pilot_attack_ms": 15.0, "pilot_hang_ms": 600.0,
+		"pilot_game_vol": 0.7, "pilot_ics_vol": 1.0, "pilot_sidetone": 0.0, "pilot_mic_gain": 1.0,
+		"ops_mode": "vox", "ops_vox_db": -38.0, "ops_attack_ms": 15.0, "ops_hang_ms": 600.0,
+		"ops_game_vol": 0.7, "ops_ics_vol": 1.0, "ops_sidetone": 0.0, "ops_mic_gain": 1.0,
+		"commander_mode": "ptt", "commander_vox_db": -38.0, "commander_attack_ms": 15.0, "commander_hang_ms": 600.0,
+		"commander_game_vol": 0.7, "commander_ics_vol": 1.0, "commander_sidetone": 0.0, "commander_mic_gain": 1.0,
+	},
 }
 
 var cfg := ConfigFile.new()
@@ -81,6 +104,10 @@ func _enter_tree() -> void:
 		cfg.set_value("audio", "voice", false)
 	if cli.has("no-led") or is_test_run():
 		cfg.set_value("led", "enabled", false)
+	if cli.has("no-ics") or (is_test_run() and not cli.has("ics-mock")):
+		cfg.set_value("ics", "enabled", false)
+	if cli.has("virtual-panels"):
+		cfg.set_value("input", "force_virtual_panels", true)
 
 
 func _parse_cli() -> void:

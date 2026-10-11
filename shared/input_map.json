@@ -36,7 +36,8 @@
         "10": "assist_prev",
         "11": "assist_push",
         "12": "view_cycle",
-        "13": "landing_gear_down"
+        "13": "landing_gear_down",
+        "14": "ptt_pilot"
       }
     },
     "Falcon Ops": {
@@ -66,7 +67,8 @@
         "12": "docking_clamp",
         "13": "nav_target_next",
         "14": "jump_arm",
-        "15": "jump_engage"
+        "15": "jump_engage",
+        "16": "ptt_ops"
       }
     },
     "Falcon Command": {
@@ -86,13 +88,14 @@
         "4": "dimmer_push",
         "5": "start",
         "6": "pause",
-        "7": "intercom",
+        "7": "ptt_commander",
         "8": "master_caution_reset",
         "9": "fail_engine_fire",
         "10": "fail_cabin_leak",
         "11": "fail_power_fault",
         "12": "fail_sensor_glitch",
-        "15": "seat_up",
+        "13": "all_call",
+        "15": "cradle_reclined",
         "16": "oh_battery",
         "17": "oh_fuel_pumps",
         "18": "oh_avionics",
@@ -102,7 +105,9 @@
         "22": "oh_cabin_lights",
         "23": "oh_beacon",
         "24": "oh_strobe",
-        "25": "oh_eject"
+        "25": "oh_eject",
+        "26": "pod_down_locked",
+        "27": "pod_up_locked"
       }
     }
   },
@@ -218,6 +223,12 @@
       "button": 13,
       "kind": "toggle",
       "source": "74HC165 bit 10 (chip 2, input C)"
+    },
+    "ptt_pilot": {
+      "device": "Falcon Pilot",
+      "button": 14,
+      "kind": "momentary",
+      "source": "74HC165 bit 11 (chip 2, input D)"
     },
     "translate_x": {
       "device": "Falcon Ops",
@@ -336,6 +347,12 @@
       "kind": "momentary",
       "source": "74HC165 bit 12 (chip 2, input E)"
     },
+    "ptt_ops": {
+      "device": "Falcon Ops",
+      "button": 16,
+      "kind": "momentary",
+      "source": "74HC165 bit 13 (chip 2, input F)"
+    },
     "cockpit_lights_dimmer": {
       "device": "Falcon Command",
       "axis": 6,
@@ -385,7 +402,7 @@
       "kind": "momentary",
       "source": "74HC165 bit 4 (chip 1, input E)"
     },
-    "intercom": {
+    "ptt_commander": {
       "device": "Falcon Command",
       "button": 7,
       "kind": "momentary",
@@ -396,6 +413,12 @@
       "button": 8,
       "kind": "momentary",
       "source": "74HC165 bit 6 (chip 1, input G)"
+    },
+    "all_call": {
+      "device": "Falcon Command",
+      "button": 13,
+      "kind": "momentary",
+      "source": "74HC165 bit 7 (chip 1, input H)"
     },
     "fail_engine_fire": {
       "device": "Falcon Command",
@@ -421,7 +444,7 @@
       "kind": "momentary",
       "source": "74HC165 bit 11 (chip 2, input D)"
     },
-    "seat_up": {
+    "cradle_reclined": {
       "device": "Falcon Command",
       "button": 15,
       "kind": "toggle",
@@ -486,6 +509,18 @@
       "button": 25,
       "kind": "toggle",
       "source": "74HC165 bit 25 (chip 4, input B)"
+    },
+    "pod_down_locked": {
+      "device": "Falcon Command",
+      "button": 26,
+      "kind": "toggle",
+      "source": "GPIO40 (active low)"
+    },
+    "pod_up_locked": {
+      "device": "Falcon Command",
+      "button": 27,
+      "kind": "toggle",
+      "source": "GPIO41 (active low)"
     }
   }
 }

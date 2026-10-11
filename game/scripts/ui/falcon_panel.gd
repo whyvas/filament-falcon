@@ -190,3 +190,57 @@ func group_buttons(parent: Control, grp: String, names: Array, fs: int = 24, min
 		live["grp_%s_%d_%d" % [grp, i, b.get_instance_id()]] = func() -> void:
 			var on := InputHub.group(grp) == v
 			b.modulate = C_GREEN if on else Color.WHITE
+
+
+## A "-  value  +" row for a numeric setting (saved immediately).
+func setting_stepper(parent: Control, section: String, key: String, title: String, step: float, lo: float, hi: float, fmt: String = "%.2f", title_w: int = 150, fs: int = 20) -> HBoxContainer:
+	var row := hbox(parent, 6)
+	var l := label(title, fs, C_TEXT, false)
+	l.custom_minimum_size.x = title_w
+	row.add_child(l)
+	row.add_child(button("-", func() -> void:
+		Settings.set_v(section, key, clampf(snappedf(float(Settings.get_v(section, key)) - step, step * 0.01), lo, hi)), fs, 44))
+	var v := label("", fs, C_GREEN, false)
+	v.custom_minimum_size.x = 72
+	v.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	row.add_child(v)
+	row.add_child(button("+", func() -> void:
+		Settings.set_v(section, key, clampf(snappedf(float(Settings.get_v(section, key)) + step, step * 0.01), lo, hi)), fs, 44))
+	for b in [row.get_child(1), row.get_child(3)]:
+		(b as Button).custom_minimum_size.x = 44
+	live["stp_%s_%s_%d" % [section, key, row.get_instance_id()]] = func() -> void:
+		var x := float(Settings.get_v(section, key))
+		v.text = ("OFF" if x <= 0.0 and fmt.contains("OFF") else (fmt.replace("|OFF", "") % x))
+	return row
+
+
+## A toggle button for a boolean setting.
+func setting_toggle(section: String, key: String, text: String, fs: int = 20, min_h: int = 52) -> Button:
+	var b := button("", func() -> void: Settings.set_v(section, key, not bool(Settings.get_v(section, key))), fs, min_h)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	live["tgl_%s_%s_%d" % [section, key, b.get_instance_id()]] = func() -> void:
+		var on := bool(Settings.get_v(section, key))
+		b.text = "%s: %s" % [text, "ON" if on else "OFF"]
+		b.modulate = C_GREEN if on else Color.WHITE
+	return b
+
+
+## Push-to-talk / ALL-CALL style hold pad wired to the intercom.
+func ptt_pad(seat: String, text: String, sub: String, col: Color) -> HoldPad:
+	var hp := HoldPad.new()
+	hp.text = text
+	hp.sub = sub
+	hp.color = col
+	hp.lit = func() -> bool: return Ics.keyed(seat)
+	hp.held.connect(func(d: bool) -> void: Ics.touch_ptt[seat] = d)
+	return hp
+
+
+func level_meter(seat: String) -> LevelMeter:
+	var m := LevelMeter.new()
+	m.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	m.getter = func() -> Array:
+		var st := Ics.seat(seat)
+		var thr := float(Settings.get_v("ics", seat + "_vox_db")) if str(Settings.get_v("ics", seat + "_mode")) == "vox" else -99.0
+		return [float(st.get("level", -90.0)), bool(st.get("open", false)), thr]
+	return m

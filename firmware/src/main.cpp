@@ -101,7 +101,7 @@ void loop() {
   bool connected = (bool)GameSerial;  // DTR asserted = game has the port open
   if (wasConnected && !connected) Leds::hostDisconnected();
   wasConnected = connected;
-  Leds::setSeatUp(Inputs::hidButton(FF_SEAT_UP_HID), GameSerial);
+  Leds::setSeatUp(!Inputs::hidButton(FF_CRADLE_RECLINED_HID), GameSerial);  // SEAT UP = not reclined
   Leds::update(now);
 #endif
 

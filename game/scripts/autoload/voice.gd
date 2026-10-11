@@ -59,9 +59,13 @@ func _process(_dt: float) -> void:
 		return
 	var text: String = _queue.pop_front()
 	_busy_until = now + 0.6 + text.length() * 0.065
+	# With the intercom running, callouts go to its MISSION CONTROL channel (falcon_mc sink):
+	# radio effect, heard in all three headsets (and the room speakers if enabled).
+	var sink := Ics.mc_sink()
+	var env := ("PULSE_SINK=%s " % sink) if sink != "" else ""
 	match engine:
 		"piper":
 			var model: String = str(Settings.get_v("audio", "piper_model"))
-			_pid = OS.create_process("sh", ["-c", "echo \"$1\" | piper --model \"$2\" --output-raw 2>/dev/null | aplay -q -r 22050 -f S16_LE -t raw - 2>/dev/null", "falcon", text, model])
+			_pid = OS.create_process("sh", ["-c", "echo \"$1\" | piper --model \"$2\" --output-raw 2>/dev/null | %saplay -q -r 22050 -f S16_LE -t raw - 2>/dev/null" % env, "falcon", text, model])
 		"espeak-ng", "espeak":
-			_pid = OS.create_process(engine, ["-v", "en-us+f3", "-s", "158", "-p", "45", text])
+			_pid = OS.create_process("sh", ["-c", "%sexec \"$1\" -v en-us+f3 -s 158 -p 45 \"$2\"" % env, "falcon", engine, text])

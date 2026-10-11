@@ -38,6 +38,7 @@ const ACTIONS := [
 	{"id": "assist_push", "role": "PILOT", "type": "button", "label": "ASSIST knob push", "keys": [], "bind": [DEV_PILOT, "button", 11]},
 	{"id": "view_cycle", "role": "PILOT", "type": "button", "label": "VIEW", "keys": ["V"], "bind": [DEV_PILOT, "button", 12]},
 	{"id": "gear", "role": "PILOT", "type": "switch", "label": "LANDING GEAR DOWN", "keys": ["G"], "bind": [DEV_PILOT, "button", 13]},
+	{"id": "ptt_pilot", "role": "PILOT", "type": "button", "label": "PUSH TO TALK (intercom)", "keys": ["Backslash"], "bind": [DEV_PILOT, "button", 14]},
 	{"id": "fa_off", "role": "PILOT", "type": "pos", "group": "fa", "value": 0, "label": "ASSIST: OFF", "keys": ["1"], "bind": []},
 	{"id": "fa_stab", "role": "PILOT", "type": "pos", "group": "fa", "value": 1, "label": "ASSIST: STAB", "keys": ["2"], "bind": []},
 	{"id": "fa_prograde", "role": "PILOT", "type": "pos", "group": "fa", "value": 2, "label": "ASSIST: PROGRADE", "keys": ["3"], "bind": []},
@@ -62,6 +63,7 @@ const ACTIONS := [
 	{"id": "nav_target", "role": "OPS", "type": "button", "label": "NAV TGT", "keys": ["M"], "bind": [DEV_OPS, "button", 13]},
 	{"id": "jump_arm", "role": "OPS", "type": "switch", "label": "JUMP ARM (covered)", "keys": ["BracketLeft"], "bind": [DEV_OPS, "button", 14]},
 	{"id": "jump_engage", "role": "OPS", "type": "button", "label": "JUMP ENGAGE", "keys": ["BracketRight"], "bind": [DEV_OPS, "button", 15]},
+	{"id": "ptt_ops", "role": "OPS", "type": "button", "label": "PUSH TO TALK (intercom)", "keys": ["Slash"], "bind": [DEV_OPS, "button", 16]},
 	{"id": "mode_rcs", "role": "OPS", "type": "pos", "group": "ops", "value": 0, "label": "MODE: RCS", "keys": ["Z"], "bind": []},
 	{"id": "mode_arm", "role": "OPS", "type": "pos", "group": "ops", "value": 1, "label": "MODE: ARM", "keys": ["X"], "bind": []},
 	{"id": "mode_scanner", "role": "OPS", "type": "pos", "group": "ops", "value": 2, "label": "MODE: SCANNER", "keys": ["C"], "bind": []},
@@ -74,13 +76,17 @@ const ACTIONS := [
 	{"id": "dimmer_push", "role": "CMDR", "type": "button", "label": "DIMMER push", "keys": [], "bind": [DEV_CMD, "button", 4]},
 	{"id": "start", "role": "CMDR", "type": "button", "label": "START", "keys": ["F9"], "bind": [DEV_CMD, "button", 5]},
 	{"id": "pause", "role": "CMDR", "type": "button", "label": "PAUSE", "keys": ["Pause"], "bind": [DEV_CMD, "button", 6]},
-	{"id": "intercom", "role": "CMDR", "type": "button", "label": "INTERCOM / PA", "keys": ["QuoteLeft"], "bind": [DEV_CMD, "button", 7]},
+	{"id": "ptt_commander", "role": "CMDR", "type": "button", "label": "INTERCOM (push to talk)", "keys": ["QuoteLeft"], "bind": [DEV_CMD, "button", 7]},
+	{"id": "all_call", "role": "CMDR", "type": "button", "label": "ALL-CALL / PA (to both kids)", "keys": ["Apostrophe"], "bind": [DEV_CMD, "button", 13]},
 	{"id": "caution_reset", "role": "CMDR", "type": "button", "label": "MASTER CAUTION RESET", "keys": ["Backspace"], "bind": [DEV_CMD, "button", 8]},
 	{"id": "fail_fire", "role": "CMDR", "type": "button", "label": "FAIL: ENGINE FIRE", "keys": ["Ctrl+1"], "bind": [DEV_CMD, "button", 9]},
 	{"id": "fail_leak", "role": "CMDR", "type": "button", "label": "FAIL: CABIN LEAK", "keys": ["Ctrl+2"], "bind": [DEV_CMD, "button", 10]},
 	{"id": "fail_power", "role": "CMDR", "type": "button", "label": "FAIL: POWER FAULT", "keys": ["Ctrl+3"], "bind": [DEV_CMD, "button", 11]},
 	{"id": "fail_sensor", "role": "CMDR", "type": "button", "label": "FAIL: SENSOR GLITCH", "keys": ["Ctrl+4"], "bind": [DEV_CMD, "button", 12]},
-	{"id": "seat_up", "role": "CMDR", "type": "switch", "label": "SEATS UP (sense switch)", "keys": ["Home"], "bind": [DEV_CMD, "button", 15], "default": true},
+	# read-only position senses (optocouplers); keyboard only for testing without the board
+	{"id": "cradle_reclined", "role": "CMDR", "type": "switch", "label": "SENSE: CRADLE RECLINED", "keys": ["Home"], "bind": [DEV_CMD, "button", 15]},
+	{"id": "pod_down_locked", "role": "CMDR", "type": "switch", "label": "SENSE: POD DOWN + LOCKED", "keys": ["Delete"], "bind": [DEV_CMD, "button", 26]},
+	{"id": "pod_up_locked", "role": "CMDR", "type": "switch", "label": "SENSE: POD UP + LOCKED (optional)", "keys": [], "bind": [DEV_CMD, "button", 27]},
 	# ---------------- OVERHEAD (shared, wired to Falcon Command)
 	{"id": "ovh_battery", "role": "OVERHEAD", "type": "switch", "label": "BATTERY", "keys": ["F1"], "bind": [DEV_CMD, "button", 16]},
 	{"id": "ovh_fuel_pumps", "role": "OVERHEAD", "type": "switch", "label": "FUEL PUMPS", "keys": ["F2"], "bind": [DEV_CMD, "button", 17]},
@@ -105,7 +111,9 @@ const FW_ALIASES := {
 	"oh_fuel_pumps": "ovh_fuel_pumps", "oh_avionics": "ovh_avionics", "oh_apu_start": "ovh_apu",
 	"oh_guidance": "ovh_guidance", "oh_ignition_arm": "ovh_ign_arm", "oh_cabin_lights": "cabin_lights",
 	"oh_beacon": "beacon", "oh_strobe": "strobe", "oh_eject": "eject",
+	"intercom": "ptt_commander",    # v0.1 maps
 }
+const BOARDS := [DEV_PILOT, DEV_OPS, DEV_CMD]
 const FA_COUNT := 4
 const OPS_MODE_COUNT := 3
 
@@ -210,6 +218,12 @@ func _scan_devices() -> void:
 			# Linux: "Filament Falcon Falcon Pilot", Windows: "Falcon Pilot" -> substring match, or USB ids
 			if nm.findn(dev) >= 0 or (vid == USB_VID and pid == DEVICE_PIDS[dev]):
 				joy_by_name[dev] = id
+	for dev in _fake_devices:
+		if _fake_devices[dev]:
+			if not joy_by_name.has(dev):
+				joy_by_name[dev] = 900 + BOARDS.find(dev)     # fake id: reads as idle hardware
+		else:
+			joy_by_name.erase(dev)
 	devices_changed.emit()
 
 
@@ -383,6 +397,35 @@ func set_group(grp: String, v: int) -> void:
 
 func set_axis_override(id: String, v: float) -> void:
 	latch[id] = v
+
+
+## Which board an action normally lives on (from the bindings), "" for keyboard/touch only.
+func board_of(id: String) -> String:
+	if not actions.has(id):
+		return ""
+	for bd in actions[id]["bindings"]:
+		return str(bd["device"])
+	return ""
+
+
+## Virtual panels show while a board is missing (or always, when forced in the settings).
+func virtual_needed(dev: String) -> bool:
+	return not device_connected(dev) or bool(Settings.get_v("input", "force_virtual_panels"))
+
+
+## Test hook: pretend a board is (dis)connected (clear_fakes() = back to the real scan). Used by the smoke test to
+## exercise hot-plug without hardware.
+var _fake_devices := {}
+
+
+func fake_device(dev: String, connected: bool) -> void:
+	_fake_devices[dev] = connected
+	_scan_devices()
+
+
+func clear_fakes() -> void:
+	_fake_devices.clear()
+	_scan_devices()
 
 
 func has_hardware_for(id: String) -> bool:

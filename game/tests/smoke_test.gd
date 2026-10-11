@@ -98,6 +98,137 @@ func _check_ui() -> bool:
 		parent.add_child(cc)
 	ok = ok and not dm.console.has_commander_tab()
 	print("  console + commander pages, commander tab fallback: %s" % ("ok" if ok else "FAIL"))
+	ok = (await _check_virtual(dm)) and ok
+	ok = _check_pod() and ok
+	ok = (await _check_ics()) and ok
+	return ok
+
+
+## Virtual panels: hot-plug show/hide, the guarded two-tap, held buttons, the encoder.
+func _check_virtual(dm: DisplayManager) -> bool:
+	var con: ConsoleUI = dm.console
+	var ok := true
+	for d: String in InputHub.BOARDS:
+		InputHub.fake_device(d, true)
+	await _frames(2)
+	var hidden_ok: bool = not (con.tabs["PANELS"] as Button).visible
+	InputHub.fake_device(InputHub.DEV_PILOT, false)
+	await _frames(2)
+	var pilot_ok: bool = (con.tabs["PANELS"] as Button).visible and (con._virt[InputHub.DEV_PILOT][0] as Control).visible and not (con._virt[InputHub.DEV_OPS][0] as Control).visible
+	InputHub.fake_device(InputHub.DEV_CMD, false)
+	await _frames(2)
+	var cmd_ok: bool = (con._virt[InputHub.DEV_CMD][0] as Control).visible
+	InputHub.fake_device(InputHub.DEV_PILOT, true)
+	InputHub.fake_device(InputHub.DEV_CMD, true)
+	Settings.set_v("input", "force_virtual_panels", true, false)
+	await _frames(2)
+	var force_ok: bool = (con.tabs["PANELS"] as Button).visible
+	Settings.set_v("input", "force_virtual_panels", false, false)
+	InputHub.clear_fakes()
+	await _frames(2)
+	ok = hidden_ok and pilot_ok and cmd_ok and force_ok
+	print("  virtual panels hot-plug: all plugged=%s, pilot missing=%s, cmd missing=%s, forced=%s" % [hidden_ok, pilot_ok, cmd_ok, force_ok])
+	# interaction on a real layout (no hardware here, so latches decide)
+	var vp := VirtualPanel.make("PILOT_DASH_A")
+	vp.size = Vector2(600, 480)
+	add_child(vp)
+	vp._layout()
+	var pos := {}
+	for c: Dictionary in vp.controls():
+		pos[str(c.get("action", c.get("id", "")))] = vp.to_px(float(c["x"]), float(c["y"]))
+	InputHub.set_switch("engine_arm", false)
+	vp._pointer_down(0, pos["engine_arm"])
+	vp._pointer_up(0)
+	_ticks(0.05)
+	var guard1 := not InputHub.on("engine_arm")       # first tap only lifts the cover
+	vp._pointer_down(0, pos["engine_arm"])
+	vp._pointer_up(0)
+	_ticks(0.05)
+	var guard2 := InputHub.on("engine_arm")
+	vp._pointer_down(3, pos["horn"])
+	_ticks(0.05)
+	var held := InputHub.on("horn")
+	vp._pointer_up(3)
+	_ticks(0.05)
+	var rel := not InputHub.on("horn")
+	InputHub.set_switch("engine_arm", false)
+	vp.queue_free()
+	var vb := VirtualPanel.make("PILOT_DASH_B")
+	vb.size = Vector2(600, 480)
+	add_child(vb)
+	vb._layout()
+	var enc: Dictionary = vb.controls()[0]
+	var fa0 := InputHub.group("fa")
+	vb._pointer_down(0, vb.to_px(float(enc["x"]) + 12.0, float(enc["y"])))
+	vb._pointer_up(0)
+	_ticks(0.05)
+	var enc_ok := InputHub.group("fa") == (fa0 + 1) % InputHub.FA_COUNT
+	InputHub.set_group("fa", fa0)
+	vb.queue_free()
+	var vok := guard1 and guard2 and held and rel and enc_ok
+	print("  virtual panel touch: guard needs 2 taps=%s, button held/released=%s/%s, encoder=%s" % [guard1 and guard2, held, rel, enc_ok])
+	return ok and vok
+
+
+## Crew-position monitor: pod/seat states and callouts from the read-only contacts.
+func _check_pod() -> bool:
+	var p := PodMonitor.new()
+	p.travel_s = 10.0
+	var ev: Array[String] = []
+	ev += p.update(0.1, false, false, false)
+	var s0 := p.pod == PodMonitor.Pod.UP and p.seats == PodMonitor.Seats.UPRIGHT
+	ev += p.update(0.1, true, false, false)
+	var s1 := ev.has("pod_coming_down") and p.seats == PodMonitor.Seats.RECLINED
+	ev += p.update(0.1, true, true, false)
+	var s2 := p.pod == PodMonitor.Pod.DOWN_LOCKED and ev.has("pod_down")
+	ev += p.update(0.1, true, false, false)
+	var s3 := p.pod == PodMonitor.Pod.MOVING and ev.has("pod_going_up")
+	for i in 120:
+		p.update(0.1, true, false, false)
+	var s4 := p.pod == PodMonitor.Pod.UNKNOWN_UP_OR_MOVING
+	ev += p.update(0.1, false, false, false)
+	var s5 := p.pod == PodMonitor.Pod.UP and p.seats == PodMonitor.Seats.MOVING and ev.has("seats_coming_up")
+	# with the optional UP contact fitted
+	var q := PodMonitor.new()
+	q.update(0.1, false, false, true)
+	q.update(0.1, true, false, true)
+	var u1 := q.pod == PodMonitor.Pod.UP and q.has_up_sense()
+	var e2 := q.update(0.1, true, false, false)
+	var u2 := q.pod == PodMonitor.Pod.MOVING and e2.has("pod_coming_down")
+	var ok := s0 and s1 and s2 and s3 and s4 and s5 and u1 and u2
+	print("  pod monitor (no up sense: %s %s %s %s %s %s, with up sense: %s %s): %s" % [s0, s1, s2, s3, s4, s5, u1, u2, "ok" if ok else "FAIL"])
+	return ok
+
+
+## Intercom end-to-end with the helper in --mock mode (fake headsets, no audio devices):
+## hello -> device list, touch PTT opens the Ops mic. Skipped when python3 + numpy are missing.
+func _check_ics() -> bool:
+	if OS.execute("python3", ["-c", "import numpy"]) != 0:
+		print("  intercom mock: skipped (python3-numpy not installed)")
+		return true
+	var was := Ics.enabled
+	var was_set: Variant = Settings.get_v("ics", "enabled")
+	Ics.stop()
+	Settings.cfg.set_value("ics", "enabled", true)   # else a runtime "ics" change switches it off again
+	Ics.start(true)
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 12000 and (not Ics.ok() or Ics.devices.size() < 3):
+		await _frames(1)
+	var up := Ics.ok() and Ics.devices.size() >= 3
+	Settings.set_v("ics", "ops_mode", "ptt", false)
+	Ics.touch_ptt["ops"] = true
+	t0 = Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 3000 and not Ics.keyed("ops"):
+		await _frames(1)
+	var keyed := Ics.keyed("ops")
+	Ics.touch_ptt["ops"] = false
+	Settings.set_v("ics", "ops_mode", "vox", false)
+	Ics.stop()
+	Settings.cfg.set_value("ics", "enabled", was_set)
+	if was:
+		Ics.start(Ics.mock)
+	var ok := up and keyed
+	print("  intercom mock helper: link+devices=%s, touch PTT keys ops=%s: %s" % [up, keyed, "ok" if ok else "FAIL (%s)" % Ics.state_text])
 	return ok
 
 

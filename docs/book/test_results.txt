@@ -1,20 +1,20 @@
 # Game test results - written by docs/book/build_book.py --run-tests
-# date: 2026-10-10 20:26 ADT (Atlantic time)
+# date: 2026-10-10 23:25 ADT (Atlantic time)
 # godot: Godot 4.7.2.stable.official.ed1daf0bf (headless, Dummy audio)
-# commit: fdc56f3
+# commit: dac4d8c
 [smoke]
-PASS launch     state=COMPLETE steps=7/7 score=3013 stars=3 hull=99% (1589 ms)
-PASS docking    state=COMPLETE steps=4/4 score=3129 stars=3 hull=99% (1417 ms)
-PASS lunar      state=COMPLETE steps=4/4 score=3477 stars=3 hull=99% (1372 ms)
-PASS asteroids  state=COMPLETE steps=5/5 score=2964 stars=3 hull=99% (1967 ms)
-PASS reentry    state=COMPLETE steps=5/5 score=3464 stars=3 hull=99% (1543 ms)
-PASS sandbox    state=COMPLETE steps=1/1 score=1538 stars=3 hull=99% (1156 ms)
+PASS launch     state=COMPLETE steps=7/7 score=3013 stars=3 hull=99% (1847 ms)
+PASS docking    state=COMPLETE steps=4/4 score=3129 stars=3 hull=99% (1584 ms)
+PASS lunar      state=COMPLETE steps=4/4 score=3477 stars=3 hull=99% (1535 ms)
+PASS asteroids  state=COMPLETE steps=5/5 score=2964 stars=3 hull=99% (2139 ms)
+PASS reentry    state=COMPLETE steps=5/5 score=3464 stars=3 hull=99% (1655 ms)
+PASS sandbox    state=COMPLETE steps=1/1 score=1538 stars=3 hull=99% (1346 ms)
 RESULT: 6/6 missions passed
 [flight]
-PASS launch     state=COMPLETE step=7/7 score=1889 stars=3 mission_time=229s hull=100% maxG=4.4 (6382 ms)
-PASS docking    state=COMPLETE step=4/4 score=1872 stars=3 mission_time=189s hull=100% maxG=0.9 (5361 ms)
-PASS lunar      state=COMPLETE step=4/4 score=1937 stars=3 mission_time=281s hull=100% maxG=1.8 (7354 ms)
-PASS asteroids  state=COMPLETE step=5/5 score=1541 stars=2 mission_time=519s hull=100% maxG=0.9 (17563 ms)
-PASS reentry    state=COMPLETE step=5/5 score=1843 stars=3 mission_time=658s hull=100% maxG=2.7 (16702 ms)
-PASS sandbox    state=COMPLETE step=1/1 score=858 stars=2 mission_time=58s hull=100% maxG=1.5 (13554 ms)
+PASS launch     state=COMPLETE step=7/7 score=1889 stars=3 mission_time=229s hull=100% maxG=4.4 (6780 ms)
+PASS docking    state=COMPLETE step=4/4 score=1872 stars=3 mission_time=189s hull=100% maxG=0.9 (5907 ms)
+PASS lunar      state=COMPLETE step=4/4 score=1937 stars=3 mission_time=281s hull=100% maxG=1.8 (8024 ms)
+PASS asteroids  state=COMPLETE step=5/5 score=1544 stars=2 mission_time=513s hull=100% maxG=0.9 (18334 ms)
+PASS reentry    state=COMPLETE step=5/5 score=1843 stars=3 mission_time=658s hull=100% maxG=2.7 (17880 ms)
+PASS sandbox    state=COMPLETE step=1/1 score=855 stars=2 mission_time=55s hull=100% maxG=1.5 (13558 ms)
 RESULT: 6/6 missions flown to completion

@@ -44,7 +44,7 @@ def draw(key):
     for pin, (act, hid, kind) in B["gpio"].items():
         side = "L" if str(pin) in J1 else "R"
         used[f"{side}:{pin}"] = C["btn"]
-        extra = " (opto, see 04)" if act == "seat_up" else " to GND"
+        extra = " (PC817 opto, read-only, see 04)" if act in ("cradle_reclined", "pod_down_locked", "pod_up_locked") else " to GND"
         ann[f"{side}:{pin}"] = (f"{act.upper()}{extra}  [btn {hid}]", C["btn"])
     for ei, (pa, pb, slot, knob) in enumerate(B["enc"]):
         names = knob + " knob -> axis" if slot != "AX_NONE" else ", ".join(f"{a}" for s, a, h in B["enc_btn"].get(ei, []))

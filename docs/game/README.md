@@ -7,8 +7,10 @@ downloaded assets (see [CREDITS.md](CREDITS.md)).
 ![docking at the station](screenshots/07_docking_ops.jpg)
 
 More in [screenshots/](screenshots/): launch pad, ascent, station, docking, Moon, asteroid field, reentry plasma, runway,
-the celebration screen, the kids' console pages (`18_`–`22_`), the Commander screen (`23_`–`27_`) and the
-three-screen fallback with the Commander as a console tab (`28_`). They are rendered by `tests/run_screenshots.sh`
+the celebration screen, the kids' console pages (`18_`–`22_`), the Commander screen (`23_`–`27_`), the
+three-screen fallback with the Commander as a console tab (`28_`), the on-screen virtual panels for unplugged
+boards (`29_` console PANELS page, `30_` CHECKLIST with the overhead panels, `31_` Commander PANEL) and the
+intercom pages (`32_` Commander ICS, `33_` SETUP with headsets). They are rendered by `tests/run_screenshots.sh`
 with the software Vulkan driver at the Ultra preset (`QUALITY=ultra`), so they look softer than on the real GPU.
 
 ### Graphics notes
@@ -45,14 +47,18 @@ with the software Vulkan driver at the Ultra preset (`QUALITY=ultra`), so they l
    - `sudo apt install espeak-ng` gives spoken callouts. Without it you get text banners plus tones.
      A [piper](https://github.com/rhasspy/piper) voice also works: set `audio/piper_model` in the settings file.
    - `sudo apt install python3-serial` is needed for the LED panel bridge.
+   - `sudo apt install python3-numpy pulseaudio-utils` is needed for the 3-headset intercom (see
+     [section 6](#6-intercom-ics-three-usb-headsets)). Linux Mint 22 runs PipeWire, which already includes the
+     PulseAudio server (`pipewire-pulse`); `pulseaudio-utils` only adds the `pactl`/`parec`/`pacat` tools.
 
 ## 2. Run it
 
 **Easiest:** `./run.sh --cockpit` (or `./run.sh --dev`) from the `game/` folder. On a fresh clone it imports the project first, which fixes the "Identifier CelestialBody not declared" parse errors you otherwise get on the very first launch. If you use `godot` directly, run `godot --headless --path . --import` once first.
 
 `run.sh` also maps the touchscreen to the kids' console monitor before each launch (see
-[Touch mapping](#touch-mapping-the-td2220)). Extra `run.sh` options: `--landscape-console` (turn the console
-monitor to landscape first) and `--no-display-setup` (skip the touch mapping).
+[Touch mapping](#touch-mapping-the-td2220)) and starts the intercom helper (see [Intercom](#6-intercom-ics-three-usb-headsets)).
+Extra `run.sh` options: `--landscape-console` (turn the console monitor to landscape first),
+`--no-display-setup` (skip the touch mapping) and `--no-ics` (no intercom).
 
 ```bash
 cd game
@@ -79,7 +85,9 @@ Useful command-line options (after `--`):
 | `--dev` / `--cockpit` | Force the window layout. |
 | `--quality=low\|medium\|high\|ultra` | Graphics preset. Also on the Commander SETUP page. |
 | `--mission=<id>` | Start mission: launch, docking, lunar, asteroids, reentry or sandbox. |
-| `--no-voice` / `--no-led` | Turn off speech / the LED bridge. |
+| `--no-voice` / `--no-led` / `--no-ics` | Turn off speech / the LED bridge / the intercom. |
+| `--virtual-panels` | Always show the on-screen panels, even with the boards plugged in. |
+| `--ics-mock` | Intercom helper with fake headsets and voices (no audio devices touched). |
 | `--shared-dir=/path/to/shared` | Use a different `shared/` folder (input_map.json, led_protocol.md). |
 
 Settings are stored in `~/.local/share/filament-falcon/falcon_settings.cfg`. The Commander SETUP page shows the
@@ -108,20 +116,34 @@ All views render at native 1920x1080 (the console also works in portrait, 1080x1
 - **SYSTEMS**: power distribution (all switches, power use, reactor), ship health bars, the fault list with
   what to do, SEAL LEAK, FIRE SUPPRESS, JUMP ARM/ENGAGE.
 - **CAMERAS**: docking, arm and chase cameras.
-- **CHECKLIST**: the overhead start-up switches in order, with DONE / NEXT / OUT OF ORDER.
+- **CHECKLIST**: the overhead start-up switches in order, with DONE / NEXT / OUT OF ORDER. While Falcon
+  Command is unplugged the three overhead panels are drawn above the list.
+- **PANELS** (the tab only appears while the Pilot or Ops board is unplugged, or SETUP forces it): that
+  seat's real panels on screen (see [Virtual panels](#virtual-panels-boards-unplugged)) and a touch joystick.
 - A task strip at the top always shows each kid's current job (blue = Pilot, orange = Ops) and flashes
-  MASTER CAUTION. Every touch control mirrors a hardware control. When a board is plugged in, its switches
+  MASTER CAUTION. Each kid has a big **TALK** pad there (intercom push-to-talk; it lights when that mic is on
+  air). Every touch control mirrors a hardware control. When a board is plugged in, its switches
   win and the touch buttons only show their state.
 
 **Commander screen** (mouse and keyboard; nothing here needs touch):
+- **Status row** (always visible): PILOT / OPS / CMD board plugged in (✔) or VIRTUAL, crew position
+  (POD UP / MOVING / DOWN-LOCKED, SEATS UPRIGHT / MOVING / RECLINED) and the intercom state.
 - **MISSION CONTROL**: mission select, START / PAUSE / RESUME / FLY AGAIN, RESTART, SKIP STEP, harness check,
   END FREE FLIGHT, failure injection, live score; orbit map with zoom, telemetry, time WARP and VIEW (cockpit or
-  chase); crew status with both kids' current tasks and step, ship health, faults, MASTER CAUTION RESET.
+  chase); crew status with both kids' current tasks and step, ship health, faults, MASTER CAUTION RESET; crew
+  position; intercom TALK and ALL-CALL (hold), MUTE PILOT / MUTE OPS.
 - **BRIEFING**: the full briefing, both jobs, all objectives, the Commander tip, READ BRIEFING ALOUD.
 - **TRAINING**: difficulty (EASY: +30 % fuel and RCS, half damage; HARD: −15 % fuel, 1.5× damage), skip the
   overhead checklist for little crews, checklist ALL ON / ALL OFF, assist override, voice callouts, failures.
 - **CONTROLS**: live test of every switch, axis and button, devices, LED test, input-map template export.
-- **SETUP**: screen roles, layout mode, quality, FPS cap, vsync, fullscreen, LED link, window geometry, QUIT.
+- **PANEL**: the two Falcon Command panels (CMD_A, CMD_B) on screen: operable with the mouse while the board is
+  unplugged, a live mirror when it is plugged in. Also a big ALL-CALL / PA pad and SENSE TEST switches (pretend
+  the crew-position contacts close, to try the pod display and callouts without the hardware).
+- **ICS**: the intercom: headset per seat (◀ ▶, IDENTIFY, RESCAN), level meters, VOX/PTT, VOX level / attack /
+  hang, mic gain, intercom and game volume, sidetone per seat; radio effect, static, squelch tail, click + roger,
+  room speakers, callout volume, ALL-CALL duck.
+- **SETUP**: screen roles, layout mode, quality, FPS cap, vsync, fullscreen, LED link, window geometry, QUIT;
+  headset per seat; ALWAYS SHOW virtual panels; crew-position options (callouts, travel time, UP sense fitted).
 
 ### Which screen gets which role
 
@@ -277,6 +299,53 @@ The out-the-window rendering is generic, so this is planned for but not built ye
 - When a board is connected, its switches win. The touchscreen switch buttons are disabled for those
   controls, so the physical switch is always the truth.
 - **CONTROLS page** (Commander screen): live state of every action, the device list, an "export template" button and an LED test.
+- Push-to-talk buttons: Pilot board bit 11 (HID button 14, `ptt_pilot`), Ops board bit 13 (HID 16, `ptt_ops`), the
+  Commander's INTERCOM button (HID 7, `ptt_commander`) and a new ALL-CALL button on Falcon Command bit 7 (HID 13,
+  `all_call`). The kids' PTT and the ALL-CALL buttons are 16 mm momentaries that are not on the v0.1 panel
+  drawings yet (spare 74HC165 inputs; mount them where the kids can reach, e.g. beside the stick).
+  Re-flash all three boards after pulling (`pio run -e falcon_pilot -t upload`, same for `falcon_ops`,
+  `falcon_command`); old firmware still works, it just has no PTT buttons.
+
+### Virtual panels (boards unplugged)
+
+When a board is not plugged in, its controls appear on screen, drawn from the same CAD layouts as the real
+panels (`cad/tools/layouts.py` → `game/tools/gen_virtual_panels.py` → `game/config/virtual_panels.json`):
+same switches, same places, same printed legends, with finger-sized touch areas.
+
+| Board missing | Where its controls appear |
+|---|---|
+| Falcon Pilot | console **PANELS** tab: PILOT DASH A + B, the side console (drag the THROTTLE, tap the GEAR lever) and a touch stick (circle = pitch/roll, bar = yaw, TRIGGER) |
+| Falcon Ops | console **PANELS** tab: OPS DASH A + B, the hyperspace console and a touch stick (circle = RCS left/right + up/down, bar = fwd/back, TRIGGER) |
+| Falcon Command | console **CHECKLIST**: the three overhead panels; Commander **PANEL** page: CMD_A + CMD_B (mouse) |
+
+How they work: toggles flip on a tap; **guarded switches (ENG ARM, JUMP ARM, EJECT) take two taps**: the
+first lifts the red cover, the second flips the switch, and the cover drops back after 4 s. Push buttons are
+held while your finger is on them. Encoder knobs: tap left/right of the knob to turn, the knob itself to
+push; the mode legends light up. Several fingers work at once (both kids can use the screen together).
+The MOTION key, CREW POS switch and STOP on CMD_B are drawn grey: they are hardwired to the actuators and only
+exist on the real panel. Plugging a board in hides its virtual panels immediately (hot-plug); unplugging
+shows them again. SETUP → ALWAYS SHOW (or `--virtual-panels`) keeps them on screen with the boards plugged in
+(the real switches still win). The keyboard keys below keep working either way.
+
+### Crew position (cradle recline + pod)
+
+The seat cradle and the kids' pod are moved by the hardwired circuit in
+[docs/electronics, diagram 04](../electronics/README.md): key, hold-to-run CREW POS switch, release lever,
+limit switches, E-stop. **The game never moves anything.** Falcon Command only reads three isolated contacts:
+
+| Contact | Pin / HID button | Game shows |
+|---|---|---|
+| CRADLE RECLINED | GPIO39, button 15 (`cradle_reclined`) | SEATS RECLINED; when it opens: SEATS MOVING for the travel time, then UPRIGHT |
+| POD DOWN + LOCKED | GPIO40, button 26 (`pod_down_locked`) | POD DOWN-LOCKED; when it opens: POD MOVING for the travel time |
+| POD UP + LOCKED (optional) | GPIO41, button 27 (`pod_up_locked`) | POD UP; open while reclined and not down = POD MOVING |
+
+The interlock means the pod is always UP while the seats are not reclined. Without the optional UP contact the
+game cannot tell "pod up" from "pod on its way" while reclined, so it shows `UP / MOVING` after the travel time
+(SETUP: travel time, default 40 s; UP sense auto / yes / no). Callouts go out over the intercom MISSION CONTROL
+channel: "Seats reclined. Stand by, pod coming down. Heads back, hands in.", "Pod down and locked.", "Pod going
+up.", "Seats coming up. Hands in." The FLT / BRD lamps on CMD_B show POD DOWN-LOCKED (green), MOVING (amber,
+blinking) and BOARDING POSITION (green). Keyboard test without the board: **Home** = cradle reclined,
+**Delete** = pod down + locked.
 
 Keyboard fallback (every action has one):
 
@@ -289,10 +358,11 @@ Keyboard fallback (every action has one):
 | Trigger (laser) | F | Reactor / life / shields / comms / sensors | 5–9 | Mission ◀ ▶ / select | PgUp / PgDn / Insert |
 | Engine arm / ignition | T / Space | Fire suppression | R | Caution reset | Backspace |
 | Boost / airbrake | Tab / B | Scanner ping | P | Fail: fire / leak / power / sensor | Ctrl+1…4 |
-| Flaps up / down | , / . | Cargo doors / dock clamp | O / U | Seats up | Home |
+| Flaps up / down | , / . | Cargo doors / dock clamp | O / U | Sense: cradle reclined / pod down | Home / Delete |
 | Gear / view | G / V | Nav target | M | Eject (covered) | F11 |
-| Assist OFF/STAB/PRO/HOLD | 1–4 | Mode RCS / ARM / SCANNER | Z / X / C | Intercom | ` |
-| Assist knob ◀ ▶ | − / = | Jump arm / engage | [ / ] | | |
+| Assist OFF/STAB/PRO/HOLD | 1–4 | Mode RCS / ARM / SCANNER | Z / X / C | Intercom talk (hold) | ` |
+| Assist knob ◀ ▶ | − / = | Jump arm / engage | [ / ] | ALL-CALL (hold) | ' |
+| Push to talk (hold) | \ | Push to talk (hold) | / | | |
 
 ## 5. LED panel (serial) and udev
 
@@ -311,7 +381,66 @@ The Commander SETUP page shows the bridge status.
   The board stays silent unless `ACK ON` is sent. The bridge logs any `ERR`/`EVT` lines to stderr.
 - Test without the game: `python3 game/tools/falcon_led_bridge.py --dry-run`.
 
-## 6. Crew guide (for kids!)
+## 6. Intercom (ICS): three USB headsets
+
+Pilot, Ops and Commander each wear a USB headset. Every mic is heard in the other two headsets (with an
+optional quiet sidetone in your own), the game sound (engine, alarms) and the voice callouts reach all three,
+and each seat has its own game and intercom volume. A radio effect (300–3400 Hz band-pass, light compression,
+optional static, a squelch tail and a mic click / roger beep) makes it sound like a real spacecraft loop; it
+can be switched off on Commander → ICS.
+
+**How it runs.** Godot can only open one audio device, so the intercom is a small helper,
+`game/tools/falcon_ics.py` (Python + numpy). `run.sh` starts it; the game starts it itself if it is not
+running, and they talk over localhost UDP (game → helper port 47810, helper → game 47811), like the LED bridge.
+It uses the PulseAudio protocol (`pactl`, `parec`, `pacat`), which works with PulseAudio and with PipeWire
+(`pipewire-pulse`, the default on Mint 22); the ICS page shows which server it found. It creates two virtual
+outputs: `falcon_game` (the game switches its own output to it while the helper runs, and back to the normal
+output if the helper stops) and `falcon_mc` (MISSION CONTROL: the voice callouts). If ROOM SPEAKERS is on, both
+are also played on the default output. Audio runs in 5 ms blocks; mic → other headsets is about 30–40 ms.
+If python3, numpy or the Pulse tools are missing, or no headset is plugged in, the intercom stays off and the
+game plays sound as before; the reason is on the ICS page and in the log.
+
+**Talking.** Each seat is **VOX** (voice-operated: the mic opens when you talk louder than the threshold, the
+white tick on the meter, and stays open for the hang time) or **PTT** (push-to-talk). Kids default to VOX, the
+Commander to PTT. PTT inputs: the PTT button on each board, the keys `\` (Pilot), `/` (Ops), `` ` `` (Commander),
+the TALK pads on the kids' console and on MISSION CONTROL. Holding TALK also opens a VOX mic. The Commander
+also has:
+- **ALL-CALL / PA** (hold the ALL-CALL button, the `'` key or the ALL-CALL pad): talk to both kids louder, with
+  a chime, while the game sound and their mics are ducked.
+- **MUTE PILOT / MUTE OPS** (MISSION CONTROL or ICS page).
+- The **MISSION CONTROL** channel carries the game's voice callouts (e.g. "pod coming down").
+
+**Setup (once).**
+1. `sudo apt install python3-numpy pulseaudio-utils` (on plain PulseAudio systems the server is already there;
+   on PipeWire make sure `pipewire-pulse` is installed, which it is on Mint 22).
+2. Plug in the three headsets, start the game, open Commander → **ICS** (or SETUP → HEADSETS).
+3. For each seat press ◀ ▶ until the right headset shows, then **IDENTIFY**: a tone plays in that headset
+   only. Headsets are saved by product name + USB serial + USB port, so unplugging/replugging or a different
+   plug-in order keeps the assignment. Two identical headsets without serial numbers are told apart by their
+   USB port, so keep each one in the same port.
+4. Talk into each mic and set the VOX level so the meter crosses the white tick when talking but not when
+   breathing; or switch that seat to PTT.
+
+**Troubleshooting.**
+
+| Problem | Try |
+|---|---|
+| ICS says "missing pactl, parec, pacat" | `sudo apt install pulseaudio-utils` |
+| ICS says "numpy missing" | `sudo apt install python3-numpy` |
+| ICS says "no PulseAudio/PipeWire server" | `pactl info` must work in your session; on PipeWire: `sudo apt install pipewire-pulse`, then log out and in |
+| A headset is not in the list | `python3 game/tools/falcon_ics.py --list` (lists every USB headset and the current assignment); press RESCAN |
+| Which headset is which? | `python3 game/tools/falcon_ics.py --ident pilot` (or a device name) |
+| Echo / feedback | sidetone OFF, ROOM SPEAKERS OFF if the speakers are loud, or use PTT |
+| Choppy audio, "dropouts" counting up | close other audio apps; check the log; headsets on separate USB ports |
+| Too much delay | `python3 game/tools/falcon_ics.py --latency-test pilot` measures the loop (needs that headset's mic near its speaker) |
+| No game sound after a crash | the game switches back to the normal output by itself; else pick the output in the sound settings |
+| Checking the setup without the game | `python3 game/tools/falcon_ics.py --setup-only` creates the virtual outputs, reports and exits |
+
+Logs: `~/.local/share/filament-falcon/ics.log` (the helper writes there when started by `run.sh` or the game).
+The helper exits when the game exits, and removes its virtual outputs. `--mock` runs it with fake headsets and
+synthetic voices, which is what the tests use.
+
+## 7. Crew guide (for kids!)
 
 **Three jobs:**
 - **PILOT** (left seat) flies the Falcon with the big stick and throttle. You point the ship, fire the
@@ -358,13 +487,21 @@ Tips:
   In the air it is limited to ×4.
 - Homecoming is the longest mission: about 11 minutes, or about 4½ minutes using WARP ×4 during the high glide.
 
-## 7. Tests (for developers)
+**Talking on the intercom:** in VOX mode just talk, your TALK pad lights up when the others can hear you. In
+PTT mode hold your PTT button (or the TALK pad) while you talk, and let go to listen. Say "over" when you are done!
+
+## 8. Tests (for developers)
 
 ```bash
 cd game
 godot --headless --path . --import                                        # import; must show no errors
 godot --headless --path . --audio-driver Dummy -- --smoke-test           # every mission start→finish + every failure fixed by crew actions,
-                                                                          # + screen-role resolver (4- and 3-screen rigs) and every console/Commander page
+                                                                          # + screen-role resolver (4- and 3-screen rigs) and every console/Commander page,
+                                                                          # + virtual panels (hot-plug, guarded 2-tap, held buttons, encoder),
+                                                                          # + pod/seat state machine, + intercom end-to-end with the --mock helper
+python3 tools/test_falcon_ics.py                                         # intercom: DSP (band-pass, compressor), VOX, mixing/routing,
+                                                                          # drift rings, device grouping (PulseAudio + PipeWire) and replug matching
+python3 tools/gen_virtual_panels.py --check                              # virtual panel layout matches cad/tools/layouts.py
 godot --headless --path . --audio-driver Dummy -- --flight-test          # bots actually FLY every mission with cockpit controls
 godot --headless --path . --audio-driver Dummy -- --flight-test --only=reentry --trace
 GODOT=godot tests/run_screenshots.sh                                      # screenshots via xvfb + lavapipe → docs/game/screenshots/

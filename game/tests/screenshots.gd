@@ -52,7 +52,7 @@ func _shot(file_name: String, solo: String = "") -> void:
 
 func _run() -> void:
 	var only: String = str(Settings.cli.get("only", ""))
-	var shots := ["launch_pad", "launch_ascent", "orbit_station", "docking", "lunar", "asteroids", "reentry", "runway", "celebration", "console_pages", "commander"]
+	var shots := ["launch_pad", "launch_ascent", "orbit_station", "docking", "lunar", "asteroids", "reentry", "runway", "celebration", "console_pages", "commander", "virtual"]
 	for s in shots:
 		if only != "" and not only.split(",").has(s):
 			continue
@@ -192,6 +192,9 @@ func _shot_celebration() -> void:
 
 func _shot_console_pages() -> void:
 	# the kids' console mid-docking: camera on the port, Ops in RCS mode
+	# the normal look: all three boards plugged in (no virtual panels)
+	for d: String in InputHub.BOARDS:
+		InputHub.fake_device(d, true)
 	_start("docking")
 	InputHub.set_group("ops", 0)
 	_ticks(3.0)
@@ -220,6 +223,14 @@ func _shot_console_pages() -> void:
 
 
 func _shot_commander() -> void:
+	# kids' boards plugged in, Falcon Command not (top bar shows CMD: VIRTUAL); pod down + locked;
+	# intercom status as it looks with three headsets (no audio devices in the screenshot VM)
+	InputHub.fake_device(InputHub.DEV_PILOT, true)
+	InputHub.fake_device(InputHub.DEV_OPS, true)
+	InputHub.fake_device(InputHub.DEV_CMD, false)
+	Ics.inject_demo()
+	InputHub.set_switch("cradle_reclined", true)
+	InputHub.set_switch("pod_down_locked", true)
 	_start("docking")
 	_ticks(4.0)
 	Game.inject_failure("power")
@@ -242,3 +253,41 @@ func _shot_commander() -> void:
 	display.dev_root.add_child(c)
 	display._layout_tiles()
 	await _frames(2)
+
+
+## Virtual panels (boards unplugged) and the new Commander pages.
+func _shot_virtual() -> void:
+	InputHub.clear_fakes()          # no boards at all in the VM: every panel is virtual
+	Ics.inject_demo()
+	_start("docking")
+	InputHub.set_group("ops", 0)
+	InputHub.set_switch("cargo_doors", true)
+	InputHub.set_axis_override("throttle", 0.35)
+	InputHub.set_switch("cradle_reclined", true)
+	InputHub.set_switch("pod_down_locked", true)
+	_ticks(2.0)
+	var con: ConsoleUI = display.console
+	con.show_page("PANELS")
+	await _frames(4)
+	await _shot("29_console_virtual_panels", "console")
+	Game.load_mission("launch")
+	for id in Game.CHECKLIST:
+		InputHub.set_switch(id, false)
+	_ticks(0.2)
+	for k in 3:
+		InputHub.set_switch(Game.CHECKLIST[k], true)
+		_ticks(0.2)
+	con.show_page("CHECKLIST")
+	await _frames(4)
+	await _shot("30_console_checklist_overhead", "console")
+	con.show_page("FLIGHT")
+	_start("docking")
+	_ticks(1.0)
+	var cmd: CommanderUI = display.commander
+	var i := 31
+	for p in ["PANEL", "ICS", "SETUP"]:
+		cmd.show_page(p)
+		await _frames(4)
+		await _shot("%02d_commander_%s" % [i, p.to_lower()], "commander")
+		i += 1
+	cmd.show_page("MISSION CONTROL")

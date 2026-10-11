@@ -4,7 +4,8 @@
 // Matches cad/tools/layouts.py panels OPS_DASH_A, OPS_DASH_B, OPS_SIDE.
 // Joystick = RCS translate X / Y / Z(twist) + trigger (also drives the robotic
 // arm, tractor beam and scanner camera depending on MODE),
-// 2 x 74HC165 (16 inputs, 13 used), 1 x EC11 (OPS MODE, with push).
+// 2 x 74HC165 (16 inputs, 14 used), 1 x EC11 (OPS MODE, with push).
+// PTT = headset push-to-talk for the intercom (ICS), 16 mm momentary.
 #pragma once
 #include "ff_types.h"
 #include "board_pins.h"
@@ -39,4 +40,5 @@ static const ButtonCfg FF_BUTTONS[] = {
   FF_BTN(SRC_SR,      10,            13, K_MOMENTARY, "nav_target_next"),   // NAV TGT button cycles
   FF_BTN(SRC_SR,      11,            14, K_TOGGLE,    "jump_arm"),          // guarded toggle
   FF_BTN(SRC_SR,      12,            15, K_MOMENTARY, "jump_engage"),
+  FF_BTN(SRC_SR,      13,            16, K_MOMENTARY, "ptt_ops"),           // intercom push-to-talk
 };

@@ -3,7 +3,9 @@
 // ============================================================================
 // Matches cad/tools/layouts.py panels PILOT_DASH_A, PILOT_DASH_B, PILOT_SIDE.
 // Joystick = roll (X) / pitch (Y) / yaw (twist) + trigger, throttle lever pot,
-// 2 x 74HC165 (16 inputs, 11 used), 1 x EC11 (FLIGHT ASSIST mode, with push).
+// 2 x 74HC165 (16 inputs, 12 used), 1 x EC11 (FLIGHT ASSIST mode, with push).
+// PTT = headset push-to-talk for the intercom (ICS): a 16 mm momentary on the side
+// console or the joystick base (the game forwards it to tools/falcon_ics.py).
 #pragma once
 #include "ff_types.h"
 #include "board_pins.h"
@@ -37,4 +39,5 @@ static const ButtonCfg FF_BUTTONS[] = {
   FF_BTN(SRC_SR,      8,             11, K_MOMENTARY, "assist_push"),       // encoder push
   FF_BTN(SRC_SR,      9,             12, K_MOMENTARY, "view_cycle"),
   FF_BTN(SRC_SR,      10,            13, K_TOGGLE,    "landing_gear_down"), // gear lever switch
+  FF_BTN(SRC_SR,      11,            14, K_MOMENTARY, "ptt_pilot"),         // intercom push-to-talk
 };

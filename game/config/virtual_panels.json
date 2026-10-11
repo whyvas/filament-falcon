@@ -1,0 +1,1356 @@
+{
+ "_generated_by": "game/tools/gen_virtual_panels.py from cad/tools/layouts.py - do not edit",
+ "panels": {
+  "CMD_A": {
+   "board": "Falcon Command",
+   "controls": [
+    {
+     "action": "master_power",
+     "desc": "MASTER POWER 19 mm key switch (game input)",
+     "id": "MASTER_POWER",
+     "kind": "key19",
+     "text": "MASTER POWER",
+     "x": 38,
+     "y": 146
+    },
+    {
+     "desc": "MISSION select EC11 encoder with push",
+     "enc": {
+      "next": "mission_next",
+      "prev": "mission_prev",
+      "push": "mission_select"
+     },
+     "id": "MISSION",
+     "kind": "ec11",
+     "text": "MISSION",
+     "x": 105,
+     "y": 146
+    },
+    {
+     "desc": "cockpit lights DIMMER EC11 encoder",
+     "enc": {
+      "axis": "dimmer",
+      "push": "dimmer_push"
+     },
+     "id": "LIGHTS_DIM",
+     "kind": "ec11",
+     "text": "DIMMER",
+     "x": 165,
+     "y": 146
+    },
+    {
+     "action": "start",
+     "desc": "START 22 mm momentary (green)",
+     "id": "START",
+     "kind": "arc22",
+     "text": "START",
+     "x": 38,
+     "y": 92
+    },
+    {
+     "action": "pause",
+     "desc": "PAUSE 22 mm momentary (yellow)",
+     "id": "PAUSE",
+     "kind": "arc22",
+     "text": "PAUSE",
+     "x": 105,
+     "y": 92
+    },
+    {
+     "action": "ptt_commander",
+     "desc": "INTERCOM / PA 19 mm momentary (push to talk)",
+     "id": "INTERCOM",
+     "kind": "arc19",
+     "text": "INTERCOM",
+     "x": 165,
+     "y": 92
+    },
+    {
+     "action": "caution_reset",
+     "desc": "MASTER CAUTION RESET 22 mm momentary (amber)",
+     "id": "CAUTION_RESET",
+     "kind": "arc22",
+     "text": "CAUTION RESET",
+     "x": 50,
+     "y": 40
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "pilot_ready",
+     "text": "PILOT ready (green)",
+     "x": 127,
+     "y": 38
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "ops_ready",
+     "text": "OPS ready (green)",
+     "x": 163,
+     "y": 38
+    }
+   ],
+   "grooves": [],
+   "h": 200,
+   "labels": [
+    {
+     "cap": 5.5,
+     "id": "MASTER_POWER",
+     "text": "MASTER POWER",
+     "x": 38,
+     "y": 168
+    },
+    {
+     "cap": 5.5,
+     "id": "MISSION",
+     "text": "MISSION",
+     "x": 105,
+     "y": 167
+    },
+    {
+     "cap": 5.5,
+     "id": "LIGHTS_DIM",
+     "text": "DIMMER",
+     "x": 165,
+     "y": 167
+    },
+    {
+     "cap": 5.5,
+     "id": "START",
+     "text": "START",
+     "x": 38,
+     "y": 116
+    },
+    {
+     "cap": 5.5,
+     "id": "PAUSE",
+     "text": "PAUSE",
+     "x": 105,
+     "y": 116
+    },
+    {
+     "cap": 5.5,
+     "id": "INTERCOM",
+     "text": "INTERCOM",
+     "x": 165,
+     "y": 114
+    },
+    {
+     "cap": 5.5,
+     "id": "CAUTION_RESET",
+     "text": "CAUTION RESET",
+     "x": 50,
+     "y": 64
+    },
+    {
+     "cap": 5.5,
+     "id": "CREW_READY",
+     "text": "CREW READY",
+     "x": 145,
+     "y": 58
+    }
+   ],
+   "title": "Commander console, game controls",
+   "w": 200,
+   "where": "dad's right-hand console on the fixed rear dais"
+  },
+  "CMD_B": {
+   "board": "Falcon Command",
+   "controls": [
+    {
+     "action": "fail_fire",
+     "desc": "failure: ENGINE FIRE 16 mm momentary",
+     "id": "ENGINE_FIRE",
+     "kind": "btn16",
+     "text": "ENGINE FIRE",
+     "x": 55,
+     "y": 128
+    },
+    {
+     "action": "fail_leak",
+     "desc": "failure: CABIN LEAK 16 mm momentary",
+     "id": "CABIN_LEAK",
+     "kind": "btn16",
+     "text": "CABIN LEAK",
+     "x": 145,
+     "y": 128
+    },
+    {
+     "action": "fail_power",
+     "desc": "failure: POWER FAULT 16 mm momentary",
+     "id": "POWER_FAULT",
+     "kind": "btn16",
+     "text": "POWER FAULT",
+     "x": 55,
+     "y": 86
+    },
+    {
+     "action": "fail_sensor",
+     "desc": "failure: SENSOR GLITCH 16 mm momentary",
+     "id": "SENSOR_GLITCH",
+     "kind": "btn16",
+     "text": "SENSOR GLITCH",
+     "x": 145,
+     "y": 86
+    },
+    {
+     "desc": "MOTION key switch (hardwired, actuator circuit only): recline + pod",
+     "hardwired": true,
+     "id": "SEAT_KEY",
+     "kind": "key19",
+     "text": "MOTION",
+     "x": 32,
+     "y": 38
+    },
+    {
+     "desc": "CREW POSITION hold-to-run (ON)-OFF-(ON) DPDT heavy toggle, 12 mm bushing (hardwired): UP = FLIGHT (recline, then pod down), DOWN = BOARD (pod up, then seats upright)",
+     "hardwired": true,
+     "id": "SEAT_LIFT",
+     "kind": "tog12",
+     "text": "CREW POS",
+     "x": 95,
+     "y": 38
+    },
+    {
+     "desc": "MOTION E-STOP 22 mm latching mushroom, NC (hardwired, cuts all 4 actuators)",
+     "hardwired": true,
+     "id": "SEAT_STOP",
+     "kind": "estop22",
+     "text": "STOP",
+     "x": 165,
+     "y": 38
+    }
+   ],
+   "grooves": [
+    [
+     6,
+     22,
+     194,
+     76
+    ]
+   ],
+   "h": 200,
+   "labels": [
+    {
+     "cap": 8.0,
+     "id": "FAILURES",
+     "text": "FAILURES",
+     "x": 100,
+     "y": 170
+    },
+    {
+     "cap": 5.5,
+     "id": "ENGINE_FIRE",
+     "text": "ENGINE FIRE",
+     "x": 55,
+     "y": 148
+    },
+    {
+     "cap": 5.5,
+     "id": "CABIN_LEAK",
+     "text": "CABIN LEAK",
+     "x": 145,
+     "y": 148
+    },
+    {
+     "cap": 5.5,
+     "id": "POWER_FAULT",
+     "text": "POWER FAULT",
+     "x": 55,
+     "y": 106
+    },
+    {
+     "cap": 5.5,
+     "id": "SENSOR_GLITCH",
+     "text": "SENSOR GLITCH",
+     "x": 145,
+     "y": 106
+    },
+    {
+     "cap": 5.5,
+     "id": "SEAT_KEY",
+     "text": "MOTION",
+     "x": 32,
+     "y": 60
+    },
+    {
+     "cap": 5.5,
+     "id": "SEAT_LIFT",
+     "text": "CREW POS",
+     "x": 95,
+     "y": 60
+    },
+    {
+     "cap": 5.5,
+     "id": "SEAT_UP",
+     "lamp": "pod_flt",
+     "text": "FLT",
+     "x": 127,
+     "y": 50
+    },
+    {
+     "cap": 5.5,
+     "id": "SEAT_DN",
+     "lamp": "pod_brd",
+     "text": "BRD",
+     "x": 127,
+     "y": 30
+    },
+    {
+     "cap": 5.5,
+     "id": "SEAT_STOP",
+     "text": "STOP",
+     "x": 165,
+     "y": 67
+    }
+   ],
+   "title": "Commander console, failures + crew motion",
+   "w": 200,
+   "where": "dad's right-hand console on the fixed rear dais, behind CMD_A"
+  },
+  "OPS_DASH_A": {
+   "board": "Falcon Ops",
+   "controls": [
+    {
+     "action": "pwr_reactor",
+     "desc": "REACTOR power bus, mini toggle SPST",
+     "id": "REACTOR",
+     "kind": "tog6",
+     "text": "REACTOR",
+     "x": 35,
+     "y": 100
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "action:pwr_reactor",
+     "text": "REACTOR status",
+     "x": 35,
+     "y": 84
+    },
+    {
+     "action": "pwr_life",
+     "desc": "LIFE SUPPORT bus, mini toggle SPST",
+     "id": "LIFE_SUPPORT",
+     "kind": "tog6",
+     "text": "LIFE SUPPORT",
+     "x": 100,
+     "y": 100
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "action:pwr_life",
+     "text": "LIFE SUPPORT status",
+     "x": 100,
+     "y": 84
+    },
+    {
+     "action": "pwr_shields",
+     "desc": "SHIELDS bus, mini toggle SPST",
+     "id": "SHIELDS",
+     "kind": "tog6",
+     "text": "SHIELDS",
+     "x": 165,
+     "y": 100
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "action:pwr_shields",
+     "text": "SHIELDS status",
+     "x": 165,
+     "y": 84
+    },
+    {
+     "action": "pwr_comms",
+     "desc": "COMMS bus, mini toggle SPST",
+     "id": "COMMS",
+     "kind": "tog6",
+     "text": "COMMS",
+     "x": 35,
+     "y": 44
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "action:pwr_comms",
+     "text": "COMMS status",
+     "x": 35,
+     "y": 28
+    },
+    {
+     "action": "pwr_sensors",
+     "desc": "SENSORS bus, mini toggle SPST",
+     "id": "SENSORS",
+     "kind": "tog6",
+     "text": "SENSORS",
+     "x": 100,
+     "y": 44
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "action:pwr_sensors",
+     "text": "SENSORS status",
+     "x": 100,
+     "y": 28
+    },
+    {
+     "action": "fire_suppress",
+     "desc": "FIRE SUPPRESSION 19 mm momentary (red)",
+     "id": "FIRE_SUPPR",
+     "kind": "arc19",
+     "text": "FIRE SUPPR",
+     "x": 165,
+     "y": 44
+    }
+   ],
+   "grooves": [],
+   "h": 160,
+   "labels": [
+    {
+     "cap": 5.5,
+     "id": "REACTOR",
+     "text": "REACTOR",
+     "x": 35,
+     "y": 118
+    },
+    {
+     "cap": 5.5,
+     "id": "LIFE_SUPPORT",
+     "text": "LIFE SUPPORT",
+     "x": 100,
+     "y": 118
+    },
+    {
+     "cap": 5.5,
+     "id": "SHIELDS",
+     "text": "SHIELDS",
+     "x": 165,
+     "y": 118
+    },
+    {
+     "cap": 5.5,
+     "id": "COMMS",
+     "text": "COMMS",
+     "x": 35,
+     "y": 62
+    },
+    {
+     "cap": 5.5,
+     "id": "SENSORS",
+     "text": "SENSORS",
+     "x": 100,
+     "y": 62
+    },
+    {
+     "cap": 5.5,
+     "id": "FIRE_SUPPR",
+     "text": "FIRE SUPPR",
+     "x": 165,
+     "y": 66
+    }
+   ],
+   "title": "Ops dash, left piece (power)",
+   "w": 200,
+   "where": "pod lower band in front of the RIGHT seat, inboard half"
+  },
+  "OPS_DASH_B": {
+   "board": "Falcon Ops",
+   "controls": [
+    {
+     "desc": "OPS MODE, EC11 encoder with push (game lights the active mode)",
+     "enc": {
+      "group": "ops",
+      "modes": [
+       "MODE_RCS",
+       "MODE_ARM",
+       "MODE_SCANNER"
+      ],
+      "next": "ops_mode_next",
+      "prev": "ops_mode_prev",
+      "push": "ops_mode_push"
+     },
+     "id": "",
+     "kind": "ec11",
+     "text": "",
+     "x": 42,
+     "y": 92
+    },
+    {
+     "action": "scanner_ping",
+     "desc": "SCANNER PING 16 mm momentary",
+     "id": "SCAN_PING",
+     "kind": "btn16",
+     "text": "SCAN PING",
+     "x": 165,
+     "y": 100
+    },
+    {
+     "action": "cargo_doors",
+     "desc": "CARGO BAY DOORS mini toggle SPST",
+     "id": "CARGO_BAY",
+     "kind": "tog6",
+     "text": "CARGO BAY",
+     "x": 40,
+     "y": 44
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "action:cargo_doors",
+     "text": "CARGO BAY status",
+     "x": 40,
+     "y": 28
+    },
+    {
+     "action": "dock_clamp",
+     "desc": "DOCKING CLAMP mini toggle SPST",
+     "id": "DOCK_CLAMP",
+     "kind": "tog6",
+     "text": "DOCK CLAMP",
+     "x": 105,
+     "y": 44
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "action:dock_clamp",
+     "text": "DOCK CLAMP status",
+     "x": 105,
+     "y": 28
+    },
+    {
+     "action": "nav_target",
+     "desc": "NAV TARGET select 16 mm momentary (cycles targets)",
+     "id": "NAV_TGT",
+     "kind": "btn16",
+     "text": "NAV TGT",
+     "x": 168,
+     "y": 44
+    }
+   ],
+   "grooves": [],
+   "h": 160,
+   "labels": [
+    {
+     "cap": 5.5,
+     "id": "MODE",
+     "text": "MODE",
+     "x": 42,
+     "y": 118
+    },
+    {
+     "cap": 5.5,
+     "group": "ops",
+     "id": "MODE_RCS",
+     "text": "RCS",
+     "value": 0,
+     "x": 100,
+     "y": 116
+    },
+    {
+     "cap": 5.5,
+     "group": "ops",
+     "id": "MODE_ARM",
+     "text": "ARM",
+     "value": 1,
+     "x": 100,
+     "y": 100
+    },
+    {
+     "cap": 5.5,
+     "group": "ops",
+     "id": "MODE_SCANNER",
+     "text": "SCANNER",
+     "value": 2,
+     "x": 100,
+     "y": 84
+    },
+    {
+     "cap": 5.5,
+     "id": "SCAN_PING",
+     "text": "SCAN PING",
+     "x": 165,
+     "y": 120
+    },
+    {
+     "cap": 5.5,
+     "id": "CARGO_BAY",
+     "text": "CARGO BAY",
+     "x": 40,
+     "y": 62
+    },
+    {
+     "cap": 5.5,
+     "id": "DOCK_CLAMP",
+     "text": "DOCK CLAMP",
+     "x": 105,
+     "y": 62
+    },
+    {
+     "cap": 5.5,
+     "id": "NAV_TGT",
+     "text": "NAV TGT",
+     "x": 168,
+     "y": 64
+    }
+   ],
+   "title": "Ops dash, right piece (mode + payload)",
+   "w": 200,
+   "where": "pod lower band in front of the RIGHT seat, outboard half"
+  },
+  "OPS_SIDE": {
+   "board": "Falcon Ops",
+   "controls": [
+    {
+     "action": "jump_arm",
+     "desc": "JUMP ARM guarded mini toggle SPST",
+     "id": "JUMP_ARM",
+     "kind": "tog6g",
+     "text": "JUMP ARM",
+     "x": 50,
+     "y": 92
+    },
+    {
+     "action": "jump_engage",
+     "desc": "JUMP ENGAGE 22 mm momentary (blue), use the printed button collar",
+     "id": "ENGAGE",
+     "kind": "arc22",
+     "text": "ENGAGE",
+     "x": 145,
+     "y": 92
+    },
+    {
+     "id": "",
+     "index": 0,
+     "kind": "led5",
+     "lamp": "jump_charge",
+     "text": "jump charge bar (blue)",
+     "x": 60,
+     "y": 36
+    },
+    {
+     "id": "",
+     "index": 1,
+     "kind": "led5",
+     "lamp": "jump_charge",
+     "text": "jump charge bar (blue)",
+     "x": 80,
+     "y": 36
+    },
+    {
+     "id": "",
+     "index": 2,
+     "kind": "led5",
+     "lamp": "jump_charge",
+     "text": "jump charge bar (blue)",
+     "x": 100,
+     "y": 36
+    },
+    {
+     "id": "",
+     "index": 3,
+     "kind": "led5",
+     "lamp": "jump_charge",
+     "text": "jump charge bar (blue)",
+     "x": 120,
+     "y": 36
+    },
+    {
+     "id": "",
+     "index": 4,
+     "kind": "led5",
+     "lamp": "jump_charge",
+     "text": "jump charge bar (blue)",
+     "x": 140,
+     "y": 36
+    },
+    {
+     "id": "",
+     "index": 5,
+     "kind": "led5",
+     "lamp": "jump_charge",
+     "text": "jump charge bar (blue)",
+     "x": 160,
+     "y": 36
+    }
+   ],
+   "grooves": [],
+   "h": 160,
+   "labels": [
+    {
+     "cap": 8.0,
+     "id": "HYPERSPACE",
+     "text": "HYPERSPACE",
+     "x": 100,
+     "y": 128
+    },
+    {
+     "cap": 5.5,
+     "id": "JUMP_ARM",
+     "text": "JUMP ARM",
+     "x": 50,
+     "y": 59
+    },
+    {
+     "cap": 5.5,
+     "id": "ENGAGE",
+     "text": "ENGAGE",
+     "x": 145,
+     "y": 68
+    },
+    {
+     "cap": 5.5,
+     "id": "CHARGE",
+     "text": "CHARGE",
+     "x": 26,
+     "y": 36
+    }
+   ],
+   "title": "Ops side console (hyperspace)",
+   "w": 200,
+   "where": "front pedestal of the reclining cradle, between the kids just ahead of the TD2220 touchscreen, horizontal, top of panel = forward"
+  },
+  "OVERHEAD_A": {
+   "board": "Falcon Command",
+   "controls": [
+    {
+     "action": "ovh_battery",
+     "desc": "BATTERY checklist mini toggle SPST",
+     "id": "BATTERY",
+     "kind": "tog6",
+     "text": "BATTERY",
+     "x": 35,
+     "y": 62
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "action:ovh_battery",
+     "text": "BATTERY status",
+     "x": 35,
+     "y": 46
+    },
+    {
+     "action": "ovh_fuel_pumps",
+     "desc": "FUEL PUMPS checklist mini toggle SPST",
+     "id": "FUEL_PUMPS",
+     "kind": "tog6",
+     "text": "FUEL PUMPS",
+     "x": 100,
+     "y": 62
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "action:ovh_fuel_pumps",
+     "text": "FUEL PUMPS status",
+     "x": 100,
+     "y": 46
+    },
+    {
+     "action": "ovh_avionics",
+     "desc": "AVIONICS checklist mini toggle SPST",
+     "id": "AVIONICS",
+     "kind": "tog6",
+     "text": "AVIONICS",
+     "x": 165,
+     "y": 62
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "action:ovh_avionics",
+     "text": "AVIONICS status",
+     "x": 165,
+     "y": 46
+    }
+   ],
+   "grooves": [],
+   "h": 120,
+   "labels": [
+    {
+     "cap": 5.5,
+     "id": "BATTERY",
+     "text": "BATTERY",
+     "x": 35,
+     "y": 80
+    },
+    {
+     "cap": 5.5,
+     "id": "FUEL_PUMPS",
+     "text": "FUEL PUMPS",
+     "x": 100,
+     "y": 80
+    },
+    {
+     "cap": 5.5,
+     "id": "AVIONICS",
+     "text": "AVIONICS",
+     "x": 165,
+     "y": 80
+    }
+   ],
+   "title": "Overhead console, left",
+   "w": 200,
+   "where": "pod top band above the monitors, left third (faces the reclined crew, top of panel = up the pod)"
+  },
+  "OVERHEAD_B": {
+   "board": "Falcon Command",
+   "controls": [
+    {
+     "action": "ovh_apu",
+     "desc": "APU START checklist mini toggle SPST",
+     "id": "APU_START",
+     "kind": "tog6",
+     "text": "APU START",
+     "x": 35,
+     "y": 62
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "action:ovh_apu",
+     "text": "APU START status",
+     "x": 35,
+     "y": 46
+    },
+    {
+     "action": "ovh_guidance",
+     "desc": "GUIDANCE checklist mini toggle SPST",
+     "id": "GUIDANCE",
+     "kind": "tog6",
+     "text": "GUIDANCE",
+     "x": 100,
+     "y": 62
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "action:ovh_guidance",
+     "text": "GUIDANCE status",
+     "x": 100,
+     "y": 46
+    },
+    {
+     "action": "ovh_ign_arm",
+     "desc": "IGNITION ARM checklist mini toggle SPST",
+     "id": "IGNITION_ARM",
+     "kind": "tog6",
+     "text": "IGNITION ARM",
+     "x": 165,
+     "y": 62
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "action:ovh_ign_arm",
+     "text": "IGNITION ARM status",
+     "x": 165,
+     "y": 46
+    }
+   ],
+   "grooves": [],
+   "h": 120,
+   "labels": [
+    {
+     "cap": 5.5,
+     "id": "APU_START",
+     "text": "APU START",
+     "x": 35,
+     "y": 80
+    },
+    {
+     "cap": 5.5,
+     "id": "GUIDANCE",
+     "text": "GUIDANCE",
+     "x": 100,
+     "y": 80
+    },
+    {
+     "cap": 5.5,
+     "id": "IGNITION_ARM",
+     "text": "IGNITION ARM",
+     "x": 165,
+     "y": 80
+    }
+   ],
+   "title": "Overhead console, centre",
+   "w": 200,
+   "where": "pod top band above the monitors, centre third"
+  },
+  "OVERHEAD_C": {
+   "board": "Falcon Command",
+   "controls": [
+    {
+     "action": "cabin_lights",
+     "desc": "CABIN LIGHTS mini toggle SPST",
+     "id": "CABIN_LIGHTS",
+     "kind": "tog6",
+     "text": "CABIN LIGHTS",
+     "x": 30,
+     "y": 62
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "action:cabin_lights",
+     "text": "CABIN LIGHTS status",
+     "x": 30,
+     "y": 46
+    },
+    {
+     "action": "beacon",
+     "desc": "BEACON mini toggle SPST",
+     "id": "BEACON",
+     "kind": "tog6",
+     "text": "BEACON",
+     "x": 85,
+     "y": 62
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "action:beacon",
+     "text": "BEACON status",
+     "x": 85,
+     "y": 46
+    },
+    {
+     "action": "strobe",
+     "desc": "STROBE mini toggle SPST",
+     "id": "STROBE",
+     "kind": "tog6",
+     "text": "STROBE",
+     "x": 135,
+     "y": 62
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "action:strobe",
+     "text": "STROBE status",
+     "x": 135,
+     "y": 46
+    },
+    {
+     "action": "eject",
+     "desc": "EJECT guarded mini toggle (just for fun)",
+     "id": "EJECT",
+     "kind": "tog6g",
+     "text": "EJECT",
+     "x": 176,
+     "y": 62
+    }
+   ],
+   "grooves": [],
+   "h": 120,
+   "labels": [
+    {
+     "cap": 5.5,
+     "id": "CABIN_LIGHTS",
+     "text": "CABIN LIGHTS",
+     "x": 30,
+     "y": 80
+    },
+    {
+     "cap": 5.5,
+     "id": "BEACON",
+     "text": "BEACON",
+     "x": 85,
+     "y": 80
+    },
+    {
+     "cap": 5.5,
+     "id": "STROBE",
+     "text": "STROBE",
+     "x": 135,
+     "y": 80
+    },
+    {
+     "cap": 5.5,
+     "id": "EJECT",
+     "text": "EJECT",
+     "x": 176,
+     "y": 89
+    }
+   ],
+   "title": "Overhead console, right",
+   "w": 200,
+   "where": "pod top band above the monitors, right third"
+  },
+  "PILOT_DASH_A": {
+   "board": "Falcon Pilot",
+   "controls": [
+    {
+     "action": "engine_arm",
+     "desc": "ENGINE ARM, guarded mini toggle SPST",
+     "id": "ENG_ARM",
+     "kind": "tog6g",
+     "text": "ENG ARM",
+     "x": 40,
+     "y": 100
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "action:engine_arm",
+     "text": "ENG ARM status",
+     "x": 60,
+     "y": 100
+    },
+    {
+     "action": "ignition",
+     "desc": "IGNITION 22 mm momentary (red)",
+     "id": "IGNITION",
+     "kind": "arc22",
+     "text": "IGNITION",
+     "x": 105,
+     "y": 100
+    },
+    {
+     "action": "boost",
+     "desc": "BOOST 22 mm momentary (yellow)",
+     "id": "BOOST",
+     "kind": "arc22",
+     "text": "BOOST",
+     "x": 165,
+     "y": 100
+    },
+    {
+     "action": "airbrake",
+     "desc": "AIRBRAKE mini toggle SPST",
+     "id": "AIRBRAKE",
+     "kind": "tog6",
+     "text": "AIRBRAKE",
+     "x": 30,
+     "y": 44
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "action:airbrake",
+     "text": "AIRBRAKE status",
+     "x": 30,
+     "y": 28
+    },
+    {
+     "desc": "FLAPS mini toggle ON-OFF-ON (SPDT centre off)",
+     "down": "flaps_down",
+     "id": "FLAPS",
+     "kind": "tog3",
+     "text": "FLAPS",
+     "up": "flaps_up",
+     "x": 80,
+     "y": 44
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "flaps",
+     "text": "FLAPS status",
+     "x": 80,
+     "y": 28
+    },
+    {
+     "action": "nav_lights",
+     "desc": "NAV LIGHTS mini toggle SPST",
+     "id": "NAV_LIGHTS",
+     "kind": "tog6",
+     "text": "NAV LIGHTS",
+     "x": 130,
+     "y": 44
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "action:nav_lights",
+     "text": "NAV LIGHTS status",
+     "x": 130,
+     "y": 28
+    },
+    {
+     "action": "horn",
+     "desc": "HORN 16 mm momentary",
+     "id": "HORN",
+     "kind": "btn16",
+     "text": "HORN",
+     "x": 176,
+     "y": 44
+    }
+   ],
+   "grooves": [],
+   "h": 160,
+   "labels": [
+    {
+     "cap": 5.5,
+     "id": "ENG_ARM",
+     "text": "ENG ARM",
+     "x": 40,
+     "y": 127
+    },
+    {
+     "cap": 5.5,
+     "id": "IGNITION",
+     "text": "IGNITION",
+     "x": 105,
+     "y": 124
+    },
+    {
+     "cap": 5.5,
+     "id": "BOOST",
+     "text": "BOOST",
+     "x": 165,
+     "y": 124
+    },
+    {
+     "cap": 5.5,
+     "id": "AIRBRAKE",
+     "text": "AIRBRAKE",
+     "x": 30,
+     "y": 62
+    },
+    {
+     "cap": 5.5,
+     "id": "FLAPS",
+     "text": "FLAPS",
+     "x": 80,
+     "y": 62
+    },
+    {
+     "cap": 5.5,
+     "id": "NAV_LIGHTS",
+     "text": "NAV LIGHTS",
+     "x": 130,
+     "y": 62
+    },
+    {
+     "cap": 5.5,
+     "id": "HORN",
+     "text": "HORN",
+     "x": 176,
+     "y": 64
+    }
+   ],
+   "title": "Pilot dash, left piece",
+   "w": 200,
+   "where": "pod lower band (drops down in front of the reclined crew), in front of the LEFT seat, outboard half"
+  },
+  "PILOT_DASH_B": {
+   "board": "Falcon Pilot",
+   "controls": [
+    {
+     "desc": "FLIGHT ASSIST mode, EC11 encoder with push (game lights the active mode)",
+     "enc": {
+      "group": "fa",
+      "modes": [
+       "ASSIST_OFF",
+       "ASSIST_STAB",
+       "ASSIST_PROGRADE",
+       "ASSIST_HOLD"
+      ],
+      "next": "assist_next",
+      "prev": "assist_prev",
+      "push": "assist_push"
+     },
+     "id": "",
+     "kind": "ec11",
+     "text": "",
+     "x": 42,
+     "y": 92
+    },
+    {
+     "action": "view_cycle",
+     "desc": "VIEW cycle 16 mm momentary",
+     "id": "VIEW",
+     "kind": "btn16",
+     "text": "VIEW",
+     "x": 165,
+     "y": 100
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "caution",
+     "text": "MASTER CAUTION (red)",
+     "x": 40,
+     "y": 38
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "gear",
+     "text": "gear down (green)",
+     "x": 135,
+     "y": 38
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "gear",
+     "text": "gear down (green)",
+     "x": 155,
+     "y": 38
+    },
+    {
+     "id": "",
+     "kind": "led5",
+     "lamp": "gear",
+     "text": "gear down (green)",
+     "x": 175,
+     "y": 38
+    }
+   ],
+   "grooves": [],
+   "h": 160,
+   "labels": [
+    {
+     "cap": 5.5,
+     "id": "ASSIST",
+     "text": "ASSIST",
+     "x": 42,
+     "y": 118
+    },
+    {
+     "cap": 5.5,
+     "group": "fa",
+     "id": "ASSIST_OFF",
+     "text": "OFF",
+     "value": 0,
+     "x": 100,
+     "y": 116
+    },
+    {
+     "cap": 5.5,
+     "group": "fa",
+     "id": "ASSIST_STAB",
+     "text": "STAB",
+     "value": 1,
+     "x": 100,
+     "y": 100
+    },
+    {
+     "cap": 5.5,
+     "group": "fa",
+     "id": "ASSIST_PROGRADE",
+     "text": "PROGRADE",
+     "value": 2,
+     "x": 100,
+     "y": 84
+    },
+    {
+     "cap": 5.5,
+     "group": "fa",
+     "id": "ASSIST_HOLD",
+     "text": "HOLD",
+     "value": 3,
+     "x": 100,
+     "y": 68
+    },
+    {
+     "cap": 5.5,
+     "id": "VIEW",
+     "text": "VIEW",
+     "x": 165,
+     "y": 120
+    },
+    {
+     "cap": 5.5,
+     "id": "CAUTION",
+     "text": "CAUTION",
+     "x": 40,
+     "y": 56
+    },
+    {
+     "cap": 5.5,
+     "id": "GEAR_LIGHTS",
+     "text": "GEAR",
+     "x": 155,
+     "y": 56
+    }
+   ],
+   "title": "Pilot dash, right piece",
+   "w": 200,
+   "where": "pod lower band in front of the LEFT seat, inboard half"
+  },
+  "PILOT_SIDE": {
+   "board": "Falcon Pilot",
+   "controls": [
+    {
+     "action": "throttle",
+     "desc": "14x92 mm lever slot",
+     "id": "",
+     "kind": "slot",
+     "l": 92,
+     "text": "THROTTLE lever slot (throttle quadrant mounts below)",
+     "w": 14,
+     "x": 45,
+     "y": 80
+    },
+    {
+     "action": "gear",
+     "desc": "12x34 mm lever slot",
+     "id": "",
+     "kind": "slot",
+     "l": 34,
+     "text": "LANDING GEAR lever slot (gear lever box mounts below)",
+     "w": 12,
+     "x": 160,
+     "y": 80
+    }
+   ],
+   "grooves": [],
+   "h": 160,
+   "labels": [
+    {
+     "cap": 5.5,
+     "id": "THR_MAX",
+     "text": "MAX",
+     "x": 95,
+     "y": 120
+    },
+    {
+     "cap": 5.5,
+     "id": "THROTTLE",
+     "text": "THROTTLE",
+     "x": 100,
+     "y": 80
+    },
+    {
+     "cap": 5.5,
+     "id": "THR_IDLE",
+     "text": "IDLE",
+     "x": 95,
+     "y": 40
+    },
+    {
+     "cap": 5.5,
+     "id": "GEAR",
+     "text": "GEAR",
+     "x": 160,
+     "y": 131
+    },
+    {
+     "cap": 5.5,
+     "id": "GEAR_UP",
+     "text": "UP",
+     "x": 186,
+     "y": 104
+    },
+    {
+     "cap": 5.5,
+     "id": "GEAR_DN",
+     "text": "DN",
+     "x": 186,
+     "y": 56
+    }
+   ],
+   "title": "Pilot side console (throttle + gear)",
+   "w": 200,
+   "where": "outboard LEFT side console of the reclining cradle, horizontal, top of panel = forward"
+  }
+ }
+}

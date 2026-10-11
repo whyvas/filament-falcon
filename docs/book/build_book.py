@@ -390,7 +390,7 @@ class Data:
         return out
 
     def _hero(self):
-        rows = md_table(md_section("docs/game/README.md", "6. Crew guide").split("**Missions:**")[-1])
+        rows = md_table(md_section("docs/game/README.md", "7. Crew guide").split("**Missions:**")[-1])
         return rows[1:] if rows else []
 
     def _tests(self):
@@ -553,7 +553,7 @@ def ch_crew(D: Data) -> str:
                 return r
         MISSING.append(f"SPEC role '{prefix}'")
         return ""
-    guide = md_bullets(md_section("docs/game/README.md", "6. Crew guide").split("**Before")[0])
+    guide = md_bullets(md_section("docs/game/README.md", "7. Crew guide").split("**Before")[0])
 
     def gpick(word):
         for r in guide:
@@ -777,7 +777,7 @@ anything moves</b>, with two hands, from the one seat that can see everyone. No 
   {card('<h4>First power-up of the motion system</h4><p class="small">Test with <b>nobody seated</b>: every limit, every lock, the E-stop, the key, lever released = no pod motion, safety edge = stop. Then re-check every gap on drawing 05 with a 25 mm (1") dowel and a 120 mm (4.7") ball at both ends of both motions.</p>', 'cmd')}
  </div>
  <div>
-  {fig('docs/electronics/04_seat_actuator.png', '<b>Electronics diagram 04 · hold-to-run building block.</b> Key, E-stop, fuse, DPDT hold-to-run, NC limit switches with bypass diodes, isolated read-only sense. Drawn for the v0.1 single seat lift: for the v0.2 cradle + pod use the full interlock on frame drawing 04 (relays, lock and lever switches, safety edge).', 'h33', paper=True, maxw=1800, q=88)}
+  {fig('docs/electronics/04_seat_actuator.png', '<b>Electronics diagram 04 · crew-position circuit v0.2.</b> 20 A fuse, key + E-stop drop the MOTION relay, CREW POS hold-to-run feeds the relay coils only through the interlock (pod up + locked, cradle reclined L + R, release lever, pod-chin safety edge), 4 relays as two H-bridges (cradle, pod), NC limit switches with 1N5408 drive-back diodes, and three isolated read-only senses (cradle reclined, pod down + locked, optional pod up + locked) for Falcon Command.', 'h33', paper=True, maxw=1800, q=88)}
  </div>
 </div>"""
     return (chapter("Safety", p1, "Read this chapter before building anything that moves")
@@ -1026,7 +1026,7 @@ def ch_electronics(D: Data) -> str:
     diag = [
         ("02_pilot_wiring.png", "Falcon Pilot wiring", "74HC165 chain with every switch named, joystick, throttle pot and the FLIGHT ASSIST encoder."),
         ("02_ops_wiring.png", "Falcon Ops wiring", "74HC165 chain for power toggles, payload and jump controls, RCS joystick and OPS MODE encoder."),
-        ("02_command_wiring.png", "Falcon Command wiring", "Dad's panel + overhead chips (over a CAT5/6 cable), MISSION and DIMMER encoders, LED data line and seat sense."),
+        ("02_command_wiring.png", "Falcon Command wiring", "Dad's panel + overhead chips (over a CAT5/6 cable), MISSION and DIMMER encoders, LED data line and the three read-only crew-position senses (GPIO39/40/41)."),
     ]
     dpages = "".join(page(t, fig("docs/electronics/" + f, f"<b>Diagram {f[:2]} · {t}.</b> {d}", "h5i center", paper=True, maxw=2300, q=88),
                           "generated from the firmware config headers", toc=True) for f, t, d in diag)
@@ -1164,7 +1164,7 @@ def ch_game(D: Data) -> str:
         ["RCS", f"{var('rcs_force') / 1000:.1f} kN, {var('mono_max'):.0f} kg monopropellant"],
         ["Rotation", f"reaction wheels {var('rw_torque') / 1000:.0f} kN·m + RCS {var('rcs_torque') / 1000:.0f} kN·m; max 22°/s pitch/yaw, 40°/s roll"],
     ]
-    crew = md_section(gr, "6. Crew guide")
+    crew = md_section(gr, "7. Crew guide")
     fa = md_bullets(crew.split("**Flight assist (the knob):**")[-1].split("The physics")[0])
     before = md_bullets(crew.split("**Before every mission:**")[-1].split("**Flight assist")[0])
     p2 = f"""
@@ -1220,6 +1220,13 @@ def ch_game(D: Data) -> str:
               ("28_console_commander_tab.jpg", "3-SCREEN FALLBACK", "no Commander monitor: the same UI as a console tab (Esc)")]
     tc = '<div class="g3">' + "".join(fig("docs/game/screenshots/" + f, f"<b>{n}</b> · {d}", "h15", maxw=900, q=78) for f, n, d in cpages) + "</div>"
     out += page("Commander screen", tc, "31.5\" monitor at dad's seat, mouse and keyboard")
+    vpages = [("29_console_virtual_panels.jpg", "VIRTUAL PANELS", "Pilot and Ops boards unplugged: their real panels on the touchscreen, with touch sticks"),
+              ("30_console_checklist_overhead.jpg", "CHECKLIST + OVERHEAD", "Falcon Command unplugged: the three overhead panels on screen"),
+              ("31_commander_panel.jpg", "PANEL", "CMD_A + CMD_B on screen (mouse); MOTION, CREW POS and STOP stay hardwired-only"),
+              ("32_commander_ics.jpg", "ICS", "intercom: headset per seat, VOX/PTT, levels, volumes, radio effect")]
+    tv = '<div class="g2">' + "".join(fig("docs/game/screenshots/" + f, f"<b>{n}</b> · {d}", "h2i", maxw=1100, q=78) for f, n, d in vpages) + "</div>" + \
+        card('<p class="tiny">Virtual panels are generated from the CAD layouts (<code>game/tools/gen_virtual_panels.py</code>) and appear and disappear as boards are plugged in; guarded switches need two taps (lift the cover, flip). The intercom helper (<code>game/tools/falcon_ics.py</code>) mixes three USB headsets on PulseAudio or PipeWire with about 30-40 ms delay; the game\'s callouts ride on its MISSION CONTROL channel.</p>')
+    out += page("Virtual panels and intercom", tv, "on-screen stand-ins for unplugged boards; three-headset ICS")
     T = D.tests
     if T:
         def rows(sec, fl):
@@ -1240,7 +1247,7 @@ def ch_game(D: Data) -> str:
  <div><h3>Smoke test · every mission start to finish</h3>
   {table(['', 'Mission', 'Objectives', 'Score', 'Stars', 'Hull'], rows('smoke', False), 'compact')}
   <p class="small"><b>{esc(T.get('smoke_result', ''))}</b>, with every injected failure (engine fire, cabin leak, power fault, sensor glitch) fixed by crew actions.</p>
-  <p class="tiny dim">Run {esc(meta.get('date', '?'))} with {esc(meta.get('godot', '?'))} on commit {esc(meta.get('commit', '?'))}. Re-run with <code>python3 docs/book/build_book.py --run-tests --godot &lt;path&gt;</code>, or by hand as in docs/game/README.md section 7.</p></div>
+  <p class="tiny dim">Run {esc(meta.get('date', '?'))} with {esc(meta.get('godot', '?'))} on commit {esc(meta.get('commit', '?'))}. Re-run with <code>python3 docs/book/build_book.py --run-tests --godot &lt;path&gt;</code>, or by hand as in docs/game/README.md section 8.</p></div>
 </div>"""
     else:
         tests_html = "<p>No stored test results (docs/book/test_results.txt).</p>"
@@ -1304,8 +1311,8 @@ def ch_dome(D: Data) -> str:
 
 # Cross-checks between repo files, noticed while compiling the book (not written in any one file).
 CROSS_CHECKS = [
-    "<b>Electronics vs. frame v0.2.</b> docs/electronics/README.md (\"Seat lift\" parts) and diagram 04 still describe the v0.1 single seat lift (2 actuators, ~7.5 A fuse, 6A10 diodes, one seat-up sense). The v0.2 frame uses 4 actuators, relays as two H-bridges, a 20 A fuse, 1N5408 diodes, lock and lever switches and a safety edge (frame/BOM.md, frame drawing 04). The electronics doc and diagram 04 need updating for the cradle + pod.",
-    "<b>Read-only position contacts.</b> frame/BOM.md provides two dry contacts (cradle reclined, pod down) for Falcon Command, but the firmware and input map expose a single <code>seat_up</code> input (button 15, GPIO39). Decide which states the game should see and add the second input.",
+    "<b>Third position contact.</b> Firmware, electronics diagram 04 and the game read three contacts (cradle reclined GPIO39, pod down + locked GPIO40, optional pod up + locked GPIO41); frame/BOM.md lists two sense micro switches. Add a third micro switch (or use the second contact of a POD_UP_LOCKED pawl switch) if you want the game to tell POD UP from POD MOVING while the seats are reclined.",
+    "<b>New buttons not on the CAD panels.</b> The intercom adds a PTT button per kid (Pilot bit 11, Ops bit 13) and an ALL-CALL button on Falcon Command (bit 7). They are wired and mapped, but cad/tools/layouts.py has no holes for them yet, and the project BOM (bom/) does not list them, the three extra PC817s or the USB headsets.",
     "<b>Cabling plan vs. the real rig.</b> docs/mechanical/displays.md plans the C275W (OPS) on HDMI, but on the owner's rig HDMI-A-0 drives the 31.5\" Commander monitor and the windows are on DisplayPort-2/-1. The game maps roles by output name and size, so this works. Update the cabling table when the final cables are in.",
 ]
 
@@ -1315,7 +1322,8 @@ def ch_status(D: Data, now: datetime) -> str:
     done = [
         f"Master spec; CAD for {len(D.labels.get('panels', []))} panels and {len(D.val.get('parts', {}))} printed part files, all 3MF exports validated.",
         "Parametric wooden frame with motion geometry, clearance checks, drawings, cut list and frame BOM (v0.2 reclining cradle + drop-down pod).",
-        "ESP32-S3 firmware for the three boards, wiring diagrams, udev rules, LED protocol.",
+        "ESP32-S3 firmware for the three boards, wiring diagrams, udev rules, LED protocol; v0.2 crew-position circuit (relay H-bridges, interlock) with three read-only senses.",
+        "Three-headset intercom (VOX / PTT, radio effect, ALL-CALL, MISSION CONTROL callouts) and on-screen virtual panels for unplugged boards.",
         f"Godot game v0.1: six missions, four-screen setup (two windows, kids' touch console, Commander screen). Tests: {esc(T.get('smoke_result', 'n/a'))} (smoke), {esc(T.get('flight_result', 'n/a'))} (flight).",
         f"Editable BOM with {sum(v['lines'] for v in D.bom['cats'].values())} lines: {cad(D.bom['grand'])} CAD still to buy.",
     ]
