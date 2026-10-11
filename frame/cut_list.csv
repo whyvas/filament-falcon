@@ -82,8 +82,8 @@ pod,Pod chin plate,12 mm ply,1612,102,"5' 3.5""","4.0""",leading edge; safety ed
 pod,Pod top cap,12 mm ply,1612,102,"5' 3.5""","4.0""",
 pod,Pod stiffener rail 1,2x4 (38 x 89),1612,,"5' 3.5""",,2x4 flat behind the back sheet
 pod,Pod stiffener rail 2,2x4 (38 x 89),1612,,"5' 3.5""",,2x4 flat behind the back sheet
-pod,Pod cheek L,18 mm ply,1176,907,"3' 10.3""","2' 11.7""","2 x 18 mm ply laminated (glue + screws); UCF205 flange bearing at the pivot, crank pins for strut + actuator (profile: see drawing 04)"
-pod,Pod cheek R,18 mm ply,1176,907,"3' 10.3""","2' 11.7""","2 x 18 mm ply laminated (glue + screws); UCF205 flange bearing at the pivot, crank pins for strut + actuator (profile: see drawing 04)"
+pod,Pod cheek L,18 mm ply,1183,907,"3' 10.6""","2' 11.7""","2 x 18 mm ply laminated (glue + screws); UCF205 flange bearing at the pivot, crank pins for strut + actuator (profile: see drawing 04)"
+pod,Pod cheek R,18 mm ply,1183,907,"3' 10.6""","2' 11.7""","2 x 18 mm ply laminated (glue + screws); UCF205 flange bearing at the pivot, crank pins for strut + actuator (profile: see drawing 04)"
 fixed,Casing inner wall L,12 mm ply,1112,698,"3' 7.8""","2' 3.5""",12 mm ply between kid and mechanism (full height)
 fixed,Casing front wall L (inner),12 mm ply,1112,110,"3' 7.8""","4.3""","slot for the cheek next to it, brush strip on both slot edges"
 fixed,Casing front wall L (outer),12 mm ply,1112,120,"3' 7.8""","4.7""",

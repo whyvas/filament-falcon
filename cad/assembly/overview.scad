@@ -14,7 +14,7 @@ STATE = "flight";       // boarding | reclined | flight | custom
 TH = 0;                 // custom: cradle recline (deg)
 AL = 95;                // custom: pod elevation (deg)
 SHOW_CREW = 1;
-HIDE_SIDE = 0;          // 1 = cut away the RIGHT casing / skins for the side view
+HIDE_SIDE = 0;          // 1 = cut away the RIGHT casing / skins for the side view; 2 = open the LEFT casing above z 380 (pod drive)
 th = STATE == "boarding" ? 0 : STATE == "custom" ? TH : FF_RECLINE;
 al = STATE == "flight" ? FF_ALPHA_DN : STATE == "custom" ? AL : FF_ALPHA_UP;
 
@@ -41,6 +41,7 @@ module place(id) {
 }
 module cutaway() {
   if (HIDE_SIDE == 1) difference() { children(); translate([645, -3000, -10]) cube([600, 3200, 2500]); }
+  else if (HIDE_SIDE == 2) difference() { children(); translate([-1245, -3000, 380]) cube([550, 3200, 2500]); }   // open the LEFT casing (pod drive)
   else children();
 }
 
@@ -73,4 +74,4 @@ ff_pod_pose(al) {
 }
 
 // actuators (blue), gas struts (black), pivot shafts
-cutaway() ff_mechanisms(th, al);
+if (HIDE_SIDE == 2) ff_mechanisms(th, al); else cutaway() ff_mechanisms(th, al);

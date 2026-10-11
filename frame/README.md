@@ -1,4 +1,4 @@
-# The Filament Falcon - wooden frame (v0.2: reclining seats + drop-down pod)
+# The Filament Falcon - wooden frame (v0.3: reclining seats + drop-down pod on ONE actuator)
 
 2x4 lumber + 12/18 mm plywood on a floor-level base (no raised platform).
 Two kid seats (6-12 yr) side by side in front, dad's seat behind and centred on a
@@ -12,7 +12,7 @@ Two kid seats (6-12 yr) side by side in front, dad's seat behind and centred on 
 |---|---|---|---|
 | 1 BOARDING | nothing: seats upright, pod parked UP over the kids (lowest point 1639 mm over the floor) | - | pod locked UP by spring pawls |
 | 2 RECLINE (hold FLT) | the **cradle** (both kid seats, side consoles, sticks, throttle, gear lever, TD2220 centre console) tips back 35 deg about a 25 mm shaft at 840 mm behind the nose, 200 mm up | 2 x 12 V actuators, 10" (254 mm) stroke, in the nose box, PUSH to recline | rubber stop blocks on a steel-angle stop rail at 35 deg; rests on the front pads at 0 deg |
-| 3 POD DOWN (keep holding FLT + release lever) | the **pod** (both monitors, 4 dash panels, 3 overhead panels) swings 55 deg down (95 -> 40 deg) about a 25 mm shaft at the reclined 12 yr's head centre (1375 mm behind the nose, 1005 mm up) | 2 x 12 V actuators, 12" stroke, inside the side casings, PULL to raise; 2 x gas struts make it near-neutral | 6 mm steel stop pins on each cheek; pawls drop into the DOWN notch |
+| 3 POD DOWN (keep holding FLT + release lever) | the **pod** (both monitors, 4 dash panels, 3 overhead panels) swings 55 deg down (95 -> 40 deg) about a 25 mm shaft at the reclined 12 yr's head centre (1375 mm behind the nose, 1005 mm up) | **ONE** 12 V actuator, 12" stroke, 1500 N self-locking, in the LEFT casing (extends to lower, retracts to raise); a steel torque tube carries the drive to the right cheek; 2 gas struts (one per side) make the pod slightly LIFT-biased | 6 mm steel stop pins on each cheek; pawls drop into the DOWN notch |
 | EXIT (hold BRD) | pod up first, then cradle upright | same | same |
 
 Each motion takes ~35-40 s (slow on purpose, <= 10 mm/s at the actuator).
@@ -56,8 +56,10 @@ Regenerate: `python frame/frame_model.py && python frame/make_drawings.py`
 
 - Footprint 1960 W x 2450 L mm (6' 5" x 8' 0.5"); casings/towers 1112 mm high; **swept height 1828 mm (pod parked up) -> ceiling >= 1950 mm**.
 - Seat centres x = +-460 mm (920 apart) so the 559 mm TD2220 trim fits between them.
-- Pod: ~44 kg (model, incl. 7.2 kg monitors), CG 589 mm from its pivot. Gravity torque -204 .. +5 N m; with 2 gas struts (F1 590 N, progressive to ~885 N, ~61 mm used stroke, ~240 mm extended) net -48 .. +48 N m: it sits firmly on the DOWN stop when down and on the UP stop when up, and is easy to drive between.
-- Pod actuators: 426 -> 700 mm pin-to-pin (12" stroke, ~415 mm retracted), peak 141 N each, 390 N each with both struts failed -> buy **1000 N self-locking**.
+- Pod: ~52 kg (model, incl. 7.2 kg monitors and the 1600 mm steel torque tube), CG 613 mm from its pivot. Gravity torque -251 .. +10 N m.
+- Gas struts: 2 (one per side, same pins/anchors as before), F1 ~1050 N each (progressive to ~1575 N), ~240 mm extended, >= 71 mm stroke. Net torque **+16 .. +88 N m (lift-biased over the whole travel)**: if the actuator or its clevis pin fails anywhere, the pod rises to the UP stop, away from the kids.
+- **Single pod actuator** (left casing, x = -773): anchor (1402, 310), pin on the left cheek (1677, 960); 436 -> 706 mm pin-to-pin (270 mm travel), sized for the chosen part (RVMARINEPAT LA03-12-300-1500N, amazon.ca B0FKMVCQPC: 300 mm stroke, 420 -> 720 mm, 10 mm/s, self-locking, internal limits), leaving 16 mm / 14 mm before its internal ends. Force: normal <= 561 N (incl. 25 N m friction), one strut failed 466 N, **both struts failed 850 N** -> buy **1 x 1500 N (330 lbf) self-locking** (margin 1.8x on the struts-failed case, 2.7x on the normal case).
+- **Torque tube** 2 x 2 x 1/8 in square steel tube (50.8 x 50.8 x 3.2), 1600 mm between the cheeks, behind the back sheet between the two 2x4 stiffener rails (the pivot axis runs through the kids' heads, so no tube can sit on the 25 mm shaft line). Torsional stiffness 298 N m/deg: normal 44 N m -> 0.15 deg (2 mm at the chin); right strut or both struts failed 126 N m -> 0.42 deg (6 mm); actuator stalling at its rating against a right-side stop 458 N m -> 1.5 deg, 32 MPa (steel yields at ~250). The ply pod box alone is an open C-section (screen window in front) and is NOT counted as torsion-stiff.
 - Cradle: ~258 kg design load (2 x 50 kg kids + frame + consoles). Gravity torque -263 .. +270 N m (stable on both stops). Actuators 376 -> 607 mm (10" stroke, ~364 mm retracted), peak 775 N each -> buy **1500 N self-locking**.
 - Clearances (worst case = 12 yr manikin, pod at every angle): pod chin to thighs 195 mm, shins 220, head >= 251, upper arm to cheek 157; kid arm to casing 35 (finger-safe 25+); seat back to casing 60; cradle to nose wall >= 30; cheek to inner wall / post 66 / 50.
 - Eye -> screen centre: 12 yr 542 mm (gaze 40 deg up from horizontal), 6 yr 590 mm (55 deg) -> a 60-80 mm booster cushion for the 6 yr is recommended.
@@ -65,9 +67,9 @@ Regenerate: `python frame/frame_model.py && python frame/make_drawings.py`
 ## Safety concept (heavy pod moving toward kids)
 
 1. **Hard stops define the envelope, not the actuators.** Steel stop pins/blocks at both ends of both motions; the actuators' own limits are 2-3 mm beyond the external limit switches, and the stops are where the clearances above were measured.
-2. **Near-neutral pod.** Gas struts carry ~75 % of the pod torque; if a strut fails, the self-locking actuators (rated 2.5 x the strut-failed load) still hold.
+2. **Lift-biased pod, single-point-failure safe.** The struts more than cancel gravity everywhere (net +16 .. +88 N m), so: actuator / clevis pin / bracket fails mid-travel -> the pod rises to the UP stop (strut damping, rubber stop) and the UP pawls catch it when dad lets go of the lever; at DOWN the spring pawls (both sides) hold it down; at UP the struts press it on the stop and the pawls lock it. One strut fails -> the self-locking actuator (1500 N vs 466 N needed) holds; both struts fail -> still 1.8x margin. Only a double failure (both struts AND the actuator) lets the pod come down - onto the steel DOWN stops, which keep it 195 mm off the legs.
 3. **Slow:** <= 10 mm/s actuators, ~35-40 s per motion.
-4. **Mechanical locks both ends:** spring pawls in each casing drop into notches in a 6 mm steel latch plate on each cheek (UP and DOWN). They click in by themselves; a Bowden-cable lever LEFT of dad's seat lifts both. A micro switch on the lever is in series with the pod motors, so the pod moves only while dad holds the lever with one hand AND the hold-to-run toggle with the other (two-hand control).
+4. **Mechanical locks both ends:** spring pawls in each casing drop into notches in a 6 mm steel latch plate on each cheek (UP and DOWN). They click in by themselves; a Bowden-cable lever LEFT of dad's seat lifts both. A micro switch on the lever is in series with the pod motors, so the pod moves only while dad holds the lever with one hand AND the hold-to-run toggle with the other (two-hand control). The pod has ONE set of limit switches (POD_UP, POD_DOWN on the driven left cheek); the right cheek only has its pawl switch.
 5. **Hardwired interlock** (no microcontroller can move anything; the game only reads dry contacts):
    - FLIGHT: cradle reclines only while POD_UP_LOCKED; pod comes down only while CRADLE_RECLINED (both sides) AND lever held.
    - BOARD: pod goes up while lever held; cradle comes upright only while POD_UP AND latched.
@@ -86,15 +88,16 @@ Regenerate: `python frame/frame_model.py && python frame/make_drawings.py`
 5. **Cradle**: two rails on the 25 mm cradle shaft (2 x UCP205 pillow blocks on the base), seat boxes and backs (harness slots), side consoles, centre console with the TD2220 shelf. Fit the stop rail + rubber blocks.
 6. **Cradle actuators** in the nose box (x = +-560, anchor 20 mm behind the nose, 30 mm up; pin on the cradle 360 mm back, 190 mm up). Bench-set both to the same length before fitting. Test the recline empty first.
 7. **Pod**: two cheeks (2 layers 18 mm ply, glued, steel crank/latch plates bolted through), back sheet, dash lower band, overhead upper band. Hang it on the shaft with the pod parked UP and the pawls engaged.
-8. **Gas struts**: fit with the pod UP (struts extended). Check: pod DOWN, released, must sit on its stop; pod UP must sit on its stop.
-9. **Pod actuators** inside the casings; set length with the pod on the UP stop.
-10. **Interlock wiring** per `drawings/04_mechanism_interlock`. Test with NOBODY seated: every limit, every lock, E-stop, key, lever released = no pod motion, safety edge = stop.
-11. **Guards and skins**: brush strips, casing skins, crush-zone ramp, nose lid. Re-check every gap on `05` with a 25 mm dowel and a 120 mm ball at both ends of both motions.
-12. **Monitors, panels, harness**: see `docs/mechanical/README.md` and `docs/mechanical/displays.md`.
+8. **Torque tube**: bolt the 2x2x1/8" tube (welded 6 mm end plates) between the cheeks behind the back sheet, 4 x M10 through each 36 mm cheek with a 6 mm backing plate outside. Check the cheeks are parallel and the pod turns freely on both bearings before anything else is fitted.
+9. **Gas struts** (rod down, damped): fit with the pod UP and locked. With the actuator NOT fitted, the pod must rise by itself from any position to the UP stop (slowly, damped) - that is the fail-safe direction. Pushing it down by hand takes up to ~11 kg (107 N) at the chin - expected.
+10. **The pod actuator** in the LEFT casing only; set its length with the pod on the UP stop. Set the RIGHT cheek's stop pins 1-2 mm 'later' than the left ones so the actuator never twists the torque tube against a stop.
+11. **Interlock wiring** per `drawings/04_mechanism_interlock`. Test with NOBODY seated: every limit, every lock, E-stop, key, lever released = no pod motion, safety edge = stop.
+12. **Guards and skins**: brush strips, casing skins, crush-zone ramp, nose lid. Re-check every gap on `05` with a 25 mm dowel and a 120 mm ball at both ends of both motions.
+13. **Monitors, panels, harness**: see `docs/mechanical/README.md` and `docs/mechanical/displays.md`.
 
 ## Safety rules (put a copy on the CMD console)
 
 - Motion ONLY from dad's seat, hold-to-run + release lever (two hands). Let go = stop. Key out when not flying.
 - Harnesses fastened, hands on lap, heads on the headrests BEFORE "FLT". The game checklist shows it; honour system.
 - Nobody stands beside the casings or in front of the nose while anything moves.
-- Monthly: strut force (with the actuator pins pulled, the pod should be movable by hand with <= ~7 kg (70 N) at the chin and drift only slowly toward the nearest stop), actuator bolts, pawls/notches, stop pins, safety cables on the monitors, harness webbing and eye bolts.
+- Monthly: strut force (with the actuator clevis pin pulled and the pawls released, the pod must rise by itself to the UP stop; if it stays or sinks, replace the struts before the next flight), torque-tube bolts, actuator clevis pins + R-clips, pawls/notches, stop pins, safety cables on the monitors, harness webbing and eye bolts.

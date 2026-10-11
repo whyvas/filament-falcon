@@ -30,7 +30,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 GEN = os.path.join(HERE, "generated")
 T2, W2 = 38.0, 89.0
 G = 9.81
-RHO = {"2x4": 480.0, "ply18": 600.0, "ply12": 600.0, "ply6": 750.0}    # kg/m3
+RHO = {"2x4": 480.0, "ply18": 600.0, "ply12": 600.0, "ply6": 750.0,    # kg/m3
+       "steel": 7850.0,
+       # 2" x 2" x 1/8" (50.8 x 50.8 x 3.2) square steel tube modelled as a solid box:
+       # effective density = 7850 x (wall area / outer area)
+       "steel_tube": 7850.0 * (50.8 ** 2 - 44.4 ** 2) / 50.8 ** 2}
 
 # ------------------------------------------------------------------ main layout
 L = 2450.0                    # base length (front nose .. dais rear)
@@ -308,8 +312,23 @@ add_pod_box("Pod chin plate", "ply12", -POD_X, POD_X, R_BAND[0], R_BACK[1], POD_
 add_pod_box("Pod top cap", "ply12", -POD_X, POD_X, R_BAND[0], R_BACK[1], 340.0, POD_T[1], "")
 for i, (t0, t1) in enumerate(((-150.0, -61.0), (61.0, 150.0))):
     add_pod_box(f"Pod stiffener rail {i + 1}", "2x4", -POD_X, POD_X, R_BACK[1], R_BACK[1] + T2, t0, t1, "2x4 flat behind the back sheet")
+# ---- TORQUE TUBE: the pod is driven by ONE actuator on the LEFT cheek.  The pivot axis
+# runs through the kids' heads, so a tube ON the shaft line is impossible; instead a
+# 2" x 2" x 1/8" square steel tube runs cheek-to-cheek behind the back sheet (between the
+# two 2x4 stiffener rails) and ties the cheeks together in torsion (the ply pod box is an
+# open C-section, too soft on its own).  Welded 6 mm end plates, 4 x M10 through each
+# 36 mm cheek with a 6 mm backing plate outside.
+TT = dict(side=50.8, wall=3.2, r0=R_BACK[1], t=0.0)
+TT["r1"] = TT["r0"] + TT["side"]
+add_pod_box("Pod torque tube", "steel_tube", -POD_X + 6, POD_X - 6, TT["r0"], TT["r1"], TT["t"] - TT["side"] / 2, TT["t"] + TT["side"] / 2,
+            "2 x 2 x 1/8 in (50.8 x 50.8 x 3.2) steel square tube, 1600 mm, welded 6 mm end plates", cut=False, color="#6d7680")
+for s_, nm in SIDES:
+    add_pod_box(f"Torque tube end plate {nm}", "steel", *sorted((s_ * (POD_X - 6), s_ * POD_X)), TT["r0"] - 4, TT["r1"] + 6, -75.0, 75.0,
+                "6 mm steel, 150 x 61, welded to the tube, 4 x M10 through the cheek + 6 mm backing plate", cut=False, color="#6d7680")
 # cheeks: (r, t) outline + crank lobe (filled in after the mechanism search)
-CHEEK_RT = [(-95.0, -95.0), (95.0, -150.0), (R_BAND[0], POD_T[0]), (R_BACK[1] + T2, POD_T[0]), (R_BACK[1] + T2, POD_T[1]),
+CHEEK_RT = [(-95.0, -95.0), (95.0, -150.0), (R_BAND[0], POD_T[0]), (R_BACK[1] + T2, POD_T[0]),
+            (R_BACK[1] + T2, -95.0), (R_BACK[1] + 70.0, -85.0), (R_BACK[1] + 70.0, 85.0), (R_BACK[1] + T2, 95.0),   # torque-tube end plate lobe
+            (R_BACK[1] + T2, POD_T[1]),
             (R_BAND[0], POD_T[1]), (95.0, 150.0), (-95.0, 95.0)]
 for s, nm in SIDES:
     add_pod_box(f"Pod bumper {nm}", "foam", *xr(s, CHEEK_X[1], CHEEK_X[1] + 1), R_BAND[0], R_BACK[1], POD_T[0], POD_T[1], cut=False)
@@ -426,12 +445,17 @@ def cached_points(p):
 
 
 STRUT_PROG = (0.3, 0.5)          # F2/F1 - 1 of the gas spring (catalogue struts: 1.3 .. 1.5)
+# v0.3 (single pod actuator): the struts are sized so the pod is slightly LIFT-biased over
+# the WHOLE travel (net torque >= NET_UP_MIN).  If the one actuator (or its clevis pin)
+# fails, the pod rises to the UP stop - away from the kids - instead of falling toward
+# them; in the DOWN position the DOWN pawls (and the self-locking actuator) hold it.
+NET_UP_MIN = 15.0                # N*m, minimum upward bias anywhere in the travel
 
 
 def search_pod():
     """Gas-strut counterbalance: one strut per side, pins on the cheeks, anchors in the
-    casings.  Minimise the worst residual torque over the travel, with the pod still
-    resting on the DOWN stop at the bottom and on the UP stop at the top (>= 8 N*m)."""
+    casings.  Minimise the worst residual torque over the travel subject to a LIFT bias
+    of >= NET_UP_MIN everywhere (fail-safe up if the single actuator lets go)."""
     mass, cg = group_mass("pod", [(n, m, p) for n, m, p in POD_EXTRA])
     alphas = np.linspace(ALPHA_DN, ALPHA_UP, 25)
     Mg = np.array([pod_moment(a, mass, cg) for a in alphas])           # negative (pod wants to fall down)
@@ -457,7 +481,7 @@ def search_pod():
                 tp = arm[i] * (1 + pk * (Lmax[i] - Lm[i]) / st[i])
                 net = Mg[None, :] + 2 * Fs[:, None] * tp[None, :]
                 res = np.abs(net).max(1)
-                res[(net[:, 0] > -8) | (net[:, -1] < 8)] = 1e9
+                res[net.min(1) < NET_UP_MIN] = 1e9
                 k = res.argmin()
                 if res[k] < 1e8 and (best is None or res[k] < best["residual"] - 0.5):
                     best = dict(residual=float(res[k]), F1=float(Fs[k]), F2=float(Fs[k] * (1 + pk)), prog=pk, pin_rt=(float(r), float(t)),
@@ -474,7 +498,7 @@ STD_ACT = [(int(n), n * 25.4) for n in (4, 6, 8, 10, 12)]
 ACT_DEAD = 110.0     # retracted pin-to-pin = stroke + ~110 mm for typical 12 V actuators (check the real one)
 
 
-def search_actuator(pivot, pose0, pins, anchors, angles, net_torque, n_act, lim, max_len=800.0, obstacles=None, radius=30.0):
+def search_actuator(pivot, pose0, pins, anchors, angles, net_torque, n_act, lim, max_len=800.0, obstacles=None, radius=30.0, specs=None):
     """Pick pin + anchor so the travel fits INSIDE a standard actuator stroke (10 mm spare
     at each end for the external limit switches); minimise the peak force.  obstacles(angle)
     returns world (d, z) points of everything in the actuator's x-band at that pose; the
@@ -492,8 +516,7 @@ def search_actuator(pivot, pose0, pins, anchors, angles, net_torque, n_act, lim,
         fy, fz = -ld / Lm, lz / Lm
         ry, rz = -(P[:, 0] - pivot[0]) / 1000, (P[:, 1] - pivot[1]) / 1000
         arm = ry[None] * fz - rz[None] * fy
-        for inch_, S in STD_ACT:
-            Lr = S + ACT_DEAD
+        for inch_, S, Lr in (specs or [(i, S_, S_ + ACT_DEAD) for i, S_ in STD_ACT]):
             ok = mono & (Lmin >= Lr + 10) & (Lmax <= Lr + S - 10) & (np.abs(arm).min(1) > 0.03) & (Lmax <= max_len)
             for i in np.nonzero(ok)[0]:
                 F = np.abs(net_torque / arm[i]) / n_act
@@ -549,13 +572,58 @@ STRUT["pin"] = pod_pt(*STRUT["pin_rt"])
 # pod actuator: inboard of the cheek, pins on the cheek, anchors in the casing
 _pins = [pod_pt(r, t) for r in np.arange(-260, 161, 20) for t in np.arange(-260, 261, 20) if math.hypot(r, t) >= 110]
 _anc = [(d, z) for d in np.arange(CASE["d"][0] + 60, CASE["d"][1] - 40, 20) for z in np.arange(110, CASE["top"] - 50, 20)]
-# design torque: |net| + 25 N*m (friction, strut tolerance), 2 actuators
-_net_design = np.abs(NET) + 25.0
-POD_ACT = search_actuator(PP, ALPHA_DN, _pins, _anc, ALPHAS, _net_design, 2,
+# ONE actuator (left casing).  Design torque = max(|net| + 25 N*m friction/strut tolerance,
+# full gravity with both struts failed / 1.5): the single actuator must hold the pod alone
+# if both struts fail, so its sizing case is the struts-failed torque.
+POD_N_ACT = 1
+# the chosen part: RVMARINEPAT LA03-12-300-1500N (amazon.ca B0FKMVCQPC): 300 mm stroke, 420 mm retracted pin-to-pin
+POD_ACT_SPEC = (12, 300.0, 420.0)
+_net_design = np.maximum(np.abs(NET) + 25.0, np.abs(MG) / 1.5)
+POD_ACT = search_actuator(PP, ALPHA_DN, _pins, _anc, ALPHAS, _net_design, POD_N_ACT,
                           lambda P: P[:, 0].min() > CASE["d"][0] + 50 and P[:, 0].max() < CASE["d"][1] - 50 and P[:, 1].max() < CASE["top"] - 50 and P[:, 1].min() > 110,
-                          obstacles=lambda a: band_points({"fixed": np.eye(4), "pod": R4(a - ALPHA_DN, PP)}, POD_ACT_X, 30.0), radius=28.0)
-# worst case: both gas struts gone -> actuators must hold the full gravity torque
-POD_ACT["F_each_strut_failed"] = float(np.max(np.abs(MG / np.array(POD_ACT["arm_m"]))) / 2)
+                          obstacles=lambda a: band_points({"fixed": np.eye(4), "pod": R4(a - ALPHA_DN, PP)}, POD_ACT_X, 30.0), radius=28.0,
+                          specs=[POD_ACT_SPEC])
+# forces on the single actuator
+_arm = np.array(POD_ACT["arm_m"])
+POD_ACT["n"] = POD_N_ACT
+POD_ACT["F_normal"] = [float(v) for v in (np.abs(NET) + 25.0) / np.abs(_arm)]
+POD_ACT["F_normal_max"] = float(max(POD_ACT["F_normal"]))
+POD_ACT["F_each_strut_failed"] = float(np.max(np.abs(MG / _arm)))           # both struts failed
+POD_ACT["F_one_strut_failed"] = float(np.max((np.abs(MG + (NET - MG) / 2) + 25.0) / np.abs(_arm)))
+_RATINGS = [750, 1000, 1500, 2000, 2500, 3000, 4000, 6000]
+# rating rule: >= 1.5 x the both-struts-failed load AND >= 2.5 x the normal running load
+POD_ACT["rating_N"] = next(r for r in _RATINGS if r >= 1.5 * POD_ACT["F_each_strut_failed"] and r >= 2.5 * POD_ACT["F_normal_max"])
+POD_ACT["margin_strut_failed"] = POD_ACT["rating_N"] / POD_ACT["F_each_strut_failed"]
+POD_ACT["margin_normal"] = POD_ACT["rating_N"] / POD_ACT["F_normal_max"]
+
+
+def torque_tube_check():
+    """Torsion of the cheek-to-cheek tube (Bredt thin-wall closed section)."""
+    b, tw = TT["side"], TT["wall"]
+    Am = (b - tw) ** 2
+    J = 4 * Am ** 2 * tw / (4 * (b - tw))                 # mm^4
+    Lt = 2 * (POD_X - 6)
+    G_ST = 79300.0                                        # MPa
+    chin_r = float(np.hypot(R_BACK[1], POD_T[0]))
+    cases = {
+        "normal (2 struts)": float(np.max(np.abs(NET))) / 2,
+        "far-side strut failed": 0.0,
+        "both struts failed": float(np.max(np.abs(MG))) / 2,
+        "actuator stall at rating vs far-side stop": POD_ACT["rating_N"] * float(np.abs(_arm).max()),
+    }
+    # far strut failed: far half = gravity/2 only (its strut is gone)
+    cases["far-side strut failed"] = float(np.max(np.abs(MG))) / 2
+    out = {}
+    for k, T in cases.items():
+        th = T * 1000 * Lt / (G_ST * J)
+        out[k] = dict(T_Nm=round(T, 1), twist_deg=round(math.degrees(th), 3), chin_offset_mm=round(th * chin_r, 1),
+                      shear_MPa=round(T * 1000 / (2 * Am * tw), 1), bolt_shear_N=round(T / (2 * 0.06), 0))
+    return dict(section="2 x 2 x 1/8 in square steel tube (50.8 x 50.8 x 3.2)", J_mm4=round(J), length_mm=round(Lt),
+                stiffness_Nm_per_deg=round(G_ST * J / (Lt * 1000) * math.pi / 180, 1), chin_radius_mm=round(chin_r), cases=out,
+                note="bolt_shear_N = force per bolt pair at +-60 mm on the end plate; M10 in 36 mm ply + 6 mm steel backing plate")
+
+
+TUBE = torque_tube_check()
 
 # ------------------------------------------------------------------ cradle mechanism
 def cradle_masses():
@@ -641,7 +709,7 @@ for s, nm in SIDES:
     add_box(f"Strut anchor post {nm}", "2x4", "fixed", *xr(s, XS[0] - T2, XS[0]), sd - 44.5, sd + 44.5, W2, CASE["top"] - 12,
             "gas-strut lower ball stud on a steel angle bracket")
     ad = POD_ACT["anchor"][0]
-    if abs(ad - PP[0]) > 60:
+    if abs(ad - PP[0]) > 60 and s < 0:      # single pod actuator: LEFT casing only
         add_box(f"Pod actuator anchor post {nm}", "2x4", "fixed", *xr(s, CI + 12, CI + 50), ad - 44.5, ad + 44.5, W2, CASE["top"] - 12,
                 "pod actuator rear clevis bracket")
 WINDOW = dict(front_wall_slot_bottom=FRONT_TOP, top_slot_to_d=TOP_FROM, slot_x=SLOT_X)
@@ -855,7 +923,7 @@ def clearance_report():
 
 
 # ------------------------------------------------------------------ SCAD output
-COLORS = {"2x4": "#c8a165", "ply18": "#d9b98a", "ply12": "#e3c79c", "ply6": "#b89a6e", "foam": "#7a1f1f"}
+COLORS = {"2x4": "#c8a165", "ply18": "#d9b98a", "ply12": "#e3c79c", "ply6": "#b89a6e", "foam": "#7a1f1f", "steel": "#6d7680", "steel_tube": "#6d7680"}
 
 
 def mat_str(M):
@@ -897,7 +965,8 @@ def write_scad(clr):
         x = s * CR_ACT_X
         S.append(f"  ff_ram({v3(*CR_ACT['anchor'], x)}, ff_rot({v3(*CR_ACT['pin'], x)}, FF_CP, th), 55, 22, {CR_ACT['Lmin'] - 40:.0f}, \"#3b5b8a\");")
         xa = s * POD_ACT_X
-        S.append(f"  ff_ram({v3(*POD_ACT['anchor'], xa)}, ff_rot({v3(*POD_ACT['pin'], xa)}, FF_PP, al - FF_ALPHA_DN), 55, 22, {POD_ACT['Lmin'] - 40:.0f}, \"#3b5b8a\");")
+        if s < 0:   # ONE pod actuator, left casing
+            S.append(f"  ff_ram({v3(*POD_ACT['anchor'], xa)}, ff_rot({v3(*POD_ACT['pin'], xa)}, FF_PP, al - FF_ALPHA_DN), 55, 22, {POD_ACT['Lmin'] - 40:.0f}, \"#3b5b8a\");")
         xs = s * STRUT_X
         S.append(f"  ff_ram({v3(*STRUT['anchor'], xs)}, ff_rot({v3(*STRUT['pin'], xs)}, FF_PP, al - FF_ALPHA_DN), 28, 12, {STRUT['Lmin'] - 30:.0f}, \"#222\");")
         # shafts
@@ -1030,7 +1099,7 @@ def main():
                  extra=[(n, m) for n, m, _ in POD_EXTRA],
                  alphas=[round(float(a), 1) for a in ALPHAS], gravity_torque_Nm=[round(float(v), 1) for v in MG],
                  net_torque_with_struts_Nm=[round(float(v), 1) for v in NET],
-                 strut=STRUT, actuator=POD_ACT, cheek_pts=[[round(a, 1), round(b, 1)] for a, b in CHEEK], window=WINDOW),
+                 strut=STRUT, actuator=dict(POD_ACT, x=-POD_ACT_X, side="L"), torque_tube=TUBE, net_up_min=NET_UP_MIN, cheek_pts=[[round(a, 1), round(b, 1)] for a, b in CHEEK], window=WINDOW),
         ramp=RAMP, clearances=clr, lumber=dict(boards_8ft=n8, boards_10ft=n10), sheet_area_m2=area,
         kids_reclined={nm: {j: [round(v) for v in recline_pt(KIDS[k][j])] for j in ("head", "hip", "knee", "toe")} for nm, (k, x) in KID_SEATING.items()},
     )
