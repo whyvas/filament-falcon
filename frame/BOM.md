@@ -57,7 +57,8 @@ Printed parts are listed in `docs/mechanical/README.md`; switches per panel in
 | 1 | DPDT (ON)-OFF-(ON) momentary toggle, 12 mm bushing | FLT / BRD hold-to-run on CMD_B |
 | 4 | 12 V 30 A automotive relays SPDT (Bosch type) | wired as 2 H-bridges (cradle: 2 actuators in parallel; pod: the single actuator) |
 | 8 | V-15 roller-lever micro switches 15 A (NC used) + printed `limit_switch_mount` | CRADLE_UPRIGHT, CRADLE_RECLINED (x2, one per side, in series), ONE pod limit set POD_UP + POD_DOWN (left, driven cheek only), POD_UP_LOCKED (x2, one per pawl, in series), lever switch |
-| 2 | Extra micro switches | dry contacts READ by Falcon Command (cradle reclined, pod down) |
+| 3 | Extra micro switches (V-15 roller, NO used) + printed `limit_switch_mount` | READ-ONLY position senses for Falcon Command, not in the motor path: CRADLE_RECLINED, POD_DOWN_LOCKED (pawl in the DOWN notch), POD_UP_LOCKED (optional) |
+| 3 | PC817 optocouplers + 2.2 kOhm 1/2 W (12 V side) + 10 kOhm pull-ups (3V3 side) | isolate the 3 senses -> Falcon Command GPIO39 / 40 / 41 (see docs/electronics diagram 04) |
 | 8 | 1N5408 diodes | across each motor-path limit switch so you can always drive back |
 | 1 | Pressure-sensitive safety edge (NC), ~900 mm, with mounting profile | along the pod chin, in series with "pod DOWN" |
 | 20 m | 14 AWG (2.5 mm2) red/black stranded, plus 18 AWG for switch circuits | |

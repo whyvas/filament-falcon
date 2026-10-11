@@ -76,6 +76,7 @@ Regenerate: `python frame/frame_model.py && python frame/make_drawings.py`
    - => the pod can never come down unless the seats are fully reclined, and the seats never move under a lowered pod.
    - Key switch, 20 A fuse, latching E-stop (NC), NC roller limit switches each bridged by a 1N5408 so you can always drive back.
    - Pressure-sensitive safety edge (NC) along the pod chin in series with "pod DOWN".
+   - READ-ONLY position senses for the game: **3** separate micro switches (CRADLE_RECLINED, POD_DOWN_LOCKED = pawl in the DOWN notch, POD_UP_LOCKED - optional), each through a PC817 optocoupler (2.2 kOhm 1/2 W on the 12 V side, 10 kOhm pull-up to 3V3) to Falcon Command GPIO39 / 40 / 41. They are not in the motor path; the game only shows the state and calls "pod coming down" on the intercom.
 6. **Pinch-point rules** (ISO 13854 style): every gap that opens/closes is either >= 120 mm (head/body) or <= 8 mm / covered (finger can't enter) or >= 25 mm at all times. The cheeks run in 48 mm slots in the casings closed with brush strips; a fixed 120 mm crush-zone ramp sits under the reclined seat backs so nothing can be trapped between seat back and floor; the nose-box actuator slots have brush strips. See `drawings/05_pinch_points_clearances`.
 7. **Cables across pivots:** every bundle crossing a pivot gets two printed `pivot_cable_clamp`s (fixed side + moving side, <= 60 mm from the axis) with a 200 mm U service loop in braided sleeve.
 

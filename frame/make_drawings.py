@@ -311,7 +311,7 @@ def mechanism(pdf):
          "       AND the switch (two-hand hold-to-run).  'Pawl engaged' micro switches feed the interlock below.",
          "  cradle: self-locking actuators + stops; the pod interlock keeps it from moving under a lowered pod.",
          "",
-         "HARDWIRED INTERLOCK (no microcontroller can move anything; game only READS 2 dry contacts):",
+         "HARDWIRED INTERLOCK (no microcontroller can move anything; the game only READS 3 isolated senses):",
          "  12V+ --[20A fuse]--[MOTION key]--[E-STOP NC]--+--CREW POS (ON)-OFF-(ON) hold-to-run DPDT (drives 4 relays)",
          "  ONE pod limit set: POD_UP + POD_DOWN roller switches on the LEFT (driven) cheek only; the right side has only its pawl switch.",
          "  FLIGHT (toggle up):",
@@ -324,6 +324,8 @@ def mechanism(pdf):
          "  Pod chin carries a pressure-sensitive SAFETY EDGE (NC) in series with 'pod DOWN'.",
          "  Limit switches: roller-lever micro switches (NC) on the stops, 1N5408 diode across each so you can always reverse.",
          "  Relays: 4 x 30 A automotive SPDT (Bosch-type) wired as 2 H-bridges (cradle: 2 actuators in parallel; pod: 1 actuator); 12 V 20 A supply.",
+         "  Position senses (READ-ONLY, 3 separate NO micro switches, PC817 optos -> Falcon Command GPIO39/40/41):",
+         "    CRADLE_RECLINED, POD_DOWN_LOCKED (pawl in DOWN notch), POD_UP_LOCKED (optional). Never in the motor path.",
          ]
     fig.text(0.02, 0.95, "\n".join(L), family="monospace", fontsize=8.3, va="top")
     ax = fig.add_axes([0.66, 0.56, 0.32, 0.33])

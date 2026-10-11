@@ -1,11 +1,11 @@
-"""Diagram 04 (v0.2): hardwired crew-position circuit. Cradle recline (2 actuators) and kids'
-pod (2 actuators), each driven by a 2-relay H-bridge; the coils are fed only through the
+"""Diagram 04 (v0.3): hardwired crew-position circuit. Cradle recline (2 actuators) and kids'
+pod (ONE actuator + torque tube), each driven by a 2-relay H-bridge; the coils are fed only through the
 hold-to-run CREW POS toggle and the interlock contacts (locks, lever, safety edge). No
 microcontroller can move anything: Falcon Command only READS three isolated sense contacts.
 Matches frame/README.md "Safety concept" and frame/BOM.md "Hardwired interlock"."""
 from diag_common import *
 
-fig, ax = new(23, 19, "04  Crew position v0.2: cradle recline + pod, hardwired relay H-bridges and interlock (NO software control)")
+fig, ax = new(23, 19, "04  Crew position v0.3: cradle recline (2 act.) + pod (1 act.), hardwired relay H-bridges and interlock (NO software control)")
 P12, G = C["12v"], C["gnd"]
 CT = "#6a1b9a"          # control (coil) wiring
 BUS = 176               # +12 V MOTION bus
@@ -50,7 +50,7 @@ def limit(x1, y, label, diode_dir, w=14):
     return x2
 
 
-def bridge(y, kl, kr, lim, motors, title):
+def bridge(y, kl, kr, lim, motors, title, n_mot=2):
     """One H-bridge: left relay contact at x=136, right at x=212, motor path between."""
     ax.text(174, y + 22, title, ha="center", fontsize=10, weight="bold")
     no_l = relay_contact(136, y, kl)
@@ -66,16 +66,16 @@ def bridge(y, kl, kr, lim, motors, title):
         x2 = limit(x, ym, lab, d)
         line(ax, [(x2, ym), (x2 + 3, ym)], "k", 2.4)
         x = x2 + 3
-    line(ax, [(x, ym), (200, ym)], "k", 2.4)
+    line(ax, [(x, ym), (200 if n_mot == 2 else 193, ym)], "k", 2.4)
     yb = y - 16
-    for i, mx in enumerate((186, 200)):
+    for i, mx in enumerate((186, 200)[:n_mot] if n_mot == 2 else (193,)):
         line(ax, [(mx, ym), (mx, y - 2)], "k", 2.0)
         ax.add_patch(Circle((mx, y - 6), 4, fc="white", ec="k", lw=2))
         ax.text(mx, y - 6, "M", ha="center", va="center", fontsize=11, weight="bold")
         line(ax, [(mx, y - 10), (mx, yb)], "k", 2.0)
         dot(ax, mx, ym); dot(ax, mx, yb)
     ax.text(165, y - 6, motors, ha="center", fontsize=6.8, va="top")
-    line(ax, [(186, yb), (212, yb), (212, y - 22)], "k", 2.4)
+    line(ax, [(186 if n_mot == 2 else 193, yb), (212, yb), (212, y - 22)], "k", 2.4)
     ax.text(150, ym + 9, "M+", fontsize=7.5)
     ax.text(204, yb + 1, "M-", fontsize=7.5)
 
@@ -166,8 +166,8 @@ dot(ax, 128, BUS, P12)
 line(ax, [(220, BUS), (220, 62)], P12, 2.2)
 bridge(144, "K1", "K2", [("RECLINED limit\n(NC)", +1), ("UPRIGHT limit\n(NC)", -1)],
        "cradle actuators L + R\n10\" stroke, 1500 N,\nself-locking", "CRADLE  (K1 / K2)")
-bridge(92, "K3", "K4", [("POD DOWN limit\n(NC)", +1), ("POD UP limit\n(NC)", -1)],
-       "pod actuators L + R\n12\" stroke, 1000 N,\nself-locking", "POD  (K3 / K4)")
+bridge(92, "K3", "K4", [("POD DOWN limit\n(NC, left cheek)", +1), ("POD UP limit\n(NC, left cheek)", -1)],
+       "ONE pod actuator (left)\n12\" stroke, 1500 N,\nself-locking", "POD  (K3 / K4)", n_mot=1)
 ax.text(174, 63, "Both relays off (or both on) = both motor leads on the same rail = stopped and braked.\n"
         "One relay on = one direction. No relay combination can short the supply.", ha="center", fontsize=7, va="top")
 
@@ -202,6 +202,6 @@ note(ax, 2, 27, 224, (
     "~1 s; for actuators drawing > 3 A each use 6A10). Relays: 12 V 30 A automotive SPDT (Bosch type). Wire 14 AWG from the PSU to the bridges, 20 AWG for coils. Test with NOBODY seated: every limit, lock, "
     "lever, edge, E-stop, key.\n"
     "The game shows POD UP / MOVING / DOWN-LOCKED and SEATS UPRIGHT / MOVING / RECLINED from the three sense contacts and announces \"pod coming down\" over the intercom; it never drives a relay."),
-    title="How it works (v0.2, frame/README.md safety concept)", fs=7.3)
+    title="How it works (v0.3, frame/README.md safety concept; ONE pod limit set, 3 read-only senses)", fs=7.3)
 ax.set_ylim(9, 190)
 save(fig, "04_seat_actuator")

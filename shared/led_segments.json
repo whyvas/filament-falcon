@@ -4,7 +4,7 @@
     "type": "WS2812B",
     "color_order": "GRB",
     "leds_per_meter": 60,
-    "total_leds": 238,
+    "total_leds": 242,
     "driven_by": "Falcon Command GPIO21"
   },
   "segments": {
@@ -26,560 +26,578 @@
       "panel": "CMD_A",
       "text": "DIMMER"
     },
-    "INTERCOM": {
+    "CMD_ALL_CALL": {
       "start": 7,
+      "count": 2,
+      "panel": "CMD_A",
+      "text": "ALL-CALL"
+    },
+    "INTERCOM": {
+      "start": 9,
       "count": 2,
       "panel": "CMD_A",
       "text": "INTERCOM"
     },
     "PAUSE": {
-      "start": 9,
+      "start": 11,
       "count": 2,
       "panel": "CMD_A",
       "text": "PAUSE"
     },
     "START": {
-      "start": 11,
+      "start": 13,
       "count": 2,
       "panel": "CMD_A",
       "text": "START"
     },
     "CAUTION_RESET": {
-      "start": 13,
+      "start": 15,
       "count": 3,
       "panel": "CMD_A",
       "text": "CAUTION RESET"
     },
     "CREW_READY": {
-      "start": 16,
+      "start": 18,
       "count": 3,
       "panel": "CMD_A",
       "text": "CREW READY"
     },
     "PILOT_READY_LED": {
-      "start": 19,
+      "start": 21,
       "count": 1,
       "panel": "CMD_A",
       "text": "PILOT ready (green)",
       "type": "5mm WS2812D-F5"
     },
     "OPS_READY_LED": {
-      "start": 20,
+      "start": 22,
       "count": 1,
       "panel": "CMD_A",
       "text": "OPS ready (green)",
       "type": "5mm WS2812D-F5"
     },
     "FAILURES": {
-      "start": 27,
+      "start": 29,
       "count": 3,
       "panel": "CMD_B",
       "text": "FAILURES"
     },
     "CABIN_LEAK": {
-      "start": 30,
+      "start": 32,
       "count": 3,
       "panel": "CMD_B",
       "text": "CABIN LEAK"
     },
     "ENGINE_FIRE": {
-      "start": 33,
+      "start": 35,
       "count": 3,
       "panel": "CMD_B",
       "text": "ENGINE FIRE"
     },
     "POWER_FAULT": {
-      "start": 36,
+      "start": 38,
       "count": 3,
       "panel": "CMD_B",
       "text": "POWER FAULT"
     },
     "SENSOR_GLITCH": {
-      "start": 39,
+      "start": 41,
       "count": 3,
       "panel": "CMD_B",
       "text": "SENSOR GLITCH"
     },
     "SEAT_STOP": {
-      "start": 42,
+      "start": 44,
       "count": 1,
       "panel": "CMD_B",
       "text": "STOP"
     },
     "SEAT_LIFT": {
-      "start": 43,
-      "count": 2,
-      "panel": "CMD_B",
-      "text": "SEAT LIFT"
-    },
-    "SEAT_KEY": {
       "start": 45,
       "count": 2,
       "panel": "CMD_B",
-      "text": "SEAT KEY"
+      "text": "CREW POS"
+    },
+    "SEAT_KEY": {
+      "start": 47,
+      "count": 2,
+      "panel": "CMD_B",
+      "text": "MOTION"
     },
     "SEAT_UP": {
-      "start": 47,
+      "start": 49,
       "count": 1,
       "panel": "CMD_B",
-      "text": "UP"
+      "text": "FLT"
     },
     "SEAT_DN": {
-      "start": 48,
+      "start": 50,
       "count": 1,
       "panel": "CMD_B",
-      "text": "DN"
+      "text": "BRD"
     },
     "GEAR": {
-      "start": 55,
+      "start": 57,
       "count": 1,
       "panel": "PILOT_SIDE",
       "text": "GEAR"
     },
+    "PILOT_PTT": {
+      "start": 58,
+      "count": 1,
+      "panel": "PILOT_SIDE",
+      "text": "PTT"
+    },
     "THR_MAX": {
-      "start": 56,
+      "start": 59,
       "count": 1,
       "panel": "PILOT_SIDE",
       "text": "MAX"
     },
     "GEAR_UP": {
-      "start": 57,
+      "start": 60,
       "count": 1,
       "panel": "PILOT_SIDE",
       "text": "UP"
     },
     "THROTTLE": {
-      "start": 58,
+      "start": 61,
       "count": 2,
       "panel": "PILOT_SIDE",
       "text": "THROTTLE"
     },
     "GEAR_DN": {
-      "start": 60,
+      "start": 63,
       "count": 1,
       "panel": "PILOT_SIDE",
       "text": "DN"
     },
     "THR_IDLE": {
-      "start": 61,
+      "start": 64,
       "count": 1,
       "panel": "PILOT_SIDE",
       "text": "IDLE"
     },
     "HYPERSPACE": {
-      "start": 68,
+      "start": 71,
       "count": 4,
       "panel": "OPS_SIDE",
       "text": "HYPERSPACE"
     },
+    "OPS_PTT": {
+      "start": 75,
+      "count": 1,
+      "panel": "OPS_SIDE",
+      "text": "PTT"
+    },
     "ENGAGE": {
-      "start": 72,
+      "start": 76,
       "count": 2,
       "panel": "OPS_SIDE",
       "text": "ENGAGE"
     },
     "JUMP_ARM": {
-      "start": 74,
+      "start": 78,
       "count": 2,
       "panel": "OPS_SIDE",
       "text": "JUMP ARM"
     },
     "CHARGE": {
-      "start": 76,
+      "start": 80,
       "count": 2,
       "panel": "OPS_SIDE",
       "text": "CHARGE"
     },
     "JUMP_CHARGE_BAR_LED": {
-      "start": 78,
+      "start": 82,
       "count": 6,
       "panel": "OPS_SIDE",
       "text": "jump charge bar (blue)",
       "type": "5mm WS2812D-F5"
     },
     "REACTOR": {
-      "start": 90,
+      "start": 94,
       "count": 2,
       "panel": "OPS_DASH_A",
       "text": "REACTOR"
     },
     "LIFE_SUPPORT": {
-      "start": 92,
+      "start": 96,
       "count": 3,
       "panel": "OPS_DASH_A",
       "text": "LIFE SUPPORT"
     },
     "SHIELDS": {
-      "start": 95,
+      "start": 99,
       "count": 2,
       "panel": "OPS_DASH_A",
       "text": "SHIELDS"
     },
     "FIRE_SUPPR": {
-      "start": 97,
+      "start": 101,
       "count": 3,
       "panel": "OPS_DASH_A",
       "text": "FIRE SUPPR"
     },
     "SENSORS": {
-      "start": 100,
+      "start": 104,
       "count": 2,
       "panel": "OPS_DASH_A",
       "text": "SENSORS"
     },
     "COMMS": {
-      "start": 102,
+      "start": 106,
       "count": 2,
       "panel": "OPS_DASH_A",
       "text": "COMMS"
     },
     "REACTOR_LED": {
-      "start": 104,
+      "start": 108,
       "count": 1,
       "panel": "OPS_DASH_A",
       "text": "REACTOR status",
       "type": "5mm WS2812D-F5"
     },
     "LIFE_SUPPORT_LED": {
-      "start": 105,
+      "start": 109,
       "count": 1,
       "panel": "OPS_DASH_A",
       "text": "LIFE SUPPORT status",
       "type": "5mm WS2812D-F5"
     },
     "SHIELDS_LED": {
-      "start": 106,
+      "start": 110,
       "count": 1,
       "panel": "OPS_DASH_A",
       "text": "SHIELDS status",
       "type": "5mm WS2812D-F5"
     },
     "COMMS_LED": {
-      "start": 107,
+      "start": 111,
       "count": 1,
       "panel": "OPS_DASH_A",
       "text": "COMMS status",
       "type": "5mm WS2812D-F5"
     },
     "SENSORS_LED": {
-      "start": 108,
+      "start": 112,
       "count": 1,
       "panel": "OPS_DASH_A",
       "text": "SENSORS status",
       "type": "5mm WS2812D-F5"
     },
     "MODE": {
-      "start": 115,
+      "start": 119,
       "count": 1,
       "panel": "OPS_DASH_B",
       "text": "MODE"
     },
     "SCAN_PING": {
-      "start": 116,
+      "start": 120,
       "count": 2,
       "panel": "OPS_DASH_B",
       "text": "SCAN PING"
     },
     "MODE_RCS": {
-      "start": 118,
+      "start": 122,
       "count": 1,
       "panel": "OPS_DASH_B",
       "text": "RCS"
     },
     "MODE_ARM": {
-      "start": 119,
+      "start": 123,
       "count": 1,
       "panel": "OPS_DASH_B",
       "text": "ARM"
     },
     "MODE_SCANNER": {
-      "start": 120,
+      "start": 124,
       "count": 2,
       "panel": "OPS_DASH_B",
       "text": "SCANNER"
     },
     "CARGO_BAY": {
-      "start": 122,
+      "start": 126,
       "count": 3,
       "panel": "OPS_DASH_B",
       "text": "CARGO BAY"
     },
     "DOCK_CLAMP": {
-      "start": 125,
+      "start": 129,
       "count": 3,
       "panel": "OPS_DASH_B",
       "text": "DOCK CLAMP"
     },
     "NAV_TGT": {
-      "start": 128,
+      "start": 132,
       "count": 2,
       "panel": "OPS_DASH_B",
       "text": "NAV TGT"
     },
     "CARGO_BAY_LED": {
-      "start": 130,
+      "start": 134,
       "count": 1,
       "panel": "OPS_DASH_B",
       "text": "CARGO BAY status",
       "type": "5mm WS2812D-F5"
     },
     "DOCK_CLAMP_LED": {
-      "start": 131,
+      "start": 135,
       "count": 1,
       "panel": "OPS_DASH_B",
       "text": "DOCK CLAMP status",
       "type": "5mm WS2812D-F5"
     },
     "EJECT": {
-      "start": 138,
+      "start": 142,
       "count": 2,
       "panel": "OVERHEAD_C",
       "text": "EJECT"
     },
     "STROBE": {
-      "start": 140,
+      "start": 144,
       "count": 2,
       "panel": "OVERHEAD_C",
       "text": "STROBE"
     },
     "BEACON": {
-      "start": 142,
+      "start": 146,
       "count": 2,
       "panel": "OVERHEAD_C",
       "text": "BEACON"
     },
     "CABIN_LIGHTS": {
-      "start": 144,
+      "start": 148,
       "count": 3,
       "panel": "OVERHEAD_C",
       "text": "CABIN LIGHTS"
     },
     "CABIN_LIGHTS_LED": {
-      "start": 147,
+      "start": 151,
       "count": 1,
       "panel": "OVERHEAD_C",
       "text": "CABIN LIGHTS status",
       "type": "5mm WS2812D-F5"
     },
     "BEACON_LED": {
-      "start": 148,
+      "start": 152,
       "count": 1,
       "panel": "OVERHEAD_C",
       "text": "BEACON status",
       "type": "5mm WS2812D-F5"
     },
     "STROBE_LED": {
-      "start": 149,
+      "start": 153,
       "count": 1,
       "panel": "OVERHEAD_C",
       "text": "STROBE status",
       "type": "5mm WS2812D-F5"
     },
     "APU_START": {
-      "start": 156,
+      "start": 160,
       "count": 3,
       "panel": "OVERHEAD_B",
       "text": "APU START"
     },
     "GUIDANCE": {
-      "start": 159,
+      "start": 163,
       "count": 2,
       "panel": "OVERHEAD_B",
       "text": "GUIDANCE"
     },
     "IGNITION_ARM": {
-      "start": 161,
+      "start": 165,
       "count": 3,
       "panel": "OVERHEAD_B",
       "text": "IGNITION ARM"
     },
     "APU_START_LED": {
-      "start": 164,
+      "start": 168,
       "count": 1,
       "panel": "OVERHEAD_B",
       "text": "APU START status",
       "type": "5mm WS2812D-F5"
     },
     "GUIDANCE_LED": {
-      "start": 165,
+      "start": 169,
       "count": 1,
       "panel": "OVERHEAD_B",
       "text": "GUIDANCE status",
       "type": "5mm WS2812D-F5"
     },
     "IGNITION_ARM_LED": {
-      "start": 166,
+      "start": 170,
       "count": 1,
       "panel": "OVERHEAD_B",
       "text": "IGNITION ARM status",
       "type": "5mm WS2812D-F5"
     },
     "BATTERY": {
-      "start": 173,
+      "start": 177,
       "count": 2,
       "panel": "OVERHEAD_A",
       "text": "BATTERY"
     },
     "FUEL_PUMPS": {
-      "start": 175,
+      "start": 179,
       "count": 3,
       "panel": "OVERHEAD_A",
       "text": "FUEL PUMPS"
     },
     "AVIONICS": {
-      "start": 178,
+      "start": 182,
       "count": 2,
       "panel": "OVERHEAD_A",
       "text": "AVIONICS"
     },
     "BATTERY_LED": {
-      "start": 180,
+      "start": 184,
       "count": 1,
       "panel": "OVERHEAD_A",
       "text": "BATTERY status",
       "type": "5mm WS2812D-F5"
     },
     "FUEL_PUMPS_LED": {
-      "start": 181,
+      "start": 185,
       "count": 1,
       "panel": "OVERHEAD_A",
       "text": "FUEL PUMPS status",
       "type": "5mm WS2812D-F5"
     },
     "AVIONICS_LED": {
-      "start": 182,
+      "start": 186,
       "count": 1,
       "panel": "OVERHEAD_A",
       "text": "AVIONICS status",
       "type": "5mm WS2812D-F5"
     },
     "ENG_ARM": {
-      "start": 189,
+      "start": 193,
       "count": 2,
       "panel": "PILOT_DASH_A",
       "text": "ENG ARM"
     },
     "IGNITION": {
-      "start": 191,
+      "start": 195,
       "count": 2,
       "panel": "PILOT_DASH_A",
       "text": "IGNITION"
     },
     "BOOST": {
-      "start": 193,
+      "start": 197,
       "count": 2,
       "panel": "PILOT_DASH_A",
       "text": "BOOST"
     },
     "HORN": {
-      "start": 195,
+      "start": 199,
       "count": 1,
       "panel": "PILOT_DASH_A",
       "text": "HORN"
     },
     "NAV_LIGHTS": {
-      "start": 196,
+      "start": 200,
       "count": 3,
       "panel": "PILOT_DASH_A",
       "text": "NAV LIGHTS"
     },
     "FLAPS": {
-      "start": 199,
+      "start": 203,
       "count": 2,
       "panel": "PILOT_DASH_A",
       "text": "FLAPS"
     },
     "AIRBRAKE": {
-      "start": 201,
+      "start": 205,
       "count": 2,
       "panel": "PILOT_DASH_A",
       "text": "AIRBRAKE"
     },
     "ENG_ARM_LED": {
-      "start": 203,
+      "start": 207,
       "count": 1,
       "panel": "PILOT_DASH_A",
       "text": "ENG ARM status",
       "type": "5mm WS2812D-F5"
     },
     "AIRBRAKE_LED": {
-      "start": 204,
+      "start": 208,
       "count": 1,
       "panel": "PILOT_DASH_A",
       "text": "AIRBRAKE status",
       "type": "5mm WS2812D-F5"
     },
     "FLAPS_LED": {
-      "start": 205,
+      "start": 209,
       "count": 1,
       "panel": "PILOT_DASH_A",
       "text": "FLAPS status",
       "type": "5mm WS2812D-F5"
     },
     "NAV_LIGHTS_LED": {
-      "start": 206,
+      "start": 210,
       "count": 1,
       "panel": "PILOT_DASH_A",
       "text": "NAV LIGHTS status",
       "type": "5mm WS2812D-F5"
     },
     "ASSIST": {
-      "start": 213,
+      "start": 217,
       "count": 2,
       "panel": "PILOT_DASH_B",
       "text": "ASSIST"
     },
     "VIEW": {
-      "start": 215,
+      "start": 219,
       "count": 1,
       "panel": "PILOT_DASH_B",
       "text": "VIEW"
     },
     "ASSIST_OFF": {
-      "start": 216,
+      "start": 220,
       "count": 1,
       "panel": "PILOT_DASH_B",
       "text": "OFF"
     },
     "ASSIST_STAB": {
-      "start": 217,
+      "start": 221,
       "count": 1,
       "panel": "PILOT_DASH_B",
       "text": "STAB"
     },
     "ASSIST_PROGRADE": {
-      "start": 218,
+      "start": 222,
       "count": 2,
       "panel": "PILOT_DASH_B",
       "text": "PROGRADE"
     },
     "ASSIST_HOLD": {
-      "start": 220,
+      "start": 224,
       "count": 1,
       "panel": "PILOT_DASH_B",
       "text": "HOLD"
     },
     "GEAR_LIGHTS": {
-      "start": 221,
+      "start": 225,
       "count": 1,
       "panel": "PILOT_DASH_B",
       "text": "GEAR"
     },
     "CAUTION": {
-      "start": 222,
+      "start": 226,
       "count": 2,
       "panel": "PILOT_DASH_B",
       "text": "CAUTION"
     },
     "MASTER_CAUTION_LED": {
-      "start": 224,
+      "start": 228,
       "count": 1,
       "panel": "PILOT_DASH_B",
       "text": "MASTER CAUTION (red)",
       "type": "5mm WS2812D-F5"
     },
     "GEAR_DOWN_LED": {
-      "start": 225,
+      "start": 229,
       "count": 3,
       "panel": "PILOT_DASH_B",
       "text": "gear down (green)",

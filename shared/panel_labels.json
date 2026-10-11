@@ -133,39 +133,50 @@
     },
     {
       "index": 3,
+      "id": "CMD_ALL_CALL",
+      "panel": "CMD_A",
+      "text": "ALL-CALL",
+      "x_mm": 175,
+      "y_mm": 112,
+      "box_w_mm": 38.4,
+      "cap_height_mm": 5.5,
+      "est_leds_60_per_m": 2
+    },
+    {
+      "index": 4,
       "id": "INTERCOM",
       "panel": "CMD_A",
       "text": "INTERCOM",
-      "x_mm": 165,
+      "x_mm": 130,
       "y_mm": 114,
       "box_w_mm": 38.8,
       "cap_height_mm": 5.5,
       "est_leds_60_per_m": 2
     },
     {
-      "index": 4,
+      "index": 5,
       "id": "PAUSE",
       "panel": "CMD_A",
       "text": "PAUSE",
-      "x_mm": 105,
+      "x_mm": 82,
       "y_mm": 116,
       "box_w_mm": 26.7,
       "cap_height_mm": 5.5,
       "est_leds_60_per_m": 2
     },
     {
-      "index": 5,
+      "index": 6,
       "id": "START",
       "panel": "CMD_A",
       "text": "START",
-      "x_mm": 38,
+      "x_mm": 32,
       "y_mm": 116,
       "box_w_mm": 27.4,
       "cap_height_mm": 5.5,
       "est_leds_60_per_m": 2
     },
     {
-      "index": 6,
+      "index": 7,
       "id": "CAUTION_RESET",
       "panel": "CMD_A",
       "text": "CAUTION RESET",
@@ -176,7 +187,7 @@
       "est_leds_60_per_m": 3
     },
     {
-      "index": 7,
+      "index": 8,
       "id": "CREW_READY",
       "panel": "CMD_A",
       "text": "CREW READY",
@@ -187,7 +198,7 @@
       "est_leds_60_per_m": 3
     },
     {
-      "index": 8,
+      "index": 9,
       "id": "FAILURES",
       "panel": "CMD_B",
       "text": "FAILURES",
@@ -198,7 +209,7 @@
       "est_leds_60_per_m": 3
     },
     {
-      "index": 9,
+      "index": 10,
       "id": "CABIN_LEAK",
       "panel": "CMD_B",
       "text": "CABIN LEAK",
@@ -209,7 +220,7 @@
       "est_leds_60_per_m": 3
     },
     {
-      "index": 10,
+      "index": 11,
       "id": "ENGINE_FIRE",
       "panel": "CMD_B",
       "text": "ENGINE FIRE",
@@ -220,7 +231,7 @@
       "est_leds_60_per_m": 3
     },
     {
-      "index": 11,
+      "index": 12,
       "id": "POWER_FAULT",
       "panel": "CMD_B",
       "text": "POWER FAULT",
@@ -231,7 +242,7 @@
       "est_leds_60_per_m": 3
     },
     {
-      "index": 12,
+      "index": 13,
       "id": "SENSOR_GLITCH",
       "panel": "CMD_B",
       "text": "SENSOR GLITCH",
@@ -242,7 +253,7 @@
       "est_leds_60_per_m": 3
     },
     {
-      "index": 13,
+      "index": 14,
       "id": "SEAT_STOP",
       "panel": "CMD_B",
       "text": "STOP",
@@ -253,7 +264,7 @@
       "est_leds_60_per_m": 1
     },
     {
-      "index": 14,
+      "index": 15,
       "id": "SEAT_LIFT",
       "panel": "CMD_B",
       "text": "CREW POS",
@@ -264,7 +275,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 15,
+      "index": 16,
       "id": "SEAT_KEY",
       "panel": "CMD_B",
       "text": "MOTION",
@@ -275,7 +286,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 16,
+      "index": 17,
       "id": "SEAT_UP",
       "panel": "CMD_B",
       "text": "FLT",
@@ -286,7 +297,7 @@
       "est_leds_60_per_m": 1
     },
     {
-      "index": 17,
+      "index": 18,
       "id": "SEAT_DN",
       "panel": "CMD_B",
       "text": "BRD",
@@ -297,7 +308,7 @@
       "est_leds_60_per_m": 1
     },
     {
-      "index": 18,
+      "index": 19,
       "id": "GEAR",
       "panel": "PILOT_SIDE",
       "text": "GEAR",
@@ -308,7 +319,18 @@
       "est_leds_60_per_m": 1
     },
     {
-      "index": 19,
+      "index": 20,
+      "id": "PILOT_PTT",
+      "panel": "PILOT_SIDE",
+      "text": "PTT",
+      "x_mm": 122,
+      "y_mm": 120,
+      "box_w_mm": 18.4,
+      "cap_height_mm": 5.5,
+      "est_leds_60_per_m": 1
+    },
+    {
+      "index": 21,
       "id": "THR_MAX",
       "panel": "PILOT_SIDE",
       "text": "MAX",
@@ -319,7 +341,7 @@
       "est_leds_60_per_m": 1
     },
     {
-      "index": 20,
+      "index": 22,
       "id": "GEAR_UP",
       "panel": "PILOT_SIDE",
       "text": "UP",
@@ -330,7 +352,7 @@
       "est_leds_60_per_m": 1
     },
     {
-      "index": 21,
+      "index": 23,
       "id": "THROTTLE",
       "panel": "PILOT_SIDE",
       "text": "THROTTLE",
@@ -341,7 +363,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 22,
+      "index": 24,
       "id": "GEAR_DN",
       "panel": "PILOT_SIDE",
       "text": "DN",
@@ -352,7 +374,7 @@
       "est_leds_60_per_m": 1
     },
     {
-      "index": 23,
+      "index": 25,
       "id": "THR_IDLE",
       "panel": "PILOT_SIDE",
       "text": "IDLE",
@@ -363,7 +385,7 @@
       "est_leds_60_per_m": 1
     },
     {
-      "index": 24,
+      "index": 26,
       "id": "HYPERSPACE",
       "panel": "OPS_SIDE",
       "text": "HYPERSPACE",
@@ -374,7 +396,18 @@
       "est_leds_60_per_m": 4
     },
     {
-      "index": 25,
+      "index": 27,
+      "id": "OPS_PTT",
+      "panel": "OPS_SIDE",
+      "text": "PTT",
+      "x_mm": 182,
+      "y_mm": 96,
+      "box_w_mm": 18.4,
+      "cap_height_mm": 5.5,
+      "est_leds_60_per_m": 1
+    },
+    {
+      "index": 28,
       "id": "ENGAGE",
       "panel": "OPS_SIDE",
       "text": "ENGAGE",
@@ -385,7 +418,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 26,
+      "index": 29,
       "id": "JUMP_ARM",
       "panel": "OPS_SIDE",
       "text": "JUMP ARM",
@@ -396,7 +429,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 27,
+      "index": 30,
       "id": "CHARGE",
       "panel": "OPS_SIDE",
       "text": "CHARGE",
@@ -407,7 +440,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 28,
+      "index": 31,
       "id": "REACTOR",
       "panel": "OPS_DASH_A",
       "text": "REACTOR",
@@ -418,7 +451,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 29,
+      "index": 32,
       "id": "LIFE_SUPPORT",
       "panel": "OPS_DASH_A",
       "text": "LIFE SUPPORT",
@@ -429,7 +462,7 @@
       "est_leds_60_per_m": 3
     },
     {
-      "index": 30,
+      "index": 33,
       "id": "SHIELDS",
       "panel": "OPS_DASH_A",
       "text": "SHIELDS",
@@ -440,7 +473,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 31,
+      "index": 34,
       "id": "FIRE_SUPPR",
       "panel": "OPS_DASH_A",
       "text": "FIRE SUPPR",
@@ -451,7 +484,7 @@
       "est_leds_60_per_m": 3
     },
     {
-      "index": 32,
+      "index": 35,
       "id": "SENSORS",
       "panel": "OPS_DASH_A",
       "text": "SENSORS",
@@ -462,7 +495,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 33,
+      "index": 36,
       "id": "COMMS",
       "panel": "OPS_DASH_A",
       "text": "COMMS",
@@ -473,7 +506,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 34,
+      "index": 37,
       "id": "MODE",
       "panel": "OPS_DASH_B",
       "text": "MODE",
@@ -484,7 +517,7 @@
       "est_leds_60_per_m": 1
     },
     {
-      "index": 35,
+      "index": 38,
       "id": "SCAN_PING",
       "panel": "OPS_DASH_B",
       "text": "SCAN PING",
@@ -495,7 +528,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 36,
+      "index": 39,
       "id": "MODE_RCS",
       "panel": "OPS_DASH_B",
       "text": "RCS",
@@ -506,7 +539,7 @@
       "est_leds_60_per_m": 1
     },
     {
-      "index": 37,
+      "index": 40,
       "id": "MODE_ARM",
       "panel": "OPS_DASH_B",
       "text": "ARM",
@@ -517,7 +550,7 @@
       "est_leds_60_per_m": 1
     },
     {
-      "index": 38,
+      "index": 41,
       "id": "MODE_SCANNER",
       "panel": "OPS_DASH_B",
       "text": "SCANNER",
@@ -528,7 +561,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 39,
+      "index": 42,
       "id": "CARGO_BAY",
       "panel": "OPS_DASH_B",
       "text": "CARGO BAY",
@@ -539,7 +572,7 @@
       "est_leds_60_per_m": 3
     },
     {
-      "index": 40,
+      "index": 43,
       "id": "DOCK_CLAMP",
       "panel": "OPS_DASH_B",
       "text": "DOCK CLAMP",
@@ -550,7 +583,7 @@
       "est_leds_60_per_m": 3
     },
     {
-      "index": 41,
+      "index": 44,
       "id": "NAV_TGT",
       "panel": "OPS_DASH_B",
       "text": "NAV TGT",
@@ -561,7 +594,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 42,
+      "index": 45,
       "id": "EJECT",
       "panel": "OVERHEAD_C",
       "text": "EJECT",
@@ -572,7 +605,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 43,
+      "index": 46,
       "id": "STROBE",
       "panel": "OVERHEAD_C",
       "text": "STROBE",
@@ -583,7 +616,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 44,
+      "index": 47,
       "id": "BEACON",
       "panel": "OVERHEAD_C",
       "text": "BEACON",
@@ -594,7 +627,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 45,
+      "index": 48,
       "id": "CABIN_LIGHTS",
       "panel": "OVERHEAD_C",
       "text": "CABIN LIGHTS",
@@ -605,7 +638,7 @@
       "est_leds_60_per_m": 3
     },
     {
-      "index": 46,
+      "index": 49,
       "id": "APU_START",
       "panel": "OVERHEAD_B",
       "text": "APU START",
@@ -616,7 +649,7 @@
       "est_leds_60_per_m": 3
     },
     {
-      "index": 47,
+      "index": 50,
       "id": "GUIDANCE",
       "panel": "OVERHEAD_B",
       "text": "GUIDANCE",
@@ -627,7 +660,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 48,
+      "index": 51,
       "id": "IGNITION_ARM",
       "panel": "OVERHEAD_B",
       "text": "IGNITION ARM",
@@ -638,7 +671,7 @@
       "est_leds_60_per_m": 3
     },
     {
-      "index": 49,
+      "index": 52,
       "id": "BATTERY",
       "panel": "OVERHEAD_A",
       "text": "BATTERY",
@@ -649,7 +682,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 50,
+      "index": 53,
       "id": "FUEL_PUMPS",
       "panel": "OVERHEAD_A",
       "text": "FUEL PUMPS",
@@ -660,7 +693,7 @@
       "est_leds_60_per_m": 3
     },
     {
-      "index": 51,
+      "index": 54,
       "id": "AVIONICS",
       "panel": "OVERHEAD_A",
       "text": "AVIONICS",
@@ -671,7 +704,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 52,
+      "index": 55,
       "id": "ENG_ARM",
       "panel": "PILOT_DASH_A",
       "text": "ENG ARM",
@@ -682,7 +715,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 53,
+      "index": 56,
       "id": "IGNITION",
       "panel": "PILOT_DASH_A",
       "text": "IGNITION",
@@ -693,7 +726,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 54,
+      "index": 57,
       "id": "BOOST",
       "panel": "PILOT_DASH_A",
       "text": "BOOST",
@@ -704,7 +737,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 55,
+      "index": 58,
       "id": "HORN",
       "panel": "PILOT_DASH_A",
       "text": "HORN",
@@ -715,7 +748,7 @@
       "est_leds_60_per_m": 1
     },
     {
-      "index": 56,
+      "index": 59,
       "id": "NAV_LIGHTS",
       "panel": "PILOT_DASH_A",
       "text": "NAV LIGHTS",
@@ -726,7 +759,7 @@
       "est_leds_60_per_m": 3
     },
     {
-      "index": 57,
+      "index": 60,
       "id": "FLAPS",
       "panel": "PILOT_DASH_A",
       "text": "FLAPS",
@@ -737,7 +770,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 58,
+      "index": 61,
       "id": "AIRBRAKE",
       "panel": "PILOT_DASH_A",
       "text": "AIRBRAKE",
@@ -748,7 +781,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 59,
+      "index": 62,
       "id": "ASSIST",
       "panel": "PILOT_DASH_B",
       "text": "ASSIST",
@@ -759,7 +792,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 60,
+      "index": 63,
       "id": "VIEW",
       "panel": "PILOT_DASH_B",
       "text": "VIEW",
@@ -770,7 +803,7 @@
       "est_leds_60_per_m": 1
     },
     {
-      "index": 61,
+      "index": 64,
       "id": "ASSIST_OFF",
       "panel": "PILOT_DASH_B",
       "text": "OFF",
@@ -781,7 +814,7 @@
       "est_leds_60_per_m": 1
     },
     {
-      "index": 62,
+      "index": 65,
       "id": "ASSIST_STAB",
       "panel": "PILOT_DASH_B",
       "text": "STAB",
@@ -792,7 +825,7 @@
       "est_leds_60_per_m": 1
     },
     {
-      "index": 63,
+      "index": 66,
       "id": "ASSIST_PROGRADE",
       "panel": "PILOT_DASH_B",
       "text": "PROGRADE",
@@ -803,7 +836,7 @@
       "est_leds_60_per_m": 2
     },
     {
-      "index": 64,
+      "index": 67,
       "id": "ASSIST_HOLD",
       "panel": "PILOT_DASH_B",
       "text": "HOLD",
@@ -814,7 +847,7 @@
       "est_leds_60_per_m": 1
     },
     {
-      "index": 65,
+      "index": 68,
       "id": "GEAR_LIGHTS",
       "panel": "PILOT_DASH_B",
       "text": "GEAR",
@@ -825,7 +858,7 @@
       "est_leds_60_per_m": 1
     },
     {
-      "index": 66,
+      "index": 69,
       "id": "CAUTION",
       "panel": "PILOT_DASH_B",
       "text": "CAUTION",

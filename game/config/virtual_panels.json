@@ -44,7 +44,7 @@
      "id": "START",
      "kind": "arc22",
      "text": "START",
-     "x": 38,
+     "x": 32,
      "y": 92
     },
     {
@@ -53,16 +53,25 @@
      "id": "PAUSE",
      "kind": "arc22",
      "text": "PAUSE",
-     "x": 105,
+     "x": 82,
      "y": 92
     },
     {
      "action": "ptt_commander",
-     "desc": "INTERCOM / PA 19 mm momentary (push to talk)",
+     "desc": "INTERCOM 19 mm momentary (Commander push to talk, Falcon Command bit 5)",
      "id": "INTERCOM",
      "kind": "arc19",
      "text": "INTERCOM",
-     "x": 165,
+     "x": 130,
+     "y": 92
+    },
+    {
+     "action": "all_call",
+     "desc": "ALL-CALL / PA 16 mm momentary (talk to both kids, ducks the game; Falcon Command 74HC165 bit 7)",
+     "id": "CMD_ALL_CALL",
+     "kind": "btn16",
+     "text": "ALL-CALL",
+     "x": 175,
      "y": 92
     },
     {
@@ -119,22 +128,29 @@
      "cap": 5.5,
      "id": "START",
      "text": "START",
-     "x": 38,
+     "x": 32,
      "y": 116
     },
     {
      "cap": 5.5,
      "id": "PAUSE",
      "text": "PAUSE",
-     "x": 105,
+     "x": 82,
      "y": 116
     },
     {
      "cap": 5.5,
      "id": "INTERCOM",
      "text": "INTERCOM",
-     "x": 165,
+     "x": 130,
      "y": 114
+    },
+    {
+     "cap": 5.5,
+     "id": "CMD_ALL_CALL",
+     "text": "ALL-CALL",
+     "x": 175,
+     "y": 112
     },
     {
      "cap": 5.5,
@@ -213,7 +229,7 @@
      "y": 38
     },
     {
-     "desc": "MOTION E-STOP 22 mm latching mushroom, NC (hardwired, cuts all 4 actuators)",
+     "desc": "MOTION E-STOP 22 mm latching mushroom, NC (hardwired, cuts all 3 actuators: 2 cradle + 1 pod)",
      "hardwired": true,
      "id": "SEAT_STOP",
      "kind": "estop22",
@@ -624,6 +640,15 @@
      "y": 92
     },
     {
+     "action": "ptt_ops",
+     "desc": "Intercom PUSH TO TALK 16 mm momentary (Falcon Ops 74HC165 bit 13)",
+     "id": "OPS_PTT",
+     "kind": "btn16",
+     "text": "PTT",
+     "x": 182,
+     "y": 116
+    },
+    {
      "id": "",
      "index": 0,
      "kind": "led5",
@@ -701,6 +726,13 @@
      "text": "ENGAGE",
      "x": 145,
      "y": 68
+    },
+    {
+     "cap": 5.5,
+     "id": "OPS_PTT",
+     "text": "PTT",
+     "x": 182,
+     "y": 96
     },
     {
      "cap": 5.5,
@@ -1300,6 +1332,15 @@
      "w": 12,
      "x": 160,
      "y": 80
+    },
+    {
+     "action": "ptt_pilot",
+     "desc": "Intercom PUSH TO TALK 16 mm momentary (Falcon Pilot 74HC165 bit 11)",
+     "id": "PILOT_PTT",
+     "kind": "btn16",
+     "text": "PTT",
+     "x": 122,
+     "y": 100
     }
    ],
    "grooves": [],
@@ -1346,6 +1387,13 @@
      "text": "DN",
      "x": 186,
      "y": 56
+    },
+    {
+     "cap": 5.5,
+     "id": "PILOT_PTT",
+     "text": "PTT",
+     "x": 122,
+     "y": 120
     }
    ],
    "title": "Pilot side console (throttle + gear)",

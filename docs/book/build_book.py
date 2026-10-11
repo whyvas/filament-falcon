@@ -1311,8 +1311,6 @@ def ch_dome(D: Data) -> str:
 
 # Cross-checks between repo files, noticed while compiling the book (not written in any one file).
 CROSS_CHECKS = [
-    "<b>Third position contact.</b> Firmware, electronics diagram 04 and the game read three contacts (cradle reclined GPIO39, pod down + locked GPIO40, optional pod up + locked GPIO41); frame/BOM.md lists two sense micro switches. Add a third micro switch (or use the second contact of a POD_UP_LOCKED pawl switch) if you want the game to tell POD UP from POD MOVING while the seats are reclined.",
-    "<b>New buttons not on the CAD panels.</b> The intercom adds a PTT button per kid (Pilot bit 11, Ops bit 13) and an ALL-CALL button on Falcon Command (bit 7). They are wired and mapped, but cad/tools/layouts.py has no holes for them yet, and the project BOM (bom/) does not list them, the three extra PC817s or the USB headsets.",
     "<b>Cabling plan vs. the real rig.</b> docs/mechanical/displays.md plans the C275W (OPS) on HDMI, but on the owner's rig HDMI-A-0 drives the 31.5\" Commander monitor and the windows are on DisplayPort-2/-1. The game maps roles by output name and size, so this works. Update the cabling table when the final cables are in.",
 ]
 
@@ -1321,8 +1319,8 @@ def ch_status(D: Data, now: datetime) -> str:
     T = D.tests
     done = [
         f"Master spec; CAD for {len(D.labels.get('panels', []))} panels and {len(D.val.get('parts', {}))} printed part files, all 3MF exports validated.",
-        "Parametric wooden frame with motion geometry, clearance checks, drawings, cut list and frame BOM (v0.2 reclining cradle + drop-down pod).",
-        "ESP32-S3 firmware for the three boards, wiring diagrams, udev rules, LED protocol; v0.2 crew-position circuit (relay H-bridges, interlock) with three read-only senses.",
+        "Parametric wooden frame with motion geometry, clearance checks, drawings, cut list and frame BOM (v0.3: reclining cradle + drop-down pod on ONE actuator with a steel torque tube).",
+        "ESP32-S3 firmware for the three boards, wiring diagrams, udev rules, LED protocol; crew-position circuit (relay H-bridges, interlock, one pod limit set) with three read-only position senses.",
         "Three-headset intercom (VOX / PTT, radio effect, ALL-CALL, MISSION CONTROL callouts) and on-screen virtual panels for unplugged boards.",
         f"Godot game v0.1: six missions, four-screen setup (two windows, kids' touch console, Commander screen). Tests: {esc(T.get('smoke_result', 'n/a'))} (smoke), {esc(T.get('flight_result', 'n/a'))} (flight).",
         f"Editable BOM with {sum(v['lines'] for v in D.bom['cats'].values())} lines: {cad(D.bom['grand'])} CAD still to buy.",

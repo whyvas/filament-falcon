@@ -123,7 +123,7 @@ body, paint the inside of the light boxes black or use a "blackout" filament.
 | `esp32_enclosure_base.3mf` | 3 | black | 70 x 90 perfboard carrier for an ESP32-S3-DevKitC-1, USB-C slot, M5 tabs 120 mm apart |
 | `esp32_enclosure_lid_PILOT/OPS/COMMAND.3mf` | 1 each | black | engraved name |
 | `cable_clips_set.3mf` | 3 plates | black | 6/10/16/24 mm bundle clips + flat LED-strip clip, one #8 screw each |
-| `limit_switch_mount.3mf` | 10 | black | V-15 roller micro switch, slotted +-10 mm (cradle/pod limits, lock switches, READ-only contacts) |
+| `limit_switch_mount.3mf` | 11 | black | V-15 roller micro switch, slotted +-10 mm (8 cradle/pod limits + lock/lever switches, 3 READ-only position senses) |
 
 **Not printed:** webbing, buckles, the steel load ring, anchors (forged eye bolts),
 actuator brackets, shafts, bearings, pawls, stop pins (see `frame/BOM.md`).

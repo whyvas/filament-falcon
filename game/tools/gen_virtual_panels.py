@@ -37,6 +37,7 @@ ACTION = {
     "MASTER_POWER": "master_power", "START": "start", "PAUSE": "pause", "INTERCOM": "ptt_commander",
     "CAUTION_RESET": "caution_reset", "ENGINE_FIRE": "fail_fire", "CABIN_LEAK": "fail_leak",
     "POWER_FAULT": "fail_power", "SENSOR_GLITCH": "fail_sensor",
+    "PILOT_PTT": "ptt_pilot", "OPS_PTT": "ptt_ops", "CMD_ALL_CALL": "all_call",
 }
 # ON-OFF-ON toggles: up / down actions
 THREE_WAY = {"FLAPS": ("flaps_up", "flaps_down")}

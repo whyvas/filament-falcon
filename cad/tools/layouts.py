@@ -96,6 +96,9 @@ for gx, gy in ((150, 44), (170, 44), (150, 116), (170, 116)):
 p.label("GEAR", "GEAR", 160, 131)
 p.label("GEAR_UP", "UP", 186, 104)
 p.label("GEAR_DN", "DN", 186, 56)
+# intercom push-to-talk: the left hand lives on the throttle, so PTT sits right beside the grip
+# path (thumb/fingers reach it without letting go) - like the PTT on a real throttle quadrant
+p.ctrl("btn16", 122, 100, "PILOT_PTT", "PTT", desc="Intercom PUSH TO TALK 16 mm momentary (Falcon Pilot 74HC165 bit 11)")
 
 # ---------------------------------------------------------------- OPS
 p = P("OPS_DASH_A", "Ops dash, left piece (power)", 200, 160, "pod lower band in front of the RIGHT seat, inboard half", seam_r=True)
@@ -120,6 +123,9 @@ p = P("OPS_SIDE", "Ops side console (hyperspace)", 200, 160, "front pedestal of 
 p.label("HYPERSPACE", "HYPERSPACE", 100, 128, cap=CAP_HEAD)
 p.ctrl("tog6g", 50, 92, "JUMP_ARM", "JUMP ARM", where="below", desc="JUMP ARM guarded mini toggle SPST")
 p.ctrl("arc22", 145, 92, "ENGAGE", "ENGAGE", where="below", desc="JUMP ENGAGE 22 mm momentary (blue), use the printed button collar")
+# intercom push-to-talk for OPS: the right hand stays on the stick (right side console), the
+# LEFT hand rests here on the pedestal - PTT at the end nearest the OPS seat
+p.ctrl("btn16", 182, 116, "OPS_PTT", "PTT", where="below", desc="Intercom PUSH TO TALK 16 mm momentary (Falcon Ops 74HC165 bit 13)")
 p.label("CHARGE", "CHARGE", 26, 36)
 for x in (60, 80, 100, 120, 140, 160):
     p.led(x, 36, "jump charge bar (blue)")
@@ -141,9 +147,11 @@ p = P("CMD_A", "Commander console, game controls", 200, 200, "dad's right-hand c
 p.ctrl("key19", 38, 146, "MASTER_POWER", "MASTER POWER", desc="MASTER POWER 19 mm key switch (game input)")
 p.ctrl("ec11", 105, 146, "MISSION", "MISSION", desc="MISSION select EC11 encoder with push")
 p.ctrl("ec11", 165, 146, "LIGHTS_DIM", "DIMMER", desc="cockpit lights DIMMER EC11 encoder")
-p.ctrl("arc22", 38, 92, "START", "START", desc="START 22 mm momentary (green)")
-p.ctrl("arc22", 105, 92, "PAUSE", "PAUSE", desc="PAUSE 22 mm momentary (yellow)")
-p.ctrl("arc19", 165, 92, "INTERCOM", "INTERCOM", desc="INTERCOM / PA 19 mm momentary (push to talk)")
+p.ctrl("arc22", 32, 92, "START", "START", desc="START 22 mm momentary (green)")
+p.ctrl("arc22", 82, 92, "PAUSE", "PAUSE", desc="PAUSE 22 mm momentary (yellow)")
+# dad's talk keys side by side under the right hand: INTERCOM = his push-to-talk, ALL-CALL = PA to both kids
+p.ctrl("arc19", 130, 92, "INTERCOM", "INTERCOM", desc="INTERCOM 19 mm momentary (Commander push to talk, Falcon Command bit 5)")
+p.ctrl("btn16", 175, 92, "CMD_ALL_CALL", "ALL-CALL", desc="ALL-CALL / PA 16 mm momentary (talk to both kids, ducks the game; Falcon Command 74HC165 bit 7)")
 p.ctrl("arc22", 50, 40, "CAUTION_RESET", "CAUTION RESET", desc="MASTER CAUTION RESET 22 mm momentary (amber)")
 p.label("CREW_READY", "CREW READY", 145, 58)
 p.led(127, 38, "PILOT ready (green)")
@@ -160,7 +168,7 @@ p.ctrl("key19", 32, 38, "SEAT_KEY", "MOTION", desc="MOTION key switch (hardwired
 p.ctrl("tog12", 95, 38, "SEAT_LIFT", "CREW POS", desc="CREW POSITION hold-to-run (ON)-OFF-(ON) DPDT heavy toggle, 12 mm bushing (hardwired): UP = FLIGHT (recline, then pod down), DOWN = BOARD (pod up, then seats upright)")
 p.label("SEAT_UP", "FLT", 127, 50)
 p.label("SEAT_DN", "BRD", 127, 30)
-p.ctrl("estop22", 165, 38, "SEAT_STOP", "STOP", desc="MOTION E-STOP 22 mm latching mushroom, NC (hardwired, cuts all 4 actuators)")
+p.ctrl("estop22", 165, 38, "SEAT_STOP", "STOP", desc="MOTION E-STOP 22 mm latching mushroom, NC (hardwired, cuts all 3 actuators: 2 cradle + 1 pod)")
 
 # order in which the ONE WS2812B strip visits the panels
 STRIP_ORDER = ["CMD_A", "CMD_B", "PILOT_SIDE", "OPS_SIDE", "OPS_DASH_A", "OPS_DASH_B",

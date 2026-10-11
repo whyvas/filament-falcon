@@ -15,9 +15,9 @@ selected mode and lights the matching label), the dimmer is an EC11 "virtual kno
 
 Intercom push-to-talk (v0.2): each kid has a PTT button (Pilot 74HC165 bit 11 -> HID button 14 `ptt_pilot`, Ops
 bit 13 -> HID 16 `ptt_ops`); dad's INTERCOM button is his PTT (HID 7 `ptt_commander`) and a new ALL-CALL / PA
-button sits on Falcon Command bit 7 (HID 13 `all_call`). These three extra buttons are 16 mm momentaries that
-are not on the CAD panels yet; mount them where they can be reached (kids: next to the stick or on the side
-console). The audio itself is USB headsets on the PC (`docs/game/README.md`, Intercom).
+button sits on Falcon Command bit 7 (HID 13 `all_call`). These three extra buttons are 16 mm momentaries with backlit
+labels on the CAD panels: `PILOT_PTT` on PILOT_SIDE right beside the throttle (left hand), `OPS_PTT` on OPS_SIDE at the
+end nearest the Ops seat (left hand; the right hand stays on the stick), `CMD_ALL_CALL` on CMD_A next to INTERCOM. The audio itself is USB headsets on the PC (`docs/game/README.md`, Intercom).
 
 Why ESP32-S3: it has a native USB port, so it enumerates as a genuine HID joystick and (for
 Falcon Command) also a serial port at the same time. The ESP8266 and the original ESP32 have no
@@ -36,7 +36,7 @@ lives in `firmware/include/config_*.h`, the single source of truth; `shared/inpu
 | [02_ops_wiring.png](02_ops_wiring.png) | Falcon Ops full wiring |
 | [02_command_wiring.png](02_command_wiring.png) | Falcon Command full wiring (dad's panel + overhead chips, LED data, the three crew-position senses) |
 | [03_ws2812_power.png](03_ws2812_power.png) | LED strip: 5 V PSU sizing, power injection, 1000 µF, 330 Ω, 74AHCT125 level shifter, common ground |
-| [04_seat_actuator.png](04_seat_actuator.png) | Crew position v0.2 (cradle recline + pod, 4 actuators): 20 A fuse, key + E-stop -> MOTION relay, 4 relays as 2 H-bridges, hold-to-run FLT/BRD, lock / lever / limit switches (1N5408 across each limit), pod-chin safety edge, NO microcontroller; three isolated read-only senses |
+| [04_seat_actuator.png](04_seat_actuator.png) | Crew position v0.3 (cradle recline: 2 actuators, pod: ONE actuator + torque tube): 20 A fuse, key + E-stop -> MOTION relay, 4 relays as 2 H-bridges, hold-to-run FLT/BRD, lock / lever / limit switches (1N5408 across each limit), pod-chin safety edge, NO microcontroller; three isolated read-only senses |
 
 Also: [linux_setup.md](linux_setup.md) (udev, evtest/jstest-gtk, flashing, Windows joy.cpl), and
 [`shared/led_protocol.md`](../../shared/led_protocol.md) (game -> LED serial protocol).
@@ -96,7 +96,7 @@ JTAG pins; they are free because the boards use the native USB port (no external
 | 1 | 74AHCT125 DIP-14 (or SN74AHCT1G125) | 3.3 V -> 5 V LED data |
 | 2 | 330 Ω resistors | LED data series resistor (+1 spare) |
 | 2 | 100 Ω resistors | series on CLK for the long overhead cable |
-| 8 | 10 kΩ resistors | 3 opto pull-ups, spares |
+| 8 | 10 kΩ resistors | 3 opto pull-ups (cradle reclined, pod down-locked, pod up-locked), spares |
 | 3 | perfboard / protoboard 7 x 9 cm, pin headers, Dupont + JST-XH connectors | one carrier per DevKitC-1 |
 | 1 | CAT5/CAT6 patch cable | Falcon Command -> overhead console chain (CLK, LOAD, DATA, 3V3, GND pairs) |
 
@@ -109,7 +109,7 @@ JTAG pins; they are free because the boards use the native USB port (no external
 | 8 | 22 mm arcade momentary (colours per CAD) | IGNITION, BOOST, ENGAGE, START, PAUSE, CAUTION RESET (+2) |
 | 3 | 19 mm momentary | FIRE SUPPR, INTERCOM (+1) |
 | 10 | 16 mm momentary | HORN, VIEW, SCAN PING, NAV TGT, 4 failures (+2) |
-| 3 | 16 mm momentary (v0.2 additions, not on the CAD panels yet) | PILOT PTT, OPS PTT, ALL-CALL / PA |
+| 3 | 16 mm momentary (intercom, on the CAD panels since v0.3) | PILOT PTT (PILOT_SIDE), OPS PTT (OPS_SIDE), ALL-CALL / PA (CMD_A) |
 | 3 | USB headsets with microphone (any brand; a serial number helps tell identical ones apart) | intercom, on the PC (not the boards) |
 | 5 | EC11 rotary encoder with push + knob | FLIGHT ASSIST, OPS MODE, MISSION, DIMMER (+1) |
 | 1 | 10 kΩ linear slide or rotary pot (B10K) | Pilot throttle lever |
@@ -120,9 +120,9 @@ JTAG pins; they are free because the boards use the native USB port (no external
 ### LED backlighting
 | Qty | Part | Notes |
 |---|---|---|
-| 1 | WS2812B strip 5 V, 60 LED/m, 5 m reel (300 LEDs) | ~136 LEDs behind labels + ~60 lost in panel hops; 10 mm wide for the printed channels |
+| 1 | WS2812B strip 5 V, 60 LED/m, 5 m reel (300 LEDs) | ~140 LEDs behind labels + ~60 lost in panel hops; 10 mm wide for the printed channels |
 | 40 | 5 mm through-hole addressable LEDs, WS2812D-F5 (GRB) | the 32 status/indicator LED holes in the CAD panels, spliced into the same data line (`*_LED` ids) |
-| 1 | 5 V 10 A (50 W) PSU, e.g. Mean Well LRS-50-5 | 238 LEDs x 60 mA = 14.3 A absolute worst case; firmware caps at 8 A |
+| 1 | 5 V 10 A (50 W) PSU, e.g. Mean Well LRS-50-5 | 242 LEDs x 60 mA = 14.5 A absolute worst case; firmware caps at 8 A |
 | 1 | 1000 µF 10 V electrolytic | across 5 V/GND at the strip input |
 | 32 | 100 nF ceramic | one at each 5 mm WS2812D-F5 (VDD-GND) |
 | 1 | 10 A fuse + holder (blade or 5x20) | PSU output |
@@ -132,7 +132,7 @@ JTAG pins; they are free because the boards use the native USB port (no external
 | Qty | Part | Notes |
 |---|---|---|
 | 2 | 12 V linear actuators, 10" stroke, >= 1500 N, self-locking, <= 10 mm/s | cradle (PUSH to recline) |
-| 2 | 12 V linear actuators, 12" stroke, >= 1000 N, self-locking, <= 10 mm/s | pod (PULL to raise) |
+| 1 | 12 V linear actuator, 12" (300 mm) stroke, >= 1500 N, self-locking, <= 10 mm/s, 420 mm retracted | pod, left casing, drives both cheeks through a steel torque tube (EXTEND to lower, RETRACT to raise; lift-biased gas struts) |
 | 1 | 12 V 20 A PSU, enclosed, mains fused | |
 | 1 | 20 A blade fuse + holder (F1) | at the PSU |
 | 1 | 1 A blade fuse + holder (F2) | relay coil supply |
@@ -141,10 +141,10 @@ JTAG pins; they are free because the boards use the native USB port (no external
 | 5 | 12 V 30 A automotive relays SPDT (Bosch type) + sockets | K0 MOTION, K1/K2 cradle H-bridge, K3/K4 pod H-bridge |
 | 5 | 1N4007 | flyback diode across each relay coil |
 | 1 | DPDT (ON)-OFF-(ON) momentary toggle, 12 mm bushing | CREW POS FLT / BRD hold-to-run on CMD_B (switches coil current only) |
-| 8 | V-15 roller-lever micro switches 15 A + printed `limit_switch_mount` | cradle UPRIGHT / RECLINED limits, pod UP / DOWN limits, CRADLE_RECLINED interlock (L + R), POD_UP_LOCKED (both pawls), release lever |
+| 8 | V-15 roller-lever micro switches 15 A + printed `limit_switch_mount` | motor path: cradle UPRIGHT / RECLINED limits, ONE pod limit set UP / DOWN (left, driven cheek), CRADLE_RECLINED interlock (L + R), POD_UP_LOCKED (both pawls), release lever |
 | 8 | 1N5408 diodes (3 A, 200 A surge) | across each motor-path limit switch, so you can always drive back (use 6A10 if each actuator draws > 3 A) |
 | 1 | pressure-sensitive safety edge, NC, ~900 mm, with profile | pod chin, in series with the pod DOWN coil |
-| 3 | small lever micro switches (NO) | READ-ONLY senses: cradle reclined, pod down + locked (pawl in the DOWN notch), pod up + locked (optional) |
+| 3 | lever micro switches (NO; V-15 roller + `limit_switch_mount`) | READ-ONLY position senses (3): cradle reclined, pod down + locked (pawl in the DOWN notch), pod up + locked (optional) |
 | 3 | PC817 optocoupler + 2.2 kΩ ½ W | isolated senses to Falcon Command GPIO39 / 40 / 41 (10 kΩ pull-ups above) |
 | - | 14 AWG wire PSU -> relays -> actuators, 20 AWG coils / senses | |
 
