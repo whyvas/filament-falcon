@@ -867,11 +867,11 @@ def ch_panels(D: Data) -> str:
   <p>{' → '.join(f'<span class="chip">{esc(p)}</span>' for p in D.labels.get('panel_order', []))}</p>
  </div>
  <div>
-  <h3>Multi-material or inserts?</h3>
+  <h3>One multi-material file</h3>
   {''.join(card('<p class="small">' + md_html(b, True) + '</p>') for b in fb[:3])}
  </div>
 </div>"""
-    out = chapter("3D-printed panels", p1, "Backlit lettering, light boxes, one mounting grid") + page("All eleven panels", p2, "and the two ways to print them")
+    out = chapter("3D-printed panels", p1, "Backlit lettering, light boxes, one mounting grid") + page("All eleven panels", p2, "one multi-material file each")
     by_panel = defaultdict(list)
     for lab in D.labels.get("labels", []):
         by_panel[lab["panel"]].append(lab)
@@ -887,7 +887,7 @@ def ch_panels(D: Data) -> str:
         rows = [[esc(r[0]), md_html(r[1], True), md_html(r[2], True)] for r in sb.get("rows", [])]
         chips = "".join(f'<span class="chip">{esc(l["text"])}<i>{l.get("est_leds_60_per_m", "")}</i></span>' for l in by_panel[pid])
         val = D.val.get("panels", {}).get(pid, [])
-        vol = sum(e["volume_cm3"] for e in val if "multi-material body" in e["name"] or e["name"].endswith(" letters"))
+        vol = sum(e["volume_cm3"] for e in val if e["name"].endswith(" panel") or e["name"].endswith(" letters"))
         ok = all(e.get("watertight") and not e.get("problems") for e in val) if val else None
         check = '<span class="pass">watertight, no problems</span>' if ok else ('<span class="fail">see validation report</span>' if ok is False else 'n/a')
         loc = esc(p["location"])
@@ -1370,7 +1370,7 @@ def ch_status(D: Data, now: datetime) -> str:
         ("Decide and measure", "Answer the open questions: which monitor goes left, harness choice (kit buckles vs. rated metal), joystick type and bolt pattern, buckle size, and a ceiling ≥ 1 950 mm (6' 4.8\") where the cockpit will live."),
         ("Order", "Work down the BOM's Amazon cart; get quotes for steel plates, shafts and actuators. Check retracted lengths (364 / 415 mm) and self-locking before ordering actuators."),
         ("Bench electronics", "Flash one DevKitC-1 with falcon_joystick_test, wire diagram 01, calibrate, check it in evtest / jstest-gtk and on the game's CONTROLS page."),
-        ("Print test pieces", "One panel (multi-material or body + inserts) for fit and light leaks, one harness hub base with the real buckles, one joystick housing."),
+        ("Print test pieces", "One panel (black body, white letters with the backing boxes) for fit and light leaks, one harness hub base with the real buckles, one joystick housing."),
         ("Build the frame", "Base, nose box, towers and casings, cradle on its shaft (frame assembly steps 1-6). Test the recline empty."),
         ("Pod and counterbalance", "Pod cheeks, back sheet and bands; gas struts with the pod up, then the pod actuators (steps 7-9)."),
         ("Interlock", "Wire the hardwired interlock (frame drawing 04); test every limit, lock, key, E-stop, lever and the safety edge with nobody seated (step 10)."),

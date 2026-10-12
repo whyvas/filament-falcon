@@ -63,7 +63,7 @@ a(C,'JST-SM 3-pin pigtails (WS2812), 60 pcs','Panel-to-panel strip hops, removab
 
 C='Printed parts: filament & inserts'
 a(C,'PETG filament 1.75 mm BLACK, 1 kg','Estimate 5.3 kg incl. 15 % waste (see Notes sheet) -> 6 spools. Panels, enclosures, mounts, harness hub (PETG required there)','All black printed parts',6,False,'Amazon.ca','B0D41Y3WWZ',None,'petg filament 1.75 black 1kg')
-a(C,'PETG filament 1.75 mm WHITE, 1 kg','Estimate only ~0.06 kg (letters/inserts) - 1 spool is plenty','Backlit letters / letter inserts',1,False,'Amazon.ca','B0CMC78XKT',None,'petg filament 1.75 white 1kg')
+a(C,'PETG filament 1.75 mm WHITE, 1 kg','Estimate only ~0.06 kg (letters and backing boxes) - 1 spool is plenty','Backlit letters and the box behind each label',1,False,'Amazon.ca','B0CMC78XKT',None,'petg filament 1.75 white 1kg')
 a(C,'Brass heat-set inserts kit M2-M6 (360 pcs)','Harness hub 5x M3 each; pivot cable clamps M4','Harness hub, pivot cable clamps',1,False,'Amazon.ca','B0CNRSJ1B2',None,'heat set inserts kit m3 m4')
 a(C,'Metric socket screw assortment M2-M5 (1760 pcs)','Covers M3x20 (hub), M3x12, M4x12/16/20/25 (TD2220, monitors, clamps). Check M4 lengths vs your VESA inserts','Printed-part and display screws',1,False,'Amazon.ca','B0C38YFL3D',None,'m2 m3 m4 m5 socket head screw assortment')
 a(C,'Self-tapping screw assortment M2 / M2.5 / M3','12x M2.5x6 (perfboards) + 12x M3x10 (enclosure lids)','ESP32 enclosures',1,False,'Amazon.ca','B09CT54JJZ',None,'self tapping screw assortment m2.5 m3')

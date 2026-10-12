@@ -32,7 +32,7 @@ FF_RIB_H      = 6.0;
 FF_PIN_D      = 3.0;    // seam alignment pin (3 mm dowel / printed pin)
 FF_BRIDGE     = 1.2;    // stencil bridge width (single-material version)
 FF_INSERT_CLR = 0.12;   // insert letters are offset inward by this
-FF_PLAQUE_T   = 0.8;    // white backing plaque of the letter insert
+FF_PLAQUE_T   = 0.8;    // white backing box behind each label (part of the letter object)
 
 $fn = 48;
 

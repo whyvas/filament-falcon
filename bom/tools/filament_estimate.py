@@ -14,12 +14,21 @@ white={'gear_lever_wheel_knob'}
 def pv(m,infill=0.25,t=1.2):
     V=m.volume/1000; shell=min(V,m.area/100*t/10); return shell+(V-shell)*infill, V
 tot={'black':0,'white':0}; rows=[]
-for f in sorted(glob.glob(D+'/panels/*_single_body.3mf'))+sorted(glob.glob(D+'/panels/*_inserts_WHITE.3mf'))+sorted(glob.glob(D+'/parts/*.3mf')):
+def add(n, m, q, col, infill):
+    p, V = pv(m, infill)
+    tot[col] += p * q
+    rows.append((n, q, round(V, 1), round(p, 1), col))
+
+for f in sorted(glob.glob(D+'/panels/*.3mf')):
+    n = os.path.basename(f)[:-4]
+    loaded = trimesh.load(f)
+    geoms = list(loaded.geometry.items()) if hasattr(loaded, 'geometry') else [(n, loaded)]
+    for gname, m in geoms:
+        add(f"{n}:{gname}", m, 1, 'white' if 'letter' in gname.lower() else 'black', 0.25)
+for f in sorted(glob.glob(D+'/parts/*.3mf')):
     n=os.path.basename(f)[:-4]; m=trimesh.load(f,force='mesh')
     infill = 0.5 if n.startswith('monitor') else (0.45 if n.startswith('harness') else 0.25)
-    p,V=pv(m,infill); q=qty.get(n,1)
-    col='white' if ('WHITE' in n or n in white) else 'black'
-    tot[col]+=p*q; rows.append((n,q,round(V,1),round(p,1),col))
+    add(n, m, qty.get(n, 1), 'white' if n in white else 'black', infill)
 for r in rows: print(r)
 res={c:dict(cm3=round(v,0),kg=round(v*1.27/1000*1.15,2)) for c,v in tot.items()}
 print(json.dumps(res)); json.dump(res,open('/workspace/ff-bom/filament_estimate.json','w'))

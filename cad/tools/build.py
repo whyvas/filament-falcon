@@ -132,7 +132,7 @@ def check(m, name, single_shell=False, bed=True):
                 size_mm=[round(v, 1) for v in ext], watertight=bool(m.is_watertight), problems=probs)
 
 
-def verify_3mf(path, expect_parts):
+def verify_3mf(path, expect_objects):
     import lib3mf
     w = lib3mf.get_wrapper()
     model = w.CreateModel()
@@ -140,40 +140,59 @@ def verify_3mf(path, expect_parts):
     it = model.GetMeshObjects()
     n = 0
     tri = 0
+    names = []
     while it.MoveNext():
         o = it.GetCurrentMeshObject()
         tri += o.GetTriangleCount()
+        names.append(o.GetName())
         n += 1
     sc = trimesh.load(path)
     geoms = list(sc.geometry.values()) if hasattr(sc, "geometry") else [sc]
-    return dict(lib3mf_objects=n, lib3mf_triangles=tri, trimesh_triangles=sum(len(g.faces) for g in geoms))
+    info = dict(lib3mf_objects=n, lib3mf_names=names, lib3mf_triangles=tri,
+                trimesh_geometries=len(geoms), trimesh_triangles=sum(len(g.faces) for g in geoms))
+    if n != expect_objects:
+        info["problems"] = [f"expected {expect_objects} objects, found {n}: {names}"]
+    return info
 
 
 def build_panel(pid):
+    """One multi-material 3MF: black panel object + white letters object.
+
+    The letter object is the through-face lettering plus the 0.8 mm backing box
+    behind each label (the old separate insert's plaque).
+    """
     from threemf import write_3mf
     scad = os.path.join(CAD, "panels", f"{pid}.scad")
     tmp = os.path.join(BUILD, pid)
     os.makedirs(tmp, exist_ok=True)
     meshes = {}
-    for part in ("mm_body", "mm_letters", "sm_body", "sm_inserts"):
+    for part in ("mm_body", "mm_letters"):
         meshes[part] = load(OS.export(scad, os.path.join(tmp, f"{part}.stl"), {"PART": part}))
-    # unrotated copies for the assembly render
-    for part, d in (("body", {"PART": "mm_body"}), ("letters", {"PART": "mm_letters"})):
-        pass
-    res = [check(meshes["mm_body"], f"{pid} multi-material body"),
-           check(meshes["mm_letters"], f"{pid} letters"),
-           check(meshes["sm_body"], f"{pid} single-material body", single_shell=True),
-           check(meshes["sm_inserts"], f"{pid} letter inserts")]
+    res = [check(meshes["mm_body"], f"{pid} panel"),
+           check(meshes["mm_letters"], f"{pid} letters")]
+    face_z = float(meshes["mm_letters"].bounds[0][2])
+    if float(meshes["mm_letters"].bounds[1][2]) < face_z + 3.5:
+        res[1]["problems"].append("letters are only the face thickness; backing box is missing")
+    try:
+        hit = trimesh.boolean.intersection([meshes["mm_body"], meshes["mm_letters"]], engine="manifold")
+        iv = float(hit.volume) if hit is not None and len(hit.faces) else 0.0
+        if iv > 5.0:
+            res[1]["problems"].append(f"letters intersect the panel by {iv:.1f} mm^3")
+    except Exception as e:
+        res[1]["problems"].append(f"intersection check failed: {e}")
     d = os.path.join(OUT3, "panels")
     os.makedirs(d, exist_ok=True)
-    f_mm = os.path.join(d, f"{pid}_multimaterial.3mf")
-    write_3mf(f_mm, pid, [("body (black)", meshes["mm_body"], 1, BLACK), ("letters (white)", meshes["mm_letters"], 2, WHITE)])
-    f_b = os.path.join(d, f"{pid}_single_body.3mf")
-    write_3mf(f_b, f"{pid}_single_body", [("body", meshes["sm_body"], 1, BLACK)])
-    f_i = os.path.join(d, f"{pid}_single_letter_inserts_WHITE.3mf")
-    write_3mf(f_i, f"{pid}_letter_inserts", [("letter inserts", meshes["sm_inserts"], 1, WHITE)])
-    v = {os.path.relpath(f, ROOT): verify_3mf(f, 2) for f in (f_mm, f_b, f_i)}
-    return pid, res, v
+    for old in (f"{pid}_multimaterial.3mf", f"{pid}_single_body.3mf", f"{pid}_single_letter_inserts_WHITE.3mf"):
+        p = os.path.join(d, old)
+        if os.path.exists(p):
+            os.remove(p)
+    f = os.path.join(d, f"{pid}.3mf")
+    write_3mf(f, pid, [("panel", meshes["mm_body"], 1, BLACK),
+                       ("letters", meshes["mm_letters"], 2, WHITE)])
+    info = verify_3mf(f, 2)
+    if info.get("problems"):
+        res[0]["problems"] += info["problems"]
+    return pid, res, {os.path.relpath(f, ROOT): info}
 
 
 def build_part(entry):
