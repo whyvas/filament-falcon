@@ -25,9 +25,14 @@ for a in "$@"; do
     *) GAME_ARGS+=("$a") ;;
   esac
 done
-if [ ! -f .godot/global_script_class_cache.cfg ]; then
-  echo "First run: importing project (one time, ~1 minute)..."
+# Re-import on a fresh clone, or after a git pull changed any script/scene/shader (a stale
+# class cache causes "Identifier ... not declared" parse errors and a broken game).
+STAMP=.godot/.falcon_import_stamp
+if [ ! -f .godot/global_script_class_cache.cfg ] || [ ! -f "$STAMP" ] || \
+   [ -n "$(find . -path ./.godot -prune -o \( -name '*.gd' -o -name '*.tscn' -o -name '*.gdshader' -o -name 'project.godot' \) -newer "$STAMP" -print -quit)" ]; then
+  echo "Importing project (first run or after an update, ~1 minute)..."
   "$GODOT" --headless --path . --import
+  touch "$STAMP"
 fi
 if [ "$DO_SETUP" = 1 ] && [ -x tools/setup_displays.sh ]; then
   tools/setup_displays.sh "${SETUP_ARGS[@]}" || true
