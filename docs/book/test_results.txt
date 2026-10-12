@@ -1,20 +1,26 @@
 # Game test results - written by docs/book/build_book.py --run-tests
-# date: 2026-10-10 23:32 ADT (Atlantic time)
+# date: 2026-10-11 22:57 ADT (Atlantic time)
 # godot: Godot 4.7.2.stable.official.ed1daf0bf (headless, Dummy audio)
-# commit: 89e93c3
+# commit: c13e4cb
 [smoke]
-PASS launch     state=COMPLETE steps=7/7 score=3013 stars=3 hull=99% (1727 ms)
-PASS docking    state=COMPLETE steps=4/4 score=3129 stars=3 hull=99% (1533 ms)
-PASS lunar      state=COMPLETE steps=4/4 score=3477 stars=3 hull=99% (1525 ms)
-PASS asteroids  state=COMPLETE steps=5/5 score=2964 stars=3 hull=99% (2098 ms)
-PASS reentry    state=COMPLETE steps=5/5 score=3464 stars=3 hull=99% (1690 ms)
-PASS sandbox    state=COMPLETE steps=1/1 score=1538 stars=3 hull=99% (1224 ms)
+PASS launch     state=COMPLETE steps=7/7 score=3013 stars=3 hull=99% (1795 ms)
+PASS docking    state=COMPLETE steps=4/4 score=3129 stars=3 hull=99% (1545 ms)
+PASS lunar      state=COMPLETE steps=4/4 score=3477 stars=3 hull=99% (1518 ms)
+PASS asteroids  state=COMPLETE steps=5/5 score=2964 stars=3 hull=99% (2112 ms)
+PASS reentry    state=COMPLETE steps=5/5 score=3464 stars=3 hull=99% (1647 ms)
+PASS sandbox    state=COMPLETE steps=1/1 score=1538 stars=3 hull=99% (1253 ms)
 RESULT: 6/6 missions passed
 [flight]
-PASS launch     state=COMPLETE step=7/7 score=1889 stars=3 mission_time=229s hull=100% maxG=4.4 (6897 ms)
-PASS docking    state=COMPLETE step=4/4 score=1872 stars=3 mission_time=189s hull=100% maxG=0.9 (5628 ms)
-PASS lunar      state=COMPLETE step=4/4 score=1937 stars=3 mission_time=281s hull=100% maxG=1.8 (7925 ms)
-PASS asteroids  state=COMPLETE step=5/5 score=1547 stars=2 mission_time=507s hull=100% maxG=0.9 (18528 ms)
-PASS reentry    state=COMPLETE step=5/5 score=1843 stars=3 mission_time=658s hull=100% maxG=2.7 (17884 ms)
-PASS sandbox    state=COMPLETE step=1/1 score=855 stars=2 mission_time=55s hull=100% maxG=1.5 (13656 ms)
+PASS launch     state=COMPLETE step=7/7 score=1889 stars=3 mission_time=229s hull=100% maxG=4.4 (6615 ms)
+PASS docking    state=COMPLETE step=4/4 score=1872 stars=3 mission_time=189s hull=100% maxG=0.9 (5510 ms)
+PASS lunar      state=COMPLETE step=4/4 score=1937 stars=3 mission_time=281s hull=100% maxG=1.8 (7715 ms)
+PASS asteroids  state=COMPLETE step=5/5 score=1550 stars=2 mission_time=500s hull=100% maxG=0.9 (17591 ms)
+PASS reentry    state=COMPLETE step=5/5 score=1843 stars=3 mission_time=658s hull=100% maxG=2.7 (17766 ms)
+PASS sandbox    state=COMPLETE step=1/1 score=854 stars=2 mission_time=54s hull=100% maxG=1.5 (13381 ms)
 RESULT: 6/6 missions flown to completion
+[eva]
+XR off in the cockpit process (no runtime needed): ok  [No OpenXR runtime (VR off) · flat EVA works · see docs/game/VR_SETUP.md]
+EVA window   ok  steps 5/5  score 900  path 21.0 m (max 5.4 m from hatch)  29 s sim  events ["step_done", "step", "knock", "palm", "wave", "eva_done"]  in window view: ["left"]
+EVA rescue   ok  steps 3/3  score 900  path 6.0 m (max 7.9 m from hatch)  4 s sim  events ["arm_on", "step_done", "step", "arm_off", "eva_done"]
+EVA antenna  ok  steps 6/6  score 1110  path 73.9 m (max 22.1 m from hatch)  109 s sim  events ["pick", "step_done", "step", "drop", "tool", "placed", "eva_done"]
+EVA VR-client link (headless client, XR unavailable -> autopilot): connected=true xr=false stream 87 Hz, avatar moved 11.3 m, max frame jump 0.209 m, steps 3: ok
