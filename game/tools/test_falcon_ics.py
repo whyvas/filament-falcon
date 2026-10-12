@@ -103,6 +103,63 @@ def run_engine(eng, seconds, talkers, game=None):
     return {s: np.concatenate(v) for s, v in outs.items()}
 
 
+class SuitRadio(unittest.TestCase):
+    """4th seat: the VR spacewalker (Meta Quest 3 audio through WiVRn's virtual devices)."""
+
+    def test_eva_band_is_narrower(self):
+        mk = lambda: ics.Channel("eva", dict(ics.DEFAULTS), ics.Sounds()).radio  # noqa: E731
+        self.assertLess(gain_db(5000, mk()), gain_db(5000, ics.BandPass()) - 3.0)
+        self.assertLess(gain_db(300, mk()), gain_db(300, ics.BandPass()) - 2.5)
+        self.assertGreater(gain_db(1200, mk()), -3.5)
+
+    def test_quindar_tones_on_key_up_and_down(self):
+        cfg = dict(ics.DEFAULTS)
+        cfg.update({"eva_mode": "ptt", "static": False, "squelch_tail": False})
+        ch = ics.Channel("eva", cfg, ics.Sounds())
+        quiet = np.zeros(B)
+
+        def tails_for(blocks_n):
+            return np.concatenate([ch.process(quiet)[1] for _ in range(blocks_n)])
+
+        ch.ptt = True
+        down = tails_for(60)                 # 300 ms after keying
+        ch.ptt = False
+        up = tails_for(60)
+        for sig, f in ((down, 2525.0), (up, 2475.0)):
+            spec = np.abs(np.fft.rfft(sig[: int(R * 0.25)]))
+            peak = np.fft.rfftfreq(int(R * 0.25), 1 / R)[int(np.argmax(spec))]
+            self.assertAlmostEqual(peak, f, delta=8.0)
+
+    def test_wivrn_devices_become_the_eva_headset(self):
+        sinks = [{"name": "alsa_output.usb-C-Media_USB_Audio-00.analog-stereo", "description": "USB Audio Device",
+                  "props": {"device.bus": "usb", "device.bus_path": "pci-0000:0e:00.3-usb-0:3:1.0", "device.product.name": "USB Audio Device"}},
+                 {"name": "wivrn.sink", "description": "WiVRn", "props": {"node.name": "wivrn.sink"}}]
+        sources = [{"name": "alsa_input.usb-C-Media_USB_Audio-00.mono-fallback", "description": "USB Audio Device",
+                    "props": {"device.bus": "usb", "device.bus_path": "pci-0000:0e:00.3-usb-0:3:1.0", "device.product.name": "USB Audio Device"}},
+                   {"name": "wivrn.sink.monitor", "description": "Monitor of WiVRn", "props": {"device.class": "monitor"}},
+                   {"name": "wivrn.source", "description": "WiVRn(microphone)", "props": {}}]
+        devs = ics.headsets_from(sinks, sources)
+        q = [d for d in devs if d["path"] == "wivrn"]
+        self.assertEqual(len(q), 1)
+        self.assertEqual((q[0]["sink"], q[0]["source"]), ("wivrn.sink", "wivrn.source"))
+        asg = ics.match_assignments(devs, {"pilot": devs[0]["id"] if devs[0]["path"] != "wivrn" else devs[1]["id"]})
+        self.assertEqual(asg["eva"]["path"], "wivrn")
+        self.assertNotEqual((asg["pilot"] or {}).get("path"), "wivrn")
+        # an explicit Commander choice wins over the automatic Quest assignment
+        asg2 = ics.match_assignments(devs, {"eva": "nothing|plugged|in"})
+        self.assertIsNone(asg2["eva"])
+
+    def test_spacewalker_hears_crew_and_crew_hears_spacewalker(self):
+        eng = ics.Engine({"beeps": False, "static": False, "squelch_tail": False})
+        o = run_engine(eng, 1.0, {"eva": 0.4})
+        tail = slice(R // 2, None)
+        for s in ("pilot", "ops", "commander"):
+            self.assertGreater(ics.rms(o[s][tail]), 0.01)
+        eng2 = ics.Engine({"beeps": False, "static": False, "squelch_tail": False})
+        o2 = run_engine(eng2, 1.0, {"pilot": 0.4})
+        self.assertGreater(ics.rms(o2["eva"][tail]), 0.02)
+
+
 class Routing(unittest.TestCase):
     def cfg(self, **kw):
         c = {"beeps": False, "static": False, "squelch_tail": False, "pilot_mode": "vox", "ops_mode": "vox"}
@@ -398,7 +455,8 @@ class Protocol(unittest.TestCase):
                 if msg["type"] == "status" and msg["seats"]["ops"]["open"]:
                     seen["open"] = True
             self.assertIn("devices", seen)
-            self.assertEqual(len(seen["devices"]["list"]), 3)
+            self.assertEqual(len(seen["devices"]["list"]), 4)       # 3 mock USB headsets + the Quest (WiVRn)
+            self.assertEqual(seen["devices"]["assign"].get("eva"), ics.WIVRN_ID)
             self.assertEqual(seen["devices"]["assign"]["pilot"], "Mock Headset 2|MOCK2|pci-0000:00:14.0-usb-0:2:1.0")
             self.assertTrue(seen.get("open"), "PTT did not key the ops channel")
             self.assertTrue(seen["status"]["ok"])

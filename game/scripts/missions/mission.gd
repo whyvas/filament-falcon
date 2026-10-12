@@ -20,6 +20,10 @@ var objectives: Array = []      # [{text, role}]
 var step := 0
 var guidance := {}              # hints for the HUD (pitch targets, glide boxes, ...)
 var _done_timer := -1.0
+var eva_inserted := false       # a SPACEWALK objective was woven in (Eva.mission_hook)
+var eva_done := false
+var eva_obj := {}               # non-empty while that spacewalk is the current objective: the
+                                # mission's own update / physics pause, step indices stay put
 
 
 func setup() -> void:
@@ -39,20 +43,28 @@ func physics(_h: float) -> void:
 
 
 func current_objective() -> Dictionary:
+	if not eva_obj.is_empty():
+		return eva_obj
 	if step < objectives.size():
 		return objectives[step]
 	return {"text": "Mission complete!", "role": "ALL"}
 
 
 func advance(say: String = "") -> void:
-	if step >= objectives.size():
+	if not eva_obj.is_empty():
+		eva_obj = {}            # the woven-in spacewalk is done: resume the mission where it was
+	elif step >= objectives.size():
 		return
-	step += 1
+	else:
+		step += 1
 	if say != "":
 		Voice.say(say, 1)
 	Sfx.chime()
 	game._update_objective_text()
 	game.objective_changed.emit()
+	if Eva.mission_hook(self):
+		_announce_objective()
+		return
 	if step >= objectives.size():
 		game.complete_mission()
 	else:

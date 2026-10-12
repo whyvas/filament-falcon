@@ -123,6 +123,8 @@ var test_mode := false
 
 func _ready() -> void:
 	test_mode = Settings.is_test_run()
+	if Settings.is_eva_client():
+		external_clock = true   # the VR client mirrors the cockpit's world snapshots instead
 	_build_universe()
 	var start: String = str(Settings.cli.get("mission", Settings.get_v("game", "start_mission")))
 	if not MISSION_SCRIPTS.has(start):
@@ -420,7 +422,7 @@ func tick(dt: float) -> void:
 		_crew_inputs(dt)
 		_step_physics(dt)
 		mission_time += dt
-		if mission:
+		if mission and mission.eva_obj.is_empty():
 			mission.update(dt)
 		_check_damage()
 	else:
@@ -436,6 +438,8 @@ func tick(dt: float) -> void:
 	stage_flash = maxf(0.0, stage_flash - dt)
 	_update_audio()
 	_update_leds()
+	if Eva.role == "server":
+		Eva.tick(dt)    # the spacewalk runs on the game clock (tests drive it faster than real time)
 
 
 func _step_physics(dt: float) -> void:
@@ -466,12 +470,12 @@ func _step_physics(dt: float) -> void:
 		sim.pick_dominant()
 		sim.step(h)
 		_update_entities(h)
-		if mission:
+		if mission and mission.eva_obj.is_empty():
 			mission.physics(h)
 
 
 func set_warp(w: float) -> void:
-	warp = clampf(w, 1.0, 1000.0)
+	warp = clampf(w, 1.0, 1.0 if Eva.active else 1000.0)
 	game_event.emit("warp", {"warp": warp})
 
 
@@ -820,6 +824,8 @@ func _crew_inputs(dt: float) -> void:
 			Voice.say("Engine not armed. Flip ENGINE ARM first.", 1)
 		elif not sim.engine_enabled:
 			Voice.say("Engine blocked. Check fuel pumps, ignition arm, and fire.", 1)
+		elif not sim.engine_on and Eva.blocks_engine():
+			Voice.say("No engine burns with a spacewalker outside!", 1)
 		elif sim.engine_on:
 			sim.engine_on = false
 			Voice.say("Engine shutdown")

@@ -3,7 +3,7 @@ extends Node
 ## (on Linux: ~/.local/share/filament-falcon/falcon_settings.cfg).
 ## Command-line overrides (after `--`): --dev, --cockpit, --quality=low|medium|high|ultra,
 ## --mission=<id>, --no-voice, --no-led, --no-ics, --ics-mock, --virtual-panels, --smoke-test,
-## --screenshots=<dir>
+## --screenshots=<dir>, --eva-vr (also launch the VR spacewalk client), --eva-client (that client)
 
 signal changed(section: String)
 
@@ -70,6 +70,19 @@ const DEFAULTS := {
 		"ops_game_vol": 0.7, "ops_ics_vol": 1.0, "ops_sidetone": 0.0, "ops_mic_gain": 1.0,
 		"commander_mode": "ptt", "commander_vox_db": -38.0, "commander_attack_ms": 15.0, "commander_hang_ms": 600.0,
 		"commander_game_vol": 0.7, "commander_ics_vol": 1.0, "commander_sidetone": 0.0, "commander_mic_gain": 1.0,
+		# 4th seat: the VR spacewalker (Quest 3 audio through WiVRn's virtual sink / mic source)
+		"eva_headset": "",
+		"eva_mode": "vox", "eva_vox_db": -36.0, "eva_attack_ms": 15.0, "eva_hang_ms": 700.0,
+		"eva_game_vol": 0.6, "eva_ics_vol": 1.0, "eva_sidetone": 0.15, "eva_mic_gain": 1.0,
+	},
+	# Spacewalks (docs/game/VR_SETUP.md). mode: auto (VR when the headset client is connected,
+	# else on screen) | vr | flat. The VR client is a 2nd process of this game talking UDP on
+	# localhost:port. in_missions inserts a SPACEWALK objective into missions that have one.
+	"eva": {
+		"port": 47820, "mode": "auto", "tether_m": 20.0, "in_missions": false,
+		"xr_runtime_json": "",      # "" = system active runtime (WiVRn sets it while connected)
+		"vr_quality": "medium",     # graphics quality inside the headset
+		"snap_deg": 30.0, "vignette": 0.7, "play_height": "standing",   # standing | seated
 	},
 }
 
@@ -108,6 +121,21 @@ func _enter_tree() -> void:
 		cfg.set_value("ics", "enabled", false)
 	if cli.has("virtual-panels"):
 		cfg.set_value("input", "force_virtual_panels", true)
+	if is_test_run():
+		cfg.set_value("eva", "in_missions", false)
+	if is_eva_client():
+		# the headset process: no LEDs, intercom, voice or settings writes (the cockpit owns them)
+		cfg.set_value("audio", "voice", false)
+		cfg.set_value("led", "enabled", false)
+		cfg.set_value("ics", "enabled", false)
+		if cli.has("quality"):
+			cfg.set_value("graphics", "quality", cli["quality"])
+		else:
+			cfg.set_value("graphics", "quality", cfg.get_value("eva", "vr_quality", "medium"))
+
+
+func is_eva_client() -> bool:
+	return cli.has("eva-client")
 
 
 func _parse_cli() -> void:
@@ -141,6 +169,8 @@ func set_v(section: String, key: String, value: Variant, save_now: bool = true) 
 
 
 func save() -> void:
+	if is_eva_client():
+		return
 	if is_test_run():
 		return
 	cfg.save(PATH)

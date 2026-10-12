@@ -10,7 +10,9 @@ More in [screenshots/](screenshots/): launch pad, ascent, station, docking, Moon
 the celebration screen, the kids' console pages (`18_`–`22_`), the Commander screen (`23_`–`27_`), the
 three-screen fallback with the Commander as a console tab (`28_`), the on-screen virtual panels for unplugged
 boards (`29_` console PANELS page, `30_` CHECKLIST with the overhead panels, `31_` Commander PANEL) and the
-intercom pages (`32_` Commander ICS, `33_` SETUP with headsets). They are rendered by `tests/run_screenshots.sh`
+intercom pages (`32_` Commander ICS, `33_` SETUP with headsets) and the VR spacewalk (`34_`/`35_` the astronaut
+waving and knocking at the LEFT window, `36_` console EVA page with suit telemetry and the helmet cam, `37_`
+Commander EVA page, `38_` the astronaut's view of the ship over Earth, `39_` the EVA drone camera). They are rendered by `tests/run_screenshots.sh`
 with the software Vulkan driver at the Ultra preset (`QUALITY=ultra`), so they look softer than on the real GPU.
 
 ### Graphics notes
@@ -58,7 +60,9 @@ with the software Vulkan driver at the Ultra preset (`QUALITY=ultra`), so they l
 `run.sh` also maps the touchscreen to the kids' console monitor before each launch (see
 [Touch mapping](#touch-mapping-the-td2220)) and starts the intercom helper (see [Intercom](#6-intercom-ics-three-usb-headsets)).
 Extra `run.sh` options: `--landscape-console` (turn the console monitor to landscape first),
-`--no-display-setup` (skip the touch mapping) and `--no-ics` (no intercom).
+`--no-display-setup` (skip the touch mapping), `--no-ics` (no intercom) and `--eva-vr` (start the VR spacewalk
+client for the Quest 3 instead of the cockpit, in a second terminal; add `--eva-flat` to try it without a
+headset; see [section 7](#7-vr-spacewalks-meta-quest-3)).
 
 ```bash
 cd game
@@ -89,6 +93,8 @@ Useful command-line options (after `--`):
 | `--virtual-panels` | Always show the on-screen panels, even with the boards plugged in. |
 | `--ics-mock` | Intercom helper with fake headsets and voices (no audio devices touched). |
 | `--shared-dir=/path/to/shared` | Use a different `shared/` folder (input_map.json, led_protocol.md). |
+| `--eva-client` (with `--xr-mode on` before `--`) | Run as the VR spacewalk client (what `run.sh --eva-vr` does). `--eva-port=` changes UDP 47820. |
+| `--eva-near=0.2` | Near clip plane of the window views during a spacewalk (lets a glove on the glass render). |
 
 Settings are stored in `~/.local/share/filament-falcon/falcon_settings.cfg`. The Commander SETUP page shows the
 exact path. Delete the file to get the defaults back.
@@ -410,6 +416,15 @@ also has:
 - **MUTE PILOT / MUTE OPS** (MISSION CONTROL or ICS page).
 - The **MISSION CONTROL** channel carries the game's voice callouts (e.g. "pod coming down").
 
+**4th seat: SPACEWALKER (Meta Quest 3).** While the Quest is connected through WiVRn, PipeWire has a **WiVRn**
+speaker and (mic enabled in the headset app) a **WiVRn(microphone)** source. The helper picks them up as
+"Meta Quest 3 (WiVRn audio)" and puts them on the SPACEWALKER seat by itself (a seat you set by hand wins).
+The spacewalker hears everyone and the game sound, and everyone hears them through a **suit radio**: a
+narrower 400–2600 Hz band, more static and NASA-style Quindar tones (2525 Hz when they start talking, 2475 Hz
+when they stop). Their push-to-talk is the left X button on the Touch controller (or VOX). If the WiVRn devices
+are not there (older WiVRn, mic off), the seat stays empty and the reason is on the ICS page; a 4th USB
+headset can be picked for SPACEWALKER instead. MUTE EVA appears on MISSION CONTROL during a spacewalk.
+
 **Setup (once).**
 1. `sudo apt install python3-numpy pulseaudio-utils` (on plain PulseAudio systems the server is already there;
    on PipeWire make sure `pipewire-pulse` is installed, which it is on Mint 22).
@@ -440,7 +455,35 @@ Logs: `~/.local/share/filament-falcon/ics.log` (the helper writes there when sta
 The helper exits when the game exits, and removes its virtual outputs. `--mock` runs it with fake headsets and
 synthetic voices, which is what the tests use.
 
-## 7. Crew guide (for kids!)
+## 7. VR spacewalks (Meta Quest 3)
+
+A fourth player wears a **Meta Quest 3** (USB cable, **WiVRn** on the PC) and goes outside: handrails,
+a SAFER jetpack, a tether, tools and samples, with Earth, the Moon and the sun around them. The crew sees the
+spacewalker in real time in the LEFT/RIGHT window views and every camera feed (docking, arm, the EVA drone);
+the astronaut can wave, point, knock on the cockpit window or put a glove on the glass. Ops can catch a
+drifting spacewalker with the robotic arm while the Pilot holds attitude.
+
+![the spacewalker knocking on the left window](screenshots/35_eva_window_knock_close.jpg)
+
+- **Full guide (install, USB, OpenXR runtime, audio, performance, safety, troubleshooting):**
+  [VR_SETUP.md](VR_SETUP.md). More VR ideas: [VR_IDEAS.md](VR_IDEAS.md).
+- **No headset?** Everything works on screen: Commander → **EVA** → driver ON SCREEN → START EVA, then click
+  the helmet cam and fly with the keyboard/mouse or a gamepad. The game never needs an OpenXR runtime; the
+  VR status is on Commander → SETUP and EVA.
+- **Architecture:** the headset runs in a **separate process** of the same project
+  (`./run.sh --eva-vr`, or LAUNCH VR CLIENT on Commander → EVA), which streams the astronaut's pose to the
+  cockpit over UDP 47820 at ~90 Hz; the cockpit interpolates it (45 ms buffer). The cockpit itself never
+  loads OpenXR, so its four windows stay smooth and a headset problem cannot crash the flight.
+- **Spacewalks:** WINDOW VISIT, ANTENNA SWAP (station), ROCK SAMPLE + BEACON (asteroids), MOONWALK (1/6 g),
+  CANADARM RESCUE (Ops + Pilot + spacewalker). With EVA IN MISSIONS on, missions add one by themselves.
+- **Console:** an **EVA** tab appears during a spacewalk: HELMET CAM, EVA DRONE, suit telemetry (O2, battery,
+  CO2, suit temperature, heart rate, jet gas, tether) and the task list.
+- **Intercom:** the Quest's speaker and mic (WiVRn's virtual devices) are the 4th seat, **SPACEWALKER**, with
+  a "suit radio" sound (narrower band, more static, Quindar beeps); see section 6.
+- **Safety:** the spacewalker stands in a clear 2 × 2 m area **outside** the cockpit frame, Guardian on, a
+  grown-up watching.
+
+## 8. Crew guide (for kids!)
 
 **Three jobs:**
 - **PILOT** (left seat) flies the Falcon with the big stick and throttle. You point the ship, fire the
@@ -490,7 +533,7 @@ Tips:
 **Talking on the intercom:** in VOX mode just talk, your TALK pad lights up when the others can hear you. In
 PTT mode hold your PTT button (or the TALK pad) while you talk, and let go to listen. Say "over" when you are done!
 
-## 8. Tests (for developers)
+## 9. Tests (for developers)
 
 ```bash
 cd game
@@ -499,8 +542,13 @@ godot --headless --path . --audio-driver Dummy -- --smoke-test           # every
                                                                           # + screen-role resolver (4- and 3-screen rigs) and every console/Commander page,
                                                                           # + virtual panels (hot-plug, guarded 2-tap, held buttons, encoder),
                                                                           # + pod/seat state machine, + intercom end-to-end with the --mock helper
+                                                                          # + EVA: cockpit without OpenXR, flat spacewalks (window, rescue, antenna)
+                                                                          #   and the VR client process (no runtime → autopilot) streaming the pose
+godot --headless --path . --audio-driver Dummy -- --smoke-test --only=eva        # just the EVA part (--eva-only=window,rescue,antenna,sample)
+godot --headless --path . --xr-mode on -- --eva-client --eva-selftest            # the VR client starts cleanly with no OpenXR runtime
 python3 tools/test_falcon_ics.py                                         # intercom: DSP (band-pass, compressor), VOX, mixing/routing,
-                                                                          # drift rings, device grouping (PulseAudio + PipeWire) and replug matching
+                                                                          # drift rings, device grouping (PulseAudio + PipeWire), replug matching,
+                                                                          # the SPACEWALKER seat (WiVRn detection, suit radio, Quindar tones)
 python3 tools/gen_virtual_panels.py --check                              # virtual panel layout matches cad/tools/layouts.py
 godot --headless --path . --audio-driver Dummy -- --flight-test          # bots actually FLY every mission with cockpit controls
 godot --headless --path . --audio-driver Dummy -- --flight-test --only=reentry --trace

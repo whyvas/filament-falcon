@@ -31,6 +31,11 @@ func _run() -> void:
 		if only != "" and id != only:
 			continue
 		await _run_mission(id)
+	if only == "eva":
+		var eva_ok := await _check_eva()
+		print("RESULT: EVA %s" % ("PASS" if eva_ok else "FAIL"))
+		get_tree().quit(0 if eva_ok else 1)
+		return
 	var ui_ok := await _check_ui()
 	print("")
 	print("==== SMOKE TEST SUMMARY ====")
@@ -101,7 +106,202 @@ func _check_ui() -> bool:
 	ok = (await _check_virtual(dm)) and ok
 	ok = _check_pod() and ok
 	ok = (await _check_ics()) and ok
+	ok = (await _check_eva()) and ok
 	return ok
+
+
+# ======================================================================== spacewalks
+var _eva_seen := {}
+var _eva_vis := {}
+
+
+## Spacewalks in flat mode (no headset): an autopilot spacewalker climbs the handrails, does
+## the task and comes back inside; the avatar must be in view of the cockpit windows when it
+## waves / knocks. Also: XR is never initialised in the cockpit process.
+func _check_eva() -> bool:
+	var ok := true
+	var xr_if := XRServer.find_interface("OpenXR")
+	var xr_clean := (xr_if == null or not xr_if.is_initialized()) and XRServer.primary_interface == null and not get_viewport().use_xr
+	print("  XR off in the cockpit process (no runtime needed): %s  [%s]" % ["ok" if xr_clean else "FAIL", Eva.status_text().replace("\n", " | ")])
+	ok = ok and xr_clean
+	if not Eva.eva_event.is_connected(_on_eva_event):
+		Eva.eva_event.connect(_on_eva_event)
+	Game.load_mission("docking")
+	await _frames(3)
+	Game.auto_checklist()
+	_ticks(0.5)
+	Game.try_start()
+	_ticks(2.0)
+	for id: String in str(Settings.cli.get("eva-only", "window,rescue")).split(",", false):
+		ok = (await _eva_run(id, 900.0)) and ok
+	# dock (cheat) for the station antenna job; Ops opens the cargo doors
+	var m: Mission = Game.mission
+	var guard := 0
+	while not EvaScenarios.docked(Game) and guard < 12 and Game.state == Game.State.ACTIVE:
+		m.cheat_advance()
+		_ticks(1.0)
+		guard += 1
+	if EvaScenarios.docked(Game):
+		ok = (await _eva_run("antenna", 1200.0)) and ok
+	else:
+		print("  EVA antenna: could not dock (step %d) FAIL" % m.step)
+		ok = false
+	InputHub.set_switch("cargo_doors", false)
+	InputHub.set_group("ops", 0)
+	ok = (await _check_eva_link()) and ok
+	return ok
+
+
+## The VR client path without a headset: spawn the client process (headless, XR unavailable,
+## autopilot), start a "VR" spacewalk, and check the cockpit receives the pose stream at
+## >= 60 Hz and draws the avatar smoothly (interpolated, no jumps).
+func _check_eva_link() -> bool:
+	if Eva.client_connected():
+		Eva.stop_client()
+	var launched := Eva.launch_client(true, ["--eva-bot"])
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 30000 and not Eva.client_connected():
+		Game.tick(get_process_delta_time())
+		await _frames(1)
+	var connected := Eva.client_connected()
+	var xr_reported := bool(Eva.client_info.get("xr", true))
+	var started := connected and Eva.start("window", false, "vr")
+	var wv: WorldView = get_parent().get_node("World")
+	var prev := Vector3.INF
+	var max_jump := 0.0
+	var frames := 0
+	var moved := 0.0
+	var hz_samples: Array[float] = []
+	t0 = Time.get_ticks_msec()
+	var first_step := Eva.sim.step if Eva.sim else 0
+	while started and Eva.active and Time.get_ticks_msec() - t0 < 40000:
+		Game.tick(minf(get_process_delta_time(), 0.05))
+		await _frames(1)
+		frames += 1
+		var p := wv.eva_view.current_pose()
+		if not p.is_empty():
+			var hp: Vector3 = (p["head"] as Transform3D).origin
+			if prev != Vector3.INF:
+				var j := hp.distance_to(prev)
+				if j > 0.2 and Settings.cli.has("eva-debug"):
+					print("    jump %.2f m at frame %d step %d edge %d riding %s perch %s" % [j, frames, Eva.sim.step, Eva.sim.att_edge, Eva.sim.riding, Eva.sim.perch])
+				max_jump = maxf(max_jump, j)
+				moved += j
+			prev = hp
+		if frames % 30 == 0 and Eva.rx_hz > 0.0:
+			hz_samples.append(Eva.rx_hz)
+		if Eva.sim and Eva.sim.step >= 3:
+			break        # traverse + pull to the window + wave done: enough for the link check
+	var steps_done := (Eva.sim.step - first_step) if Eva.sim else 0
+	if Eva.active:
+		Eva.abort("link test done")
+	Eva.stop_client()
+	var hz := 0.0
+	for h in hz_samples.slice(1):
+		hz += h
+	hz /= maxf(hz_samples.size() - 1, 1)
+	var ok := launched and connected and not xr_reported and started and hz >= 60.0 and moved > 2.0 and max_jump < 0.25 and steps_done >= 2
+	print("  EVA VR-client link (headless client, XR unavailable -> autopilot): connected=%s xr=%s stream %.0f Hz, avatar moved %.1f m, max frame jump %.3f m, steps %d: %s" % [connected, xr_reported, hz, moved, max_jump, steps_done, "ok" if ok else "FAIL"])
+	return ok
+
+
+func _on_eva_event(kind: String, _d: Dictionary) -> void:
+	_eva_seen[kind] = int(_eva_seen.get(kind, 0)) + 1
+
+
+func _eva_run(id: String, max_s: float) -> bool:
+	_eva_seen.clear()
+	_eva_vis.clear()
+	if id == "antenna" or id == "rescue":
+		InputHub.set_switch("cargo_doors", true)
+		InputHub.set_group("ops", 1)
+		_ticks(4.0)
+	Eva.bot = EvaBot.new()
+	if not Eva.start(id, false, "flat"):
+		print("  EVA %s: refused to start (available %s) FAIL" % [id, Eva.available()])
+		Eva.bot = null
+		return false
+	var sim: EvaSim = Eva.sim
+	var dm: DisplayManager = get_parent().get_node("Display")
+	var wv: WorldView = get_parent().get_node("World")
+	var dt := 1.0 / 30.0
+	var t := 0.0
+	var path := 0.0
+	var far := 0.0
+	var prev := sim.head_s().origin
+	var n := 0
+	var hold_bad := 0
+	while Eva.active and t < max_s:
+		if id in ["rescue", "antenna"]:
+			_fly_arm(sim, dt)
+		_ticks(dt, dt)
+		t += dt
+		n += 1
+		var h := sim.head_s().origin
+		path += h.distance_to(prev)
+		prev = h
+		far = maxf(far, h.distance_to(sim.hatch))
+		if Settings.cli.has("eva-debug") and n % 30 == 0:
+			var c2 := Eva.last_cmd.duplicate()
+			c2.erase("look_at")
+			print("    t=%.0f step=%d %s head=%s edge=%d u=%.2f vel=%s cmd=%s" % [t, sim.step, sim.cur_step().get("do", ""), sim.head_s().origin.snapped(Vector3.ONE * 0.01), sim.att_edge, sim.att_u, sim.vel.snapped(Vector3.ONE * 0.01), c2])
+		if sim.riding and Game.sim.ang_vel.length() > deg_to_rad(1.5):
+			hold_bad += 1
+		var gest := str(sim.cur_step().get("do", "")) == "gesture"
+		if n % 90 == 0 or (gest and n % 6 == 0):
+			await _frames(1)
+			if str(sim.cur_step().get("do", "")) == "gesture" and wv.eva_view.avatar.visible:
+				var hp: Vector3 = (wv.eva_view.avatar.parts["helmet"] as Node3D).global_position
+				for v: String in dm.out_views:
+					var cam: Camera3D = dm.cams[v]
+					if cam.is_position_in_frustum(hp):
+						_eva_vis[v] = true
+					if Settings.cli.has("eva-debug"):
+						print("    vis %s head=%s cam=%s near=%.2f in=%s vp=%s" % [v, hp, cam.global_transform.origin, cam.near, cam.is_position_in_frustum(hp), cam.get_viewport().get_visible_rect().size])
+	Eva.bot = null
+	var done := not Eva.active and sim.done
+	if Eva.active:
+		Eva.abort("test timeout")
+	var line := "  EVA %-8s %s  steps %d/%d  score %d  path %.1f m (max %.1f m from hatch)  %.0f s sim  events %s" % [id,
+		"ok" if done else "FAIL", sim.step, sim.steps.size(), sim.score, path, far, t, str(_eva_seen.keys())]
+	var good := done and path > 3.0
+	if id == "window":
+		var vis := _eva_vis.size() > 0
+		good = good and vis and _eva_seen.has("knock") and _eva_seen.has("wave")
+		line += "  in window view: %s" % str(_eva_vis.keys())
+	if id == "rescue":
+		good = good and _eva_seen.has("arm_on") and hold_bad == 0
+	if not good and done:
+		line = line.replace(" ok ", " FAIL ")
+	print(line)
+	if not good:
+		for l in Eva.log_lines.slice(-12):
+			print("      log: " + l)
+	return good
+
+
+## "Ops" flies the arm tip to the spacewalker (grab), then to the hatch (ride) with the real
+## arm axes (tx/ty/tz in arm mode), gently.
+func _fly_arm(sim: EvaSim, _dt: float) -> void:
+	var step := str(sim.cur_step().get("do", ""))
+	var target := Vector3.ZERO
+	if step == "grab_arm" and not sim.riding:
+		target = sim.waist_s() + (sim.head_s().basis.z * 0.0) - Vector3(0, 0.0, 0)
+	elif sim.riding:
+		target = sim.cur_step().get("at", sim.hatch)
+	else:
+		for a in ["tx", "ty", "tz"]:
+			InputHub.set_axis_override(a, 0.0)
+		return
+	var base := Game.arm_base_body()
+	var d := target - base
+	var L := clampf(d.length(), 3.0, 12.0)
+	var pitch := asin(clampf(d.y / maxf(d.length(), 0.01), -1.0, 1.0))
+	var yaw := atan2(-d.x, -d.z)
+	var gain := 1.5
+	InputHub.set_axis_override("tx", clampf(-(yaw - Game.arm_yaw) * gain, -0.5, 0.5))
+	InputHub.set_axis_override("ty", clampf((pitch - Game.arm_pitch) * gain, -0.5, 0.5))
+	InputHub.set_axis_override("tz", clampf((L - Game.arm_len) * 0.6, -0.5, 0.5))
 
 
 ## Virtual panels: hot-plug show/hide, the guarded two-tap, held buttons, the encoder.

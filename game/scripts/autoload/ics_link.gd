@@ -12,9 +12,10 @@ extends Node
 signal status_changed
 signal devices_changed
 
-const SEATS := ["pilot", "ops", "commander"]
-const SEAT_NAMES := {"pilot": "PILOT", "ops": "OPS", "commander": "COMMANDER"}
-const PTT_ACTION := {"pilot": "ptt_pilot", "ops": "ptt_ops", "commander": "ptt_commander"}
+const SEATS := ["pilot", "ops", "commander", "eva"]
+const SEAT_NAMES := {"pilot": "PILOT", "ops": "OPS", "commander": "COMMANDER", "eva": "SPACEWALKER"}
+## The EVA seat has no cockpit key: the VR client keys it (left X/A button) via touch_ptt.
+const PTT_ACTION := {"pilot": "ptt_pilot", "ops": "ptt_ops", "commander": "ptt_commander", "eva": ""}
 
 var enabled := false
 var mock := false
@@ -22,9 +23,9 @@ var helper_pid := -1
 var status := {}               # last status from the helper
 var devices: Array = []        # [{id, label, product, serial, path, sink, source}]
 var assign := {}               # seat -> device id
-var touch_ptt := {"pilot": false, "ops": false, "commander": false}
+var touch_ptt := {"pilot": false, "ops": false, "commander": false, "eva": false}
 var touch_allcall := false
-var mute := {"pilot": false, "ops": false, "commander": false}
+var mute := {"pilot": false, "ops": false, "commander": false, "eva": false}
 var state_text := "off"
 var _rx := PacketPeerUDP.new()
 var _tx := PacketPeerUDP.new()
@@ -151,7 +152,8 @@ func keyed(s: String) -> bool:
 
 
 func ptt_down(s: String) -> bool:
-	return bool(touch_ptt.get(s, false)) or InputHub.on(PTT_ACTION[s])
+	var act := str(PTT_ACTION.get(s, ""))
+	return bool(touch_ptt.get(s, false)) or (act != "" and InputHub.on(act))
 
 
 func allcall_down() -> bool:
@@ -280,9 +282,10 @@ func inject_demo() -> void:
 	devices = [
 		{"id": "USB Audio Device|C-Media_Electronics_Inc._USB_Audio_Device|pci-0000:0e:00.3-usb-0:3:1.0", "label": "USB Audio Device  (USB 0:3:1.0)"},
 		{"id": "USB Audio Device|C-Media_Electronics_Inc._USB_Audio_Device|pci-0000:0e:00.3-usb-0:4:1.0", "label": "USB Audio Device  (USB 0:4:1.0)"},
-		{"id": "Logitech USB Headset|Logitech_Logitech_USB_Headset|pci-0000:0e:00.3-usb-0:2:1.0", "label": "Logitech USB Headset  (USB 0:2:1.0)"}]
-	assign = {"pilot": devices[0]["id"], "ops": devices[1]["id"], "commander": devices[2]["id"]}
-	for i in 3:
+		{"id": "Logitech USB Headset|Logitech_Logitech_USB_Headset|pci-0000:0e:00.3-usb-0:2:1.0", "label": "Logitech USB Headset  (USB 0:2:1.0)"},
+		{"id": "Meta Quest (WiVRn)||wivrn", "label": "Meta Quest 3 (WiVRn audio)"}]
+	assign = {"pilot": devices[0]["id"], "ops": devices[1]["id"], "commander": devices[2]["id"], "eva": devices[3]["id"]}
+	for i in 4:
 		Settings.set_v("ics", SEATS[i] + "_headset", devices[i]["id"], false)
 	Settings.set_v("ics", "enabled", true, false)
 	status = {"ok": true, "msg": "running on PulseAudio (on PipeWire 1.0.5)", "server": "PulseAudio (on PipeWire 1.0.5)", "xruns": 0, "latency_ms": 35,
@@ -290,7 +293,8 @@ func inject_demo() -> void:
 		"allcall": false, "seats": {
 			"pilot": {"level": -24.0, "peak": -19.0, "open": true, "mode": "vox", "device": devices[0]["label"], "connected": true},
 			"ops": {"level": -52.0, "peak": -47.0, "open": false, "mode": "vox", "device": devices[1]["label"], "connected": true},
-			"commander": {"level": -61.0, "peak": -58.0, "open": false, "mode": "ptt", "device": devices[2]["label"], "connected": true}}}
+			"commander": {"level": -61.0, "peak": -58.0, "open": false, "mode": "ptt", "device": devices[2]["label"], "connected": true},
+			"eva": {"level": -40.0, "peak": -33.0, "open": false, "mode": "ptt", "device": devices[3]["label"], "connected": true}}}
 	state_text = str(status["msg"])
 	devices_changed.emit()
 	status_changed.emit()

@@ -128,6 +128,7 @@ var map_source := "built-in defaults"
 var map_errors: Array[String] = []
 var _key_prev := {}
 var _group_sources := {}   # group -> last value from a device
+var keyboard_grab: Object = null   # e.g. the on-screen spacewalk owns the keyboard: no key bindings
 
 
 func _ready() -> void:
@@ -353,6 +354,8 @@ func _process(dt: float) -> void:
 
 
 func _text_focus() -> bool:
+	if keyboard_grab != null and is_instance_valid(keyboard_grab):
+		return true
 	var vp := get_viewport()
 	if vp == null:
 		return false

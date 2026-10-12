@@ -27,6 +27,10 @@ const ROLE_NAMES := {"left": "LEFT WINDOW", "right": "RIGHT WINDOW", "console": 
 
 var NEAR := 1.0     # far/near must stay <= ~1e6 (float32 frustum planes)
 var FAR := 1.0e6
+## During a spacewalk the astronaut's glove can touch the canopy ~0.6-1.0 m from the eye, so the
+## window cameras pull their near plane in (the frustum keeps the same shape).
+var EVA_NEAR := 0.2
+var near_now := 1.0
 
 var world: WorldView
 var vp := {}            # name -> SubViewport
@@ -40,6 +44,7 @@ var mode := "dev"
 var dev_root: Control
 var out_views: Array[String] = []   # out-the-window outputs, e.g. ["left", "right"]
 var solo_view := ""                 # screenshot helper: this view gets a centred, forward frustum
+var solo_true := false              # ...unless set: keep the real (off-axis) window frustum
 var monitors: Array = []            # [{i, name, pos, size, mm, diag, hz}]
 var assign := {}                    # role -> screen index (-1 = none)
 var reasons := {}                   # role -> "auto" | "output" | "screen" | ""
@@ -53,6 +58,9 @@ func setup(w: WorldView) -> void:
 		FAR = float(Settings.cli["far"])
 	if Settings.cli.has("near"):
 		NEAR = float(Settings.cli["near"])
+	if Settings.cli.has("eva-near"):
+		EVA_NEAR = float(Settings.cli["eva-near"])
+	near_now = NEAR
 	out_views.clear()
 	for n0 in str(Settings.get_v("display", "views")).split(",", false):
 		var nn: String = n0.strip_edges()
@@ -544,7 +552,7 @@ func off_axis(r: Dictionary) -> Array:
 	var yb: Basis = r["basis"]
 	var cl: Vector3 = yb.inverse() * (r["center"] as Vector3)
 	var dist := maxf(-cl.z, 0.05)
-	var k := s * NEAR / dist
+	var k := s * near_now / dist
 	return [yb, float(r["h"]) * k, Vector2(cl.x, cl.y) * k]
 
 
@@ -561,17 +569,18 @@ func _process(_dt: float) -> void:
 	_esc_was = esc
 	if world == null:
 		return
+	near_now = minf(NEAR, EVA_NEAR) if Eva.active else NEAR
 	for n: String in out_views:
 		var cam: Camera3D = cams[n]
 		var f := off_axis(screen_rect_for(n))
-		if n == solo_view:
+		if n == solo_view and not solo_true:
 			# single-view screenshot: same field of view, but centred straight ahead
 			f = [Basis.IDENTITY, f[1], Vector2.ZERO]
 		cam.global_transform = world.rig_xform * Transform3D(f[0], Vector3.ZERO)
 		if Settings.cli.has("persp"):
-			cam.set_perspective(70.0, NEAR, FAR)
+			cam.set_perspective(70.0, near_now, FAR)
 		else:
-			cam.set_frustum(f[1], f[2], NEAR, FAR)
+			cam.set_frustum(f[1], f[2], near_now, FAR)
 		# Hide the Falcon's own hull from the cockpit eye point
 		cam.cull_mask = 0xFFFFF if Game.view_mode == 1 else (0xFFFFF & ~WorldView.SHIP_LAYER)
 

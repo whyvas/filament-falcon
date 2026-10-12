@@ -8,6 +8,8 @@ extends FalconPanel
 ##   NAV        orbit map, STEER TO buttons, NAV TARGET.
 ##   SYSTEMS    power distribution, ship health bars, faults and how to fix them.
 ##   CAMERAS    docking, arm and chase cameras.
+##   EVA        only during a spacewalk: HELMET CAM, the camera drone, suit telemetry
+##              (O2, battery, CO2, suit temperature, heart rate, jet gas, tether) and the task list.
 ##   CHECKLIST  the overhead start-up switches, in order (the overhead panels are drawn here
 ##              too while Falcon Command is unplugged).
 ##   PANELS     only while the Pilot or Ops board is unplugged (or SETUP forces it): that
@@ -17,7 +19,7 @@ extends FalconPanel
 ## Every control here also exists on the hardware; touch buttons are the fallback and mirror
 ## the real switches when a board is plugged in. Works in landscape (recommended) or portrait.
 
-const PAGES := ["FLIGHT", "NAV", "SYSTEMS", "CAMERAS", "CHECKLIST", "PANELS"]
+const PAGES := ["FLIGHT", "NAV", "SYSTEMS", "CAMERAS", "EVA", "CHECKLIST", "PANELS"]
 
 var pages := {}
 var tabs := {}
@@ -57,6 +59,7 @@ func _ready() -> void:
 	_build_nav(pages["NAV"])
 	_build_systems(pages["SYSTEMS"])
 	_build_cameras(pages["CAMERAS"])
+	_build_eva(pages["EVA"])
 	_build_checklist(pages["CHECKLIST"])
 	_build_panels(pages["PANELS"])
 	show_page("FLIGHT")
@@ -65,6 +68,8 @@ func _ready() -> void:
 		if sec == "input":
 			update_virtual())
 	update_virtual()
+	Eva.changed.connect(_update_eva_tab)
+	_update_eva_tab()
 	resized.connect(_on_resized)
 	_on_resized()
 	if _pending_commander:
@@ -536,6 +541,78 @@ func _build_cameras(page: Control) -> void:
 		f.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		f.custom_minimum_size = Vector2(300, 260)
 		p.add_child(f)
+
+
+# ======================================================================== EVA
+func _build_eva(page: Control) -> void:
+	var sp := _split(page)
+	var a := panel(sp, "HELMET CAM", true, true, Color(1.0, 0.85, 0.4))
+	var hf := CamFeedView.new()
+	hf.kind = "HELMET CAM"
+	hf.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	hf.custom_minimum_size = Vector2(300, 300)
+	a.add_child(hf)
+	var df := CamFeedView.new()
+	df.kind = "EVA DRONE"
+	df.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	df.custom_minimum_size = Vector2(300, 220)
+	a.add_child(df)
+	var b := panel(sp, "SUIT TELEMETRY", true, true, Color(1.0, 0.85, 0.4))
+	var tl := func(k: String) -> float:
+		return float(Eva.telemetry().get(k, 0.0))
+	bar(b, "OXYGEN", "e_o2", func() -> Array:
+		var v: float = tl.call("o2")
+		return [v / 100.0, "%d%%" % int(v), C_GREEN if v > 40.0 else (C_AMBER if v > 20.0 else C_RED)])
+	bar(b, "BATTERY", "e_bat", func() -> Array:
+		var v: float = tl.call("batt")
+		return [v / 100.0, "%d%%" % int(v), C_GREEN if v > 30.0 else C_AMBER])
+	bar(b, "CO2", "e_co2", func() -> Array:
+		var v: float = tl.call("co2")
+		return [v / 8.0, "%.1f mmHg" % v, C_GREEN if v < 4.0 else (C_AMBER if v < 6.0 else C_RED)])
+	bar(b, "SUIT TEMP", "e_tmp", func() -> Array:
+		var v: float = tl.call("temp")
+		return [(v - 10.0) / 25.0, "%.1f °C" % v, C_GREEN if absf(v - 21.0) < 5.0 else C_AMBER])
+	bar(b, "HEART RATE", "e_hr", func() -> Array:
+		var v: float = tl.call("hr")
+		return [(v - 50.0) / 110.0, "%d bpm %s" % [int(v), "♥" if fmod(Time.get_ticks_msec() / 1000.0 * v / 60.0, 1.0) < 0.3 else ""], C_GREEN if v < 130.0 else C_AMBER])
+	bar(b, "JET GAS", "e_gas", func() -> Array:
+		var v: float = tl.call("gas")
+		return [v / 100.0, "%d%%" % int(v), C_EDGE])
+	bar(b, "TETHER", "e_teth", func() -> Array:
+		var t := Eva.telemetry()
+		var used := float(t.get("tether", 0.0))
+		var ln := maxf(float(t.get("tether_len", 20.0)), 1.0)
+		if not bool(t.get("tether_on", true)):
+			return [0.0, "none (Moon)", C_EDGE]
+		return [used / ln, "%.1f / %d m" % [used, int(ln)], C_GREEN if used < ln * 0.85 else C_AMBER])
+	var tasks := label("", 26, C_TEXT)
+	tasks.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tasks.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	b.add_child(tasks)
+	live["eva"] = func() -> void:
+		tasks.text = eva_task_text()
+
+
+static func eva_task_text() -> String:
+	if Eva.sim == null:
+		return "Nobody outside."
+	var sim: EvaSim = Eva.sim
+	var s := "%s  ·  %s\n" % [str(Eva.scen.get("title", "")), "VR HEADSET" if Eva.driver == "vr" else "ON SCREEN"]
+	for i in sim.steps.size():
+		var mark := "✓" if i < sim.step else ("▶" if i == sim.step else "·")
+		s += "%s %s\n" % [mark, str((sim.steps[i] as Dictionary).get("text", ""))]
+	if not Eva.active and Eva.result_text != "":
+		s += "\n" + Eva.result_text
+	return s
+
+
+func _update_eva_tab() -> void:
+	if not tabs.has("EVA"):
+		return
+	var tb: Button = tabs["EVA"]
+	tb.visible = Eva.active or current == "EVA"
+	tb.text = "EVA ●" if Eva.active else "EVA"
+	tb.modulate = Color(1.0, 0.85, 0.4) if Eva.active else Color.WHITE
 
 
 # ======================================================================== CHECKLIST

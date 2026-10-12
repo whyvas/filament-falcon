@@ -35,6 +35,7 @@ const FAR_SAFE := 9.0e5
 const ATMO_PROXY_R := 8.0e5
 var atmo_node: MeshInstance3D
 var earth_scale := 1.0
+var eva_view: EvaView
 
 
 func _ready() -> void:
@@ -51,6 +52,9 @@ func _ready() -> void:
 		if ship and ship.is_ancestor_of(n):
 			_tag_one(n))
 	_tag_ship.call_deferred(ship)
+	# the spacewalk (rails, props, astronaut) is NOT under the ship so the windows still see it
+	eva_view = EvaView.new()
+	add_child(eva_view)
 	tunnel_mat = ProcGen.shader_mat("res://shaders/glow_fx.gdshader", {"color": Color(0.45, 0.35, 1.0), "mode": 3, "intensity": 0.0})
 	tunnel = ProcGen.mesh_node(ProcGen.cyl(40.0, 40.0, 6000.0, 48), tunnel_mat)
 	tunnel.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF

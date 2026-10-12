@@ -2,8 +2,13 @@
 """Filament Falcon ICS (intercom system) helper.
 
 Three USB headsets (PILOT, OPS, COMMANDER) talk to each other with a radio effect, and the game
-audio reaches all three. Godot can only open one audio device, so this helper does the
-multi-headset work and the game talks to it over localhost UDP (like the LED bridge).
+audio reaches all three. A 4th seat, EVA, is the VR spacewalker: the Meta Quest 3's audio shows
+up on the PC as WiVRn's virtual speaker ("WiVRn") and microphone ("WiVRn(microphone)") while the
+headset is connected; it is picked automatically and gets a "suit radio" (narrower band, more
+static, Apollo Quindar tones). No WiVRn devices -> the seat is simply empty.
+
+Godot can only open one audio device, so this helper does the multi-headset work and the game
+talks to it over localhost UDP (like the LED bridge).
 
 Audio graph (PulseAudio, or PipeWire through pipewire-pulse; `pactl info` tells which):
     game (Godot)  -> null sink "falcon_game" --monitor-->  helper  -> every headset (per-seat volume)
@@ -50,15 +55,17 @@ except ImportError:  # pragma: no cover - reported to the game
 
 RATE = 48000
 BLOCK = 240                    # 5 ms
-SEATS = ("pilot", "ops", "commander")
+SEATS = ("pilot", "ops", "commander", "eva")
 KIDS = ("pilot", "ops")
+LISTENERS_DUCKED = ("pilot", "ops", "eva")    # ALL-CALL: the Commander talks over everyone else
+WIVRN_ID = "Meta Quest (WiVRn)||wivrn"         # the spacewalker's headset: WiVRn's virtual sink + mic
 GAME_SINK = "falcon_game"
 MC_SINK = "falcon_mc"
 SETTINGS = os.path.expanduser("~/.local/share/filament-falcon/falcon_settings.cfg")
 
 DEFAULTS = {
     "enabled": True,
-    "pilot_headset": "", "ops_headset": "", "commander_headset": "",
+    "pilot_headset": "", "ops_headset": "", "commander_headset": "", "eva_headset": "",
     "radio_fx": True, "static": True, "squelch_tail": True, "beeps": True,
     "speakers": True, "mc_vol": 0.9, "allcall_duck": 0.25,
 }
@@ -68,6 +75,9 @@ for _s in SEATS:
     for _k, _v in SEAT_DEFAULTS.items():
         DEFAULTS[f"{_s}_{_k}"] = _v
 DEFAULTS["commander_mode"] = "ptt"      # dad keys the INTERCOM button; kids default to VOX
+# the spacewalker (Quest 3 mic through WiVRn): VOX, a touch more hang, a little sidetone so the
+# helmet does not feel "dead"
+DEFAULTS.update({"eva_vox_db": -36.0, "eva_hang_ms": 700.0, "eva_game_vol": 0.6, "eva_sidetone": 0.15})
 
 
 def log(*a):
@@ -254,6 +264,9 @@ class Sounds:
     def static(self, n, level_db=-44.0):
         return self.rng.standard_normal(n) * 10 ** (level_db / 20.0)
 
+    def quindar(self, up=True):  # Apollo-style "suit radio" tones: 2525 Hz key-down, 2475 Hz key-up
+        return tone(2525 if up else 2475, 250, 0.14)
+
 
 class Channel:
     """One talker on the intercom (a headset mic or the MISSION CONTROL channel).
@@ -262,7 +275,8 @@ class Channel:
 
     def __init__(self, name, cfg, sounds, mc=False):
         self.name, self.cfg, self.snd, self.mc = name, cfg, sounds, mc
-        self.radio = BandPass()
+        self.suit = name == "eva"     # spacewalker: narrower "suit radio" band, more static, Quindar tones
+        self.radio = BandPass(400.0, 2600.0) if self.suit else BandPass()
         self.comp = Compressor()
         self.vox = VoxGate()
         self.keyed = False
@@ -308,10 +322,10 @@ class Channel:
         if keyed != self.keyed:
             beeps = bool(self.cfg.get("beeps", True))
             if keyed and beeps:
-                self.queue(self.snd.click())
+                self.queue(self.snd.quindar(True) if self.suit else self.snd.click())
             if not keyed:
                 if beeps:
-                    self.queue(self.snd.roger())
+                    self.queue(self.snd.quindar(False) if self.suit else self.snd.roger())
                 if radio and bool(self.cfg.get("squelch_tail", True)):
                     self.queue(np.concatenate([np.zeros(int(RATE * (0.14 if beeps else 0.0))), self.snd.squelch()]))
             self.keyed = keyed
@@ -327,7 +341,7 @@ class Channel:
             tails[:m] = self.pending[:m]
             self.pending = self.pending[m:]
         if keyed and radio and bool(self.cfg.get("static", True)):
-            tails += self.snd.static(n)
+            tails += self.snd.static(n, -36.0 if self.suit else -44.0)
         return voice, tails
 
 
@@ -379,7 +393,7 @@ class Engine:
             c = self.cfg
             ics = float(c.get(f"{s}_ics_vol", 1.0))
             gv = float(c.get(f"{s}_game_vol", 0.7))
-            target_duck = float(c.get("allcall_duck", 0.25)) if (self.allcall and s in KIDS) else 1.0
+            target_duck = float(c.get("allcall_duck", 0.25)) if (self.allcall and s in LISTENERS_DUCKED) else 1.0
             # smooth ducking so the PA does not click
             d = np.linspace(self.duck[s], target_duck, n, endpoint=False)
             self.duck[s] = target_duck
@@ -389,7 +403,7 @@ class Engine:
                 if t == s:
                     continue
                 w = ics
-                if self.allcall and s in KIDS:
+                if self.allcall and s in LISTENERS_DUCKED:
                     w *= 1.25 if t == "commander" else float(c.get("allcall_duck", 0.25))
                 y = y + (out_v[t] + out_t[t]) * w
             st = float(c.get(f"{s}_sidetone", 0.0))
@@ -539,7 +553,16 @@ def headsets_from(sinks, sources):
             if it["name"].endswith(".monitor") or p.get("device.class") == "monitor":
                 continue
             usb = p.get("device.bus") == "usb" or ".usb-" in it["name"]
-            if it["name"].startswith("falcon_") or not usb:
+            wivrn = is_wivrn(it)
+            if it["name"].startswith("falcon_") or not (usb or wivrn):
+                continue
+            if wivrn:
+                h = hs.setdefault("wivrn", {"product": "Meta Quest (WiVRn)", "serial": "", "path": "wivrn", "vendor": "WiVRn",
+                                            "sink": "", "source": "", "label": ""})
+                if kind == "sink" and not h["sink"]:
+                    h["sink"] = it["name"]
+                if kind == "source" and not h["source"]:
+                    h["source"] = it["name"]
                 continue
             k = key(it)
             h = hs.setdefault(k, {"product": p.get("device.product.name") or p.get("api.alsa.card.name") or p.get("alsa.card_name")
@@ -556,6 +579,8 @@ def headsets_from(sinks, sources):
         port = re.search(r"usb-[\d:.\-]+", h["path"] or "")
         h["id"] = f'{h["product"]}|{h["serial"]}|{h["path"]}'
         h["label"] = h["product"] + (f'  (USB {port.group(0)[4:]})' if port else "")
+        if h["path"] == "wivrn":
+            h["label"] = "Meta Quest 3 (WiVRn audio)" + ("" if h["source"] else "  · mic off in the headset app")
         out.append(h)
     out.sort(key=lambda h: (h["product"], h["path"], h["serial"]))
     # identical headsets: make labels unique so the Commander can tell them apart
@@ -566,6 +591,15 @@ def headsets_from(sinks, sources):
         if seen[h["label"]] > 1:
             h["label"] += f' #{h["sink"][-6:] or h["source"][-6:]}'
     return out
+
+
+def is_wivrn(it):
+    """WiVRn's virtual speaker ("WiVRn") / microphone ("WiVRn(microphone)") while a headset is
+    connected (PulseAudio module or PipeWire node, depending on the system)."""
+    p = it.get("props", {})
+    txt = " ".join([it.get("name", ""), it.get("description", ""), p.get("node.name", ""), p.get("node.description", ""),
+                    p.get("application.name", ""), p.get("device.description", "")]).lower()
+    return "wivrn" in txt
 
 
 def match_assignments(devs, saved):
@@ -604,6 +638,12 @@ def match_assignments(devs, saved):
             if cands:
                 out[seat] = cands[0]
                 used.add(cands[0]["id"])
+    # the Quest (WiVRn audio) belongs to the spacewalker unless the Commander chose otherwise
+    if "eva" in SEATS and "eva" not in out and not saved.get("eva"):
+        q = next((d for d in devs if d.get("path") == "wivrn" and free(d)), None)
+        if q:
+            out["eva"] = q
+            used.add(q["id"])
     return {s: out.get(s) for s in SEATS}
 
 
@@ -800,6 +840,8 @@ class Helper:
             self.devs = [{"id": f"Mock Headset {i}|MOCK{i}|pci-0000:00:14.0-usb-0:{i}:1.0", "label": f"Mock Headset {i}  (USB 0:{i}:1.0)",
                           "product": f"Mock Headset {i}", "serial": f"MOCK{i}", "path": f"pci-0000:00:14.0-usb-0:{i}:1.0",
                           "sink": f"mock_sink_{i}", "source": f"mock_source_{i}"} for i in (1, 2, 3)]
+            self.devs.append({"id": WIVRN_ID, "label": "Meta Quest 3 (WiVRn audio)", "product": "Meta Quest (WiVRn)", "serial": "",
+                              "path": "wivrn", "sink": "mock_wivrn_sink", "source": "mock_wivrn_source"})
             self._rematch()
             self.ok, self.msg = True, "mock audio (no devices touched)"
             return True

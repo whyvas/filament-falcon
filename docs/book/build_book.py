@@ -390,21 +390,23 @@ class Data:
         return out
 
     def _hero(self):
-        rows = md_table(md_section("docs/game/README.md", "7. Crew guide").split("**Missions:**")[-1])
+        rows = md_table(md_section("docs/game/README.md", "8. Crew guide").split("**Missions:**")[-1])
         return rows[1:] if rows else []
 
     def _tests(self):
         if not TEST_RESULTS.exists():
             MISSING.append("docs/book/test_results.txt (run with --run-tests --godot <path>)")
             return {}
-        res = {"meta": {}, "smoke": [], "flight": [], "smoke_result": "", "flight_result": ""}
+        res = {"meta": {}, "smoke": [], "flight": [], "eva": [], "smoke_result": "", "flight_result": ""}
         sec = None
         for ln in TEST_RESULTS.read_text(encoding="utf-8").splitlines():
             if ln.startswith("# ") and ":" in ln:
                 k, v = ln[2:].split(":", 1)
                 res["meta"][k.strip()] = v.strip()
-            elif ln.strip() in ("[smoke]", "[flight]"):
+            elif ln.strip() in ("[smoke]", "[flight]", "[eva]"):
                 sec = ln.strip()[1:-1]
+            elif sec == "eva" and ln.strip():
+                res["eva"].append(ln.strip())
             elif sec and re.match(r"^(PASS|FAIL) ", ln):
                 d = dict(re.findall(r"(\w+)=(\S+)", ln))
                 d["ok"] = ln.startswith("PASS")
@@ -553,7 +555,7 @@ def ch_crew(D: Data) -> str:
                 return r
         MISSING.append(f"SPEC role '{prefix}'")
         return ""
-    guide = md_bullets(md_section("docs/game/README.md", "7. Crew guide").split("**Before")[0])
+    guide = md_bullets(md_section("docs/game/README.md", "8. Crew guide").split("**Before")[0])
 
     def gpick(word):
         for r in guide:
@@ -1164,7 +1166,7 @@ def ch_game(D: Data) -> str:
         ["RCS", f"{var('rcs_force') / 1000:.1f} kN, {var('mono_max'):.0f} kg monopropellant"],
         ["Rotation", f"reaction wheels {var('rw_torque') / 1000:.0f} kN·m + RCS {var('rcs_torque') / 1000:.0f} kN·m; max 22°/s pitch/yaw, 40°/s roll"],
     ]
-    crew = md_section(gr, "7. Crew guide")
+    crew = md_section(gr, "8. Crew guide")
     fa = md_bullets(crew.split("**Flight assist (the knob):**")[-1].split("The physics")[0])
     before = md_bullets(crew.split("**Before every mission:**")[-1].split("**Flight assist")[0])
     p2 = f"""
@@ -1227,6 +1229,18 @@ def ch_game(D: Data) -> str:
     tv = '<div class="g2">' + "".join(fig("docs/game/screenshots/" + f, f"<b>{n}</b> · {d}", "h2i", maxw=1100, q=78) for f, n, d in vpages) + "</div>" + \
         card('<p class="tiny">Virtual panels are generated from the CAD layouts (<code>game/tools/gen_virtual_panels.py</code>) and appear and disappear as boards are plugged in; guarded switches need two taps (lift the cover, flip). The intercom helper (<code>game/tools/falcon_ics.py</code>) mixes three USB headsets on PulseAudio or PipeWire with about 30-40 ms delay; the game\'s callouts ride on its MISSION CONTROL channel.</p>')
     out += page("Virtual panels and intercom", tv, "on-screen stand-ins for unplugged boards; three-headset ICS")
+    vr = md_section(gr, "7. VR spacewalks")
+    vrb = md_bullets(vr)
+    vshots = [("35_eva_window_knock_close.jpg", "LEFT WINDOW", "the spacewalker's glove on the glass, as the Pilot sees it"),
+              ("38_eva_astronaut_view_ship_earth.jpg", "SPACEWALKER", "on the roof rail: nose, handrails, tether, the station and Earth"),
+              ("36_console_eva_suit_telemetry.jpg", "CONSOLE EVA", "HELMET CAM, EVA DRONE, suit telemetry and tasks"),
+              ("37_commander_eva.jpg", "COMMANDER EVA", "spacewalks, START/ABORT, VR client, comfort options, safety")]
+    evat = D.tests.get("eva", []) if D.tests else []
+    tline = "".join(f'<li><code>{esc(l)}</code></li>' for l in evat) or "<li>no stored EVA results</li>"
+    pv = '<div class="g2">' + "".join(fig("docs/game/screenshots/" + f, f"<b>{n}</b> · {d}", "h2i", maxw=1100, q=78) for f, n, d in vshots) + "</div>" + \
+        card('<p class="small">' + md_html(vr.split("![")[0], True) + '</p><ul class="tiny">' + "".join(f'<li>{md_html(b, True)}</li>' for b in vrb[1:6]) + '</ul>') + \
+        card('<h4>EVA tests (smoke test, no headset)</h4><ul class="tiny">' + tline + '</ul><p class="tiny dim">Not testable without the Quest 3: the real OpenXR session, controller bindings, frame timing and the WiVRn audio devices (docs/game/VR_SETUP.md).</p>')
+    out += page("VR spacewalks", pv, "Meta Quest 3 over USB · WiVRn · a separate VR process")
     T = D.tests
     if T:
         def rows(sec, fl):
@@ -1247,7 +1261,7 @@ def ch_game(D: Data) -> str:
  <div><h3>Smoke test · every mission start to finish</h3>
   {table(['', 'Mission', 'Objectives', 'Score', 'Stars', 'Hull'], rows('smoke', False), 'compact')}
   <p class="small"><b>{esc(T.get('smoke_result', ''))}</b>, with every injected failure (engine fire, cabin leak, power fault, sensor glitch) fixed by crew actions.</p>
-  <p class="tiny dim">Run {esc(meta.get('date', '?'))} with {esc(meta.get('godot', '?'))} on commit {esc(meta.get('commit', '?'))}. Re-run with <code>python3 docs/book/build_book.py --run-tests --godot &lt;path&gt;</code>, or by hand as in docs/game/README.md section 8.</p></div>
+  <p class="tiny dim">Run {esc(meta.get('date', '?'))} with {esc(meta.get('godot', '?'))} on commit {esc(meta.get('commit', '?'))}. Re-run with <code>python3 docs/book/build_book.py --run-tests --godot &lt;path&gt;</code>, or by hand as in docs/game/README.md section 9.</p></div>
 </div>"""
     else:
         tests_html = "<p>No stored test results (docs/book/test_results.txt).</p>"
@@ -1322,6 +1336,7 @@ def ch_status(D: Data, now: datetime) -> str:
         "Parametric wooden frame with motion geometry, clearance checks, drawings, cut list and frame BOM (v0.3: reclining cradle + drop-down pod on ONE actuator with a steel torque tube).",
         "ESP32-S3 firmware for the three boards, wiring diagrams, udev rules, LED protocol; crew-position circuit (relay H-bridges, interlock, one pod limit set) with three read-only position senses.",
         "Three-headset intercom (VOX / PTT, radio effect, ALL-CALL, MISSION CONTROL callouts) and on-screen virtual panels for unplugged boards.",
+        "VR spacewalks for a Meta Quest 3 (WiVRn, separate VR process streaming the astronaut to the cockpit windows and cameras at ~90 Hz), five EVAs, a 4th intercom seat with a suit radio, and an on-screen EVA mode.",
         f"Godot game v0.1: six missions, four-screen setup (two windows, kids' touch console, Commander screen). Tests: {esc(T.get('smoke_result', 'n/a'))} (smoke), {esc(T.get('flight_result', 'n/a'))} (flight).",
         f"Editable BOM with {sum(v['lines'] for v in D.bom['cats'].values())} lines: {cad(D.bom['grand'])} CAD still to buy.",
     ]
@@ -1332,7 +1347,7 @@ def ch_status(D: Data, now: datetime) -> str:
   {card('<h4>Done on paper and in software</h4><ul class="small">' + ''.join(f'<li>{d}</li>' for d in done) + '</ul>', 'ok')}
  </div>
  <div>
-  {card('<h4>Not done yet</h4><ul class="small"><li>Nothing printed, cut, wired or flashed.</li><li>Real LED segment map (measure the strip with <code>FIND &lt;index&gt;</code>).</li><li>Real measurements of joysticks, buckles, VESA screw depth and the TD2220 body.</li><li>Actuators, struts and steel parts ordered and checked against the model.</li><li>Game on the real three screens and touch panel (screenshots so far come from the software renderer).</li></ul>', 'cmd')}
+  {card('<h4>Not done yet</h4><ul class="small"><li>Nothing printed, cut, wired or flashed.</li><li>Real LED segment map (measure the strip with <code>FIND &lt;index&gt;</code>).</li><li>Real measurements of joysticks, buckles, VESA screw depth and the TD2220 body.</li><li>Actuators, struts and steel parts ordered and checked against the model.</li><li>Game on the real three screens and touch panel (screenshots so far come from the software renderer).</li><li>VR spacewalk with the real Quest 3 (tested so far without a headset).</li></ul>', 'cmd')}
   {fig('docs/game/screenshots/17_mission_complete.jpg', 'The goal: a crew that sees this screen after their first real flight.', 'h22')}
  </div>
 </div>"""
@@ -1404,13 +1419,15 @@ def run_tests(godot: str):
                            capture_output=True, text=True, timeout=3600)
         summ = (p.stdout + p.stderr).split("SUMMARY ====")[-1]
         out[name] = [l for l in summ.splitlines() if re.match(r"^(PASS|FAIL) |^RESULT:", l)]
+        if name == "smoke":   # spacewalk (EVA / VR client) checks, printed during the UI part
+            out["eva"] = [l.strip() for l in p.stdout.splitlines() if re.match(r"^\s+(EVA |XR off)", l)]
     ver = subprocess.run([godot, "--version"], capture_output=True, text=True).stdout.strip()
     head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
     now = datetime.now(TZ).strftime("%Y-%m-%d %H:%M %Z")
     lines = ["# Game test results - written by docs/book/build_book.py --run-tests",
              f"# date: {now} (Atlantic time)", f"# godot: Godot {ver} (headless, Dummy audio)", f"# commit: {head}"]
-    for name in ("smoke", "flight"):
-        lines += [f"[{name}]"] + out[name]
+    for name in ("smoke", "flight", "eva"):
+        lines += [f"[{name}]"] + out.get(name, [])
     TEST_RESULTS.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("wrote", TEST_RESULTS)
 

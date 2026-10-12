@@ -7,6 +7,10 @@
 #        ./run.sh --landscape-console     also rotate the console monitor to landscape
 #        ./run.sh --no-display-setup      skip the touch mapping
 #        ./run.sh --no-ics                no intercom helper (headsets off)
+#        ./run.sh --eva-vr                the spacewalker's VR client (Meta Quest 3 via WiVRn);
+#                                         start the cockpit first, then this (or LAUNCH VR CLIENT
+#                                         on Commander -> EVA). See docs/game/VR_SETUP.md.
+#        ./run.sh --eva-vr --eva-flat     same client on the desktop, no headset
 # It also starts the intercom helper (tools/falcon_ics.py: 3 USB headsets, PTT/VOX, radio
 # effect). It needs python3-numpy + pulseaudio-utils; if anything is missing it logs why to
 # ~/.local/share/filament-falcon/ics.log and the game runs without intercom.
@@ -17,11 +21,15 @@ SETUP_ARGS=()
 GAME_ARGS=()
 DO_SETUP=1
 DO_ICS=1
+EVA_VR=0
+XR_MODE=on
 for a in "$@"; do
   case "$a" in
     --landscape-console) SETUP_ARGS+=("--landscape") ;;
     --no-display-setup) DO_SETUP=0 ;;
     --no-ics) DO_ICS=0; GAME_ARGS+=("$a") ;;
+    --eva-vr) EVA_VR=1 ;;
+    --eva-flat) XR_MODE=off ;;
     *) GAME_ARGS+=("$a") ;;
   esac
 done
@@ -33,6 +41,11 @@ if [ ! -f .godot/global_script_class_cache.cfg ] || [ ! -f "$STAMP" ] || \
   echo "Importing project (first run or after an update, ~1 minute)..."
   "$GODOT" --headless --path . --import
   touch "$STAMP"
+fi
+if [ "$EVA_VR" = 1 ]; then
+  # The cockpit instance owns the displays and the intercom; the VR client only renders the
+  # headset view and streams the spacewalker's pose to it over localhost (UDP 47820).
+  exec "$GODOT" --path . --xr-mode "$XR_MODE" -- --eva-client "${GAME_ARGS[@]}"
 fi
 if [ "$DO_SETUP" = 1 ] && [ -x tools/setup_displays.sh ]; then
   tools/setup_displays.sh "${SETUP_ARGS[@]}" || true

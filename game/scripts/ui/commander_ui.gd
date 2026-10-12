@@ -10,14 +10,18 @@ extends FalconPanel
 ##   PANEL            the Falcon Command panels on screen (virtual while the board is
 ##                    unplugged, a live mirror when it is), ALL-CALL, sense test switches.
 ##   ICS              intercom: headsets per seat, VOX/PTT, levels, volumes, radio effect.
+##   EVA              spacewalks: pick one, START / ABORT, VR client (Quest 3 via WiVRn) or the
+##                    on-screen spacewalk (keyboard / mouse / gamepad), comfort settings,
+##                    suit telemetry and the task list.
 ##   SETUP            which screen is which (4 roles), headsets, virtual panels, layout
 ##                    mode, quality, FPS cap, vsync.
 ## Top bar: board status (PILOT / OPS / CMD: plugged in or VIRTUAL), crew position (pod and
 ## seats, from the read-only senses) and intercom state.
 ## On a 3-screen rig this whole UI is a tab on the kids' console (Escape toggles it).
 
-const PAGES := ["MISSION CONTROL", "BRIEFING", "TRAINING", "CONTROLS", "PANEL", "ICS", "SETUP"]
-const SEAT_COL := {"pilot": FalconPanel.C_PILOT, "ops": FalconPanel.C_OPS, "commander": FalconPanel.C_AMBER}
+const PAGES := ["MISSION CONTROL", "BRIEFING", "TRAINING", "CONTROLS", "PANEL", "ICS", "EVA", "SETUP"]
+const SEAT_COL := {"pilot": FalconPanel.C_PILOT, "ops": FalconPanel.C_OPS, "commander": FalconPanel.C_AMBER, "eva": Color(1.0, 0.85, 0.4)}
+const C_EVA := Color(1.0, 0.85, 0.4)
 
 var pages := {}
 var tabs := {}
@@ -72,6 +76,7 @@ func _ready() -> void:
 	_build_controls(pages["CONTROLS"])
 	_build_panel(pages["PANEL"])
 	_build_ics(pages["ICS"])
+	_build_eva(pages["EVA"])
 	_build_setup(pages["SETUP"])
 	show_page("MISSION CONTROL")
 
@@ -101,6 +106,15 @@ func _build_indicators(top: HBoxContainer) -> void:
 		chips[dev] = _chip(top)
 	var pod := _chip(top)
 	var ics := _chip(top)
+	var evab := button("", func() -> void: show_page("EVA"), 18, 36)
+	top.add_child(evab)
+	live["eva_chip"] = func() -> void:
+		if Eva.active:
+			evab.text = "EVA: OUTSIDE (%s) %d%% O2" % ["VR" if Eva.driver == "vr" else "SCREEN", int(Eva.telemetry().get("o2", 0))]
+			evab.modulate = C_EVA
+		else:
+			evab.text = "SPACEWALK%s ▶" % (" · VR ✔" if Eva.client_has_xr() else "")
+			evab.modulate = Color.WHITE if not Eva.available().is_empty() else C_DIM
 	live["indicators"] = func() -> void:
 		for dev: String in chips:
 			var l: Label = chips[dev]
@@ -157,12 +171,14 @@ func _build_crew_ics(parent: Control) -> void:
 	ac.held.connect(func(d: bool) -> void: Ics.touch_allcall = d)
 	ac.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	r.add_child(ac)
-	for s: String in ["pilot", "ops"]:
+	for s: String in ["pilot", "ops", "eva"]:
 		var mb := button("", func() -> void: Ics.toggle_mute(s), 16, 64)
 		mb.custom_minimum_size.x = 88
 		r.add_child(mb)
+		var nm: String = "EVA" if s == "eva" else Ics.SEAT_NAMES[s]
 		live["mute_" + s] = func() -> void:
-			mb.text = ("MUTE\n%s" % Ics.SEAT_NAMES[s]) if not Ics.mute[s] else ("%s\nMUTED" % Ics.SEAT_NAMES[s])
+			mb.visible = s != "eva" or Eva.active or Ics.seat("eva").get("connected", false)
+			mb.text = ("MUTE\n%s" % nm) if not Ics.mute[s] else ("%s\nMUTED" % nm)
 			mb.modulate = C_RED if Ics.mute[s] else Color.WHITE
 	var st := label("", 16, C_DIM, false)
 	st.clip_text = true
@@ -235,8 +251,16 @@ func _build_ics(page: Control) -> void:
 				str(Ics.status.get("game_sink", "")), str(Ics.status.get("mc_sink", ""))]
 		t += "Troubleshooting: log in ~/.local/share/filament-falcon/ics.log ·\npython3 game/tools/falcon_ics.py --list  /  --ident pilot  /  --latency-test pilot"
 		stl.text = t
+	# right: one column per seat (4 with the spacewalker), the radio/mix strip underneath
+	var rv := VBoxContainer.new()
+	rv.add_theme_constant_override("separation", 10)
+	rv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rv.size_flags_stretch_ratio = 2.9
+	h.add_child(rv)
+	var sh := hbox(rv, 12)
+	sh.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	for s: String in Ics.SEATS:
-		var c := panel(h, Ics.SEAT_NAMES[s], true, true, SEAT_COL[s])
+		var c := panel(sh, Ics.SEAT_NAMES[s], true, true, SEAT_COL[s])
 		var mr := hbox(c, 6)
 		for m: String in ["vox", "ptt"]:
 			var mb := button(m.to_upper(), func() -> void: Settings.set_v("ics", s + "_mode", m), 20, 52)
@@ -268,13 +292,14 @@ func _build_ics(page: Control) -> void:
 			live["icsmute_" + s] = func() -> void:
 				mb2.text = "MIC MUTED (click to unmute)" if Ics.mute[s] else "MUTE MIC"
 				mb2.modulate = C_RED if Ics.mute[s] else Color.WHITE
-	var g := panel(h, "RADIO / MIX", true, true)
-	g.get_parent().size_flags_stretch_ratio = 0.8
+	var g := panel(rv, "RADIO / MIX", true, false)
+	var gt := hbox(g, 8)
 	for t: Array in [["radio_fx", "RADIO EFFECT"], ["static", "STATIC"], ["squelch_tail", "SQUELCH TAIL"], ["beeps", "CLICK + ROGER"], ["speakers", "ROOM SPEAKERS"]]:
-		g.add_child(setting_toggle("ics", str(t[0]), str(t[1]), 18, 50))
-	setting_stepper(g, "ics", "mc_vol", "Callouts", 0.1, 0.0, 2.0, "%.1f", 96, 18)
-	setting_stepper(g, "ics", "allcall_duck", "Duck", 0.05, 0.0, 1.0, "%.2f", 96, 18)
-	g.add_child(label("VOX: the mic opens above the white tick and stays open for the hang time. Kids default to VOX; set PTT if they chatter. Radio effect = 300-3400 Hz band + light compression.", 16, C_DIM))
+		gt.add_child(setting_toggle("ics", str(t[0]), str(t[1]), 16, 46))
+	var gs := hbox(g, 24)
+	setting_stepper(gs, "ics", "mc_vol", "Callouts", 0.1, 0.0, 2.0, "%.1f", 90, 18)
+	setting_stepper(gs, "ics", "allcall_duck", "ALL-CALL duck", 0.05, 0.0, 1.0, "%.2f", 130, 18)
+	g.add_child(label("VOX: the mic opens above the white tick and stays open for the hang time. Kids default to VOX; set PTT if they chatter. Radio effect = 300-3400 Hz band + light compression. SPACEWALKER = the Quest 3 through WiVRn's audio devices (picked automatically): suit radio, 400-2600 Hz + Quindar beeps; PTT on the left X button.", 16, C_DIM))
 
 
 ## Seat -> headset rows (used on ICS and SETUP).
@@ -630,6 +655,107 @@ func _build_controls(page: Control) -> void:
 			l.add_theme_color_override("font_color", C_GREEN if active else Color(0.7, 0.8, 0.9))
 
 
+# ======================================================================== EVA
+var _eva_pick := ""
+var _eva_view: EvaControlView
+
+
+func _build_eva(page: Control) -> void:
+	var h := hbox(page, 12)
+	var a := panel(h, "SPACEWALK", true, true, C_EVA)
+	var st := label("", 18, C_DIM)
+	a.add_child(st)
+	var sc := grid(a, 3, 6)
+	var sbtn := {}
+	for id: String in EvaScenarios.TITLES:
+		var b := button(str(EvaScenarios.TITLES[id]).to_upper(), func() -> void: _eva_pick = id, 18, 52)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		sc.add_child(b)
+		sbtn[id] = b
+	var brief := label("", 18, C_TEXT)
+	a.add_child(brief)
+	var r := hbox(a, 8)
+	var go := button("START EVA", func() -> void:
+		var av := Eva.available()
+		var id := _eva_pick if _eva_pick in av else (av[0] if not av.is_empty() else "")
+		if id != "":
+			Eva.start(id)
+			show_page("EVA"), 26, 70)
+	go.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	r.add_child(go)
+	var ab := button("ABORT EVA", func() -> void: Eva.abort(), 22, 70)
+	ab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	r.add_child(ab)
+	var mr := hbox(a, 6)
+	mr.add_child(label("DRIVER", 18, C_DIM, false))
+	for m: String in ["auto", "vr", "flat"]:
+		var mb := button({"auto": "AUTO", "vr": "VR HEADSET", "flat": "ON SCREEN"}[m], func() -> void: Settings.set_v("eva", "mode", m), 18, 48)
+		mb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		mr.add_child(mb)
+		live["evamode_" + m] = func() -> void: mb.modulate = C_GREEN if str(Settings.get_v("eva", "mode")) == m else Color.WHITE
+	var im := button("", func() -> void: Settings.set_v("eva", "in_missions", not bool(Settings.get_v("eva", "in_missions"))), 18, 48)
+	a.add_child(im)
+	live["eva_inm"] = func() -> void:
+		im.text = "EVA IN MISSIONS: %s (a spacewalk objective near the end of launch, docking, asteroids, lunar, sandbox)" % ("ON" if bool(Settings.get_v("eva", "in_missions")) else "OFF")
+		im.modulate = C_GREEN if bool(Settings.get_v("eva", "in_missions")) else Color.WHITE
+	a.add_child(label("VR HEADSET (Meta Quest 3 via WiVRn, see docs/game/VR_SETUP.md)", 18, C_EVA, false))
+	var vr := hbox(a, 8)
+	var lb := button("LAUNCH VR CLIENT", func() -> void: Eva.launch_client(), 20, 56)
+	lb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vr.add_child(lb)
+	vr.add_child(button("STOP VR CLIENT", func() -> void: Eva.stop_client(), 20, 56))
+	var vst := label("", 18, C_TEXT)
+	a.add_child(vst)
+	var cg := grid(a, 2, 6)
+	var opt := func(title: String, key: String, vals: Array, names: Array) -> void:
+		var row := HBoxContainer.new()
+		cg.add_child(row)
+		var tl := label(title, 18, C_DIM, false)
+		tl.custom_minimum_size.x = 110
+		row.add_child(tl)
+		for i in vals.size():
+			var v: Variant = vals[i]
+			var ob := button(str(names[i]), func() -> void: Settings.set_v("eva", key, v), 16, 40)
+			row.add_child(ob)
+			live["evaopt_%s_%d" % [key, i]] = func() -> void: ob.modulate = C_GREEN if str(Settings.get_v("eva", key)) == str(v) else Color.WHITE
+	opt.call("SNAP TURN", "snap_deg", [15.0, 30.0, 45.0], ["15°", "30°", "45°"])
+	opt.call("VIGNETTE", "vignette", [0.0, 0.4, 0.7, 1.0], ["OFF", "LOW", "MED", "HIGH"])
+	opt.call("PLAY", "play_height", ["standing", "seated"], ["STANDING", "SEATED"])
+	opt.call("TETHER", "tether_m", [10.0, 20.0, 30.0], ["10 m", "20 m", "30 m"])
+	opt.call("VR QUALITY", "vr_quality", ["low", "medium", "high"], ["LOW", "MED", "HIGH"])
+	a.add_child(label("Safety: clear 2 x 2 m of floor OUTSIDE the cockpit frame, Guardian / boundary ON, a grown-up spotter. Recenter: hold the Menu button.", 16, C_AMBER))
+	live["eva_page"] = func() -> void:
+		var av := Eva.available()
+		for id: String in sbtn:
+			var b: Button = sbtn[id]
+			b.disabled = not id in av or Eva.active
+			b.modulate = C_GREEN if id == _eva_pick or (_eva_pick == "" and not av.is_empty() and id == av[0]) else Color.WHITE
+		var pick := _eva_pick if _eva_pick in av else (av[0] if not av.is_empty() else "")
+		brief.text = str(EvaScenarios.BRIEFS.get(pick, "No spacewalk possible right now: the Falcon must be in space with the engine off (or landed on the Moon)."))
+		go.disabled = Eva.active or av.is_empty()
+		ab.disabled = not Eva.active
+		st.text = ("OUTSIDE: %s · %s · %s" % [str(Eva.scen.get("title", "")), "VR HEADSET" if Eva.driver == "vr" else "ON SCREEN", Eva.sim.step_text() if Eva.sim else ""]) if Eva.active else ("Last EVA: " + Eva.result_text if Eva.result_text != "" else "Ready.")
+		vst.text = Eva.status_text() + ("  ·  link %d Hz" % int(Eva.rx_hz) if Eva.client_connected() else "")
+	var b2 := panel(h, "ON-SCREEN SPACEWALK  ·  HELMET CAM / DRONE", true, true, C_EVA)
+	b2.get_parent().size_flags_stretch_ratio = 1.4
+	_eva_view = EvaControlView.new()
+	_eva_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_eva_view.custom_minimum_size = Vector2(320, 300)
+	b2.add_child(_eva_view)
+	var vr2 := hbox(b2, 8)
+	vr2.add_child(button("FIRST PERSON", func() -> void: _eva_view.kind = "HELMET CAM", 18, 44))
+	vr2.add_child(button("DRONE", func() -> void: _eva_view.kind = "EVA DRONE", 18, 44))
+	var tele := label("", 18, C_TEXT)
+	tele.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vr2.add_child(tele)
+	var tasks := label("", 18, C_TEXT)
+	b2.add_child(tasks)
+	live["eva_tasks"] = func() -> void:
+		tasks.text = ConsoleUI.eva_task_text()
+		var t := Eva.telemetry()
+		tele.text = "" if t.is_empty() else "O2 %d%%  BATT %d%%  CO2 %.1f  %.1f°C  HR %d  GAS %d%%  TETHER %.1f m" % [int(t["o2"]), int(t["batt"]), float(t["co2"]), float(t["temp"]), int(t["hr"]), int(t["gas"]), float(t["tether"])]
+
+
 # ======================================================================== SETUP
 func _build_setup(page: Control) -> void:
 	var h := hbox(page, 12)
@@ -694,6 +820,10 @@ func _build_setup(page: Control) -> void:
 		row.add_child(button("+", func() -> void: Settings.set_v("display", key, snappedf(float(Settings.get_v("display", key)) + step, 0.001)), 22, 46))
 		live["geo_" + key] = func() -> void: gv.text = "%.3f" % float(Settings.get_v("display", key))
 	var b := panel(h, "GRAPHICS / SOUND / LIGHTS", true, true)
+	var vrl := label("", 18, C_EVA)
+	b.add_child(vrl)
+	live["setup_vr"] = func() -> void:
+		vrl.text = "VR / SPACEWALK: " + Eva.status_text() + "  (Commander > EVA)"
 	var qrow := hbox(b, 6)
 	for q: String in Settings.QUALITY_LEVELS:
 		var qb := button(q.to_upper(), func() -> void: Settings.set_v("graphics", "quality", q), 22, 56)

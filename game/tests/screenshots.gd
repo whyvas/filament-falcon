@@ -52,7 +52,7 @@ func _shot(file_name: String, solo: String = "") -> void:
 
 func _run() -> void:
 	var only: String = str(Settings.cli.get("only", ""))
-	var shots := ["launch_pad", "launch_ascent", "orbit_station", "docking", "lunar", "asteroids", "reentry", "runway", "celebration", "console_pages", "commander", "virtual"]
+	var shots := ["launch_pad", "launch_ascent", "orbit_station", "docking", "lunar", "asteroids", "reentry", "runway", "celebration", "console_pages", "commander", "virtual", "eva"]
 	for s in shots:
 		if only != "" and not only.split(",").has(s):
 			continue
@@ -291,3 +291,104 @@ func _shot_virtual() -> void:
 		await _shot("%02d_commander_%s" % [i, p.to_lower()], "commander")
 		i += 1
 	cmd.show_page("MISSION CONTROL")
+
+
+## Full-screen render from any camera pose in the main world (astronaut / drone views).
+func _shot_cam(file_name: String, xf: Transform3D, fov: float, cull: int) -> void:
+	var vp := SubViewport.new()
+	vp.size = get_viewport().get_visible_rect().size
+	vp.world_3d = get_viewport().world_3d
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	vp.msaa_3d = Viewport.MSAA_4X
+	var cam := Camera3D.new()
+	cam.fov = fov
+	cam.near = 0.08
+	cam.far = 1.0e6
+	cam.cull_mask = cull
+	vp.add_child(cam)
+	add_child(vp)
+	cam.global_transform = xf
+	cam.current = true
+	await _frames(settle + 2)
+	var img := vp.get_texture().get_image()
+	var path := out_dir.path_join(file_name + ".png")
+	var err := img.save_png(path)
+	print("SCREENSHOT %s %s (%dx%d)" % [path, "ok" if err == OK else "ERROR %d" % err, img.get_width(), img.get_height()])
+	vp.queue_free()
+	await _frames(1)
+
+
+## Spacewalk (flat driver + the test bot, exactly what a VR client streams): the astronaut at
+## the left window, the console suit telemetry + helmet cam, the Commander EVA page, and the
+## astronaut's own view of the ship over Earth.
+func _shot_eva() -> void:
+	Ics.inject_demo()
+	_start("docking")
+	_ticks(1.0)
+	var wv: WorldView = get_parent().get_node("World")
+	var seen := {}
+	var on_ev := func(kind: String, _d: Dictionary) -> void: seen[kind] = true
+	Eva.eva_event.connect(on_ev)
+	Eva.bot = EvaBot.new()
+	if not Eva.start("window", false, "flat"):
+		print("SCREENSHOT eva: could not start (available %s)" % [Eva.available()])
+		return
+	var sim: EvaSim = Eva.sim
+	display.solo_true = true        # the real left-window frustum (where the crew looks)
+	var dt := 1.0 / 30.0
+	var t := 0.0
+	var wave_t := -1.0
+	var knock_shot := false
+	while Eva.active and t < 400.0 and not knock_shot:
+		_ticks(dt, dt)
+		t += dt
+		# step 2 = wave at the crew (from the window pose), step 3 = knock on the glass
+		if sim.step == 2:
+			if wave_t < 0.0:
+				wave_t = t
+			elif t - wave_t > 0.45 and wave_t < 1.0e8:
+				await _shot("34_eva_window_wave", "left")
+				wave_t = 1.0e9
+		if sim.step == 3:
+			if seen.has("knock") and wave_t > 0.0:
+				seen.erase("knock")
+				wave_t = -2.0          # a knock before step 3 (a glove brushing the canopy) does not count
+			elif seen.has("knock") or seen.has("palm"):
+				_ticks(0.1, dt)
+				await _shot("35_eva_window_knock_close", "left")
+				knock_shot = true
+	display.solo_true = false
+	# stop the bot here: the astronaut stays perched at the window for the next shots
+	Eva.bot = null
+	_ticks(0.5, dt)
+	var con: ConsoleUI = display.console
+	con.show_page("EVA")
+	await _frames(4)
+	await _shot("36_console_eva_suit_telemetry", "console")
+	con.show_page("FLIGHT")
+	var cmd: CommanderUI = display.commander
+	cmd.show_page("EVA")
+	await _frames(4)
+	await _shot("37_commander_eva", "commander")
+	cmd.show_page("MISSION CONTROL")
+	var to_world := wv.eva_view.global_transform
+	var pose: Dictionary = wv.eva_view.current_pose()
+	# helmet view: tethered off the roof, Earth behind the ship
+	var head: Transform3D = pose["head"]
+	var e_w := -Vector3(Game.sim.pos.x(), Game.sim.pos.y(), Game.sim.pos.z()).normalized()
+	var e_s := (Game.sim.basis.inverse() * e_w).normalized()
+	# perched on the roof rail behind the canopy, looking past the nose towards Earth
+	var hs := Vector3(0.9, 2.35, -0.6)
+	var look_s := Vector3(0, 0.2, -8.0) + e_s * 6.0
+	var upv := Vector3.UP if absf(e_s.y) < 0.8 else Vector3.FORWARD
+	var hx := Transform3D(Basis.looking_at(look_s - hs, upv), hs)
+	print("  earth dir (ship frame) %s" % e_s)
+	var no_me := 0xFFFFF & ~(Eva.EVA_HEAD_LAYER | Eva.EVA_BODY_LAYER)
+	await _shot_cam("38_eva_astronaut_view_ship_earth", to_world * hx, 80.0, no_me)
+	# drone view of the astronaut at the window
+	await _shot_cam("39_eva_drone_view", CamFeedView.drone_xform(to_world, pose, 2.0), 62.0, 0xFFFFF)
+	Eva.eva_event.disconnect(on_ev)
+	Eva.abort("screenshots done")
+	_ticks(0.5)
+	print("  eva head %s, events %s" % [head.origin, seen.keys()])
+

@@ -5,12 +5,19 @@ extends Node
 ##   godot --path game -- --smoke-test          run every mission headless (cheat-advance)
 ##   godot --path game -- --flight-test         autopilot bots genuinely fly the missions
 ##   godot --path game -- --screenshots=DIR     capture the hero shots (use xvfb + lavapipe)
+##   godot --path game --xr-mode on -- --eva-client   the VR spacewalk client (see EvaClient)
 
 var world: WorldView
 var display: DisplayManager
 
 
 func _ready() -> void:
+	if Settings.is_eva_client():
+		# the VR spacewalk client (2nd process): only the world + the spacewalker's view
+		var c := EvaClient.new()
+		c.name = "EvaClient"
+		add_child(c)
+		return
 	print("The Filament Falcon v0.1 | Godot %s | renderer %s | input map: %s" % [Engine.get_version_info()["string"],
 		RenderingServer.get_current_rendering_method(), InputHub.map_source])
 	for e in InputHub.map_errors:
