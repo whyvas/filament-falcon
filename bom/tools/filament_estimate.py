@@ -24,9 +24,7 @@ def meshes(f):
         yield os.path.basename(f)[:-4], trimesh.load(f,force='mesh')
 for f, (n, m) in ((f, x) for f in sorted(glob.glob(D+'/panels/*.3mf'))+sorted(glob.glob(D+'/parts/*.3mf')) for x in meshes(f)):
     infill = 0.5 if n.startswith('monitor') else (0.45 if n.startswith('harness') else 0.25)
-    p,V=pv(m,infill); q=qty.get(n,1)
-    col='white' if ('WHITE' in n or n in white) else 'black'
-    tot[col]+=p*q; rows.append((n,q,round(V,1),round(p,1),col))
+    add(n, m, qty.get(n, 1), 'white' if n in white else 'black', infill)
 for r in rows: print(r)
 res={c:dict(cm3=round(v,0),kg=round(v*1.27/1000*1.15,2)) for c,v in tot.items()}
 print(json.dumps(res)); json.dump(res,open('/workspace/ff-bom/filament_estimate.json','w'))

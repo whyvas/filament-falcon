@@ -12,6 +12,7 @@ Two+ parts -> every part is its OWN mesh <object> (own base material via pid/pin
   * PrusaSlicer: Metadata/Slic3r_PE_model.config - PrusaSlicer flattens the components into one
     object; the volumes are given by triangle ranges in component order, each with its extruder.
 """
+import json
 import zipfile
 import numpy as np
 
@@ -29,7 +30,14 @@ IDENT = "1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"
 
 
 def _esc(s):
-    return s.replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;")
+    return str(s).replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;")
+
+
+def _hex(col):
+    c = col.strip()
+    if not c.startswith("#"):
+        c = "#" + c
+    return c.upper()
 
 
 def _mesh_xml(m, shift):
@@ -52,10 +60,11 @@ def write_3mf(path, name, parts, offset_xy=(10.0, 10.0)):
         comps = "\n".join(f'    <component objectid="{i + 2}"/>' for i in range(len(parts)))
         objs.append(f'  <object id="{top}" type="model" name="{_esc(name)}">\n   <components>\n{comps}\n   </components>\n  </object>')
     model = f"""<?xml version="1.0" encoding="UTF-8"?>
-<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
+<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:slic3rpe="http://schemas.slic3r.org/3mf/2017/06">
  <metadata name="Title">{_esc(name)}</metadata>
  <metadata name="Designer">The Filament Falcon (github.com/whyvas/filament-falcon)</metadata>
  <metadata name="Application">filament-falcon cad/tools/build.py</metadata>
+ <metadata name="slic3rpe:Version3mf">1</metadata>
  <resources>
   <basematerials id="1">
 {bases}
@@ -70,6 +79,7 @@ def write_3mf(path, name, parts, offset_xy=(10.0, 10.0)):
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("[Content_Types].xml", CT)
         z.writestr("_rels/.rels", RELS)
+        z.writestr("3D/_rels/3dmodel.model.rels", MODEL_RELS)
         z.writestr("3D/3dmodel.model", model)
         if not multi:
             return

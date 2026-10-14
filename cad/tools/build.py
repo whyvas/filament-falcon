@@ -213,6 +213,11 @@ def panel_checks(pid, body, letters):
 
 
 def build_panel(pid):
+    """One multi-material 3MF: black panel object + white letters object.
+
+    The letter object is the through-face lettering plus the 0.8 mm backing box
+    behind each label (the old separate insert's plaque).
+    """
     from threemf import write_3mf
     scad = os.path.join(CAD, "panels", f"{pid}.scad")
     tmp = os.path.join(BUILD, pid)

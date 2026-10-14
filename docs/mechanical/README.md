@@ -27,7 +27,7 @@ Projector dome feasibility: [`projector_dome_study.md`](projector_dome_study.md)
 | Path | What |
 |---|---|
 | `cad/lib/ff_lib.scad` | the parametric library: 40 mm grid, M5 holes, standard cut-outs, light boxes, seams, missile-switch guard |
-| `cad/lib/ff_panel.scad` | panel builder (body, letters, inserts, previews) |
+| `cad/lib/ff_panel.scad` | panel builder (body, letters with backing boxes, previews) |
 | `cad/tools/layouts.py` | **single source of truth** for every lettered panel (controls, labels, LED strip order) |
 | `cad/tools/gen_panels.py` | layouts -> `cad/panels/*.scad` + `shared/panel_labels.json` + layout checks |
 | `cad/tools/build.py` | exports every 3MF, validates it, renders every PNG + the assembled overview |
@@ -174,26 +174,26 @@ Print: **PETG** (not PLA: brittle when cold, creeps), 0.2 mm layers, 6 perimeter
 
 ## Print settings
 
-| | Panels (bodies) | Letters / inserts | Mechanisms, mounts, enclosures |
+| | Panels | Letters (same 3MF, second object) | Mechanisms, mounts, enclosures |
 |---|---|---|---|
 | Material | PETG (preferred, tougher, no creep) or PLA; matte black | PETG/PLA **white** (natural/translucent white diffuses best) | PETG (PETG/ASA for the monitor standoffs, PETG for the harness hub) |
 | Nozzle / layer | 0.4 mm / 0.2 mm (first layer 0.2) | 0.2 mm | 0.2 mm |
-| Walls | 3 perimeters | 2 | 4 (monitor standoffs + harness hub 6) |
+| Walls | 3 perimeters | 2 (boxes and strokes are solid at this size) | 4 (monitor standoffs + harness hub 6) |
 | Infill | 30 % gyroid (body is solid anyway at 3 mm) | 100 % | 40 % gyroid (monitor standoffs 50 %, harness hub 40-50 %) |
-| Orientation | **face down** (the 3MF is already flipped) - smooth front from the bed, light boxes build up | as exported (plaque down) | as exported (flat faces down) |
+| Orientation | **face down**, both objects together (the 3MF is already flipped). Smooth front from the bed; light boxes and the white backing boxes build up | same file, do not move one object | as exported (flat faces down) |
 | Supports | none | none | none (all parts designed support-free) |
 | Bed | smooth PEI or glass gives a glossy face; textured PEI a matte face | | |
 
-Multi-material: purge/prime tower on, "wipe into infill" off (letters must stay
-pure white). On a single-nozzle MMU/AMS, the colour change happens only in the
-3 mm panel layers (~15 layers), so prints stay fast.
+Multi-material is the only panel export. Purge/prime tower on, "wipe into infill"
+off (letters must stay pure white). On a single-nozzle MMU/AMS the colour change
+is the 3 mm of the face plus the 0.8 mm backing boxes behind it.
 
 Every part fits a 220 x 220 mm bed; the overhead, dash and commander panels are
 split along the grid. Printing on a 250 mm+ bed changes nothing.
 
 ## Assumptions to check before printing
 
-- Printer bed >= 220 x 220 mm, multi-material optional (fallback provided).
+- Printer bed >= 220 x 220 mm, with multi-material (two filaments: black panel, white letters).
 - Monitors: Sceptre C275B-144R (VESA 100) and C275W-1920RN (VESA 75), 1800R, see `displays.md`.
 - Touchscreen: ViewSonic TD2220, 511.5 x 310.4 x 66.5 mm - measure and set `TD`, `GAP`, `CUT` in `touchscreen_bezel.scad`.
 - Harness buckles: 35 x 33 x 13 mm female bodies assumed - measure and set them in `harness_hub.scad`.

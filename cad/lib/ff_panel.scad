@@ -57,8 +57,13 @@ module ff_panel_body(which) {
   }
 }
 
-module ff_panel_letters() {
-  translate([0, 0, -FF_T]) linear_extrude(FF_T) ff_letters2d(5);
+// White backing box behind one label. Same rounded plaque as the old separate
+// letter-insert: inset 0.3 mm from the light-box opening so it sits inside the
+// box, 0.8 mm thick, on the panel back. It does not bite into the black body.
+module ff_backing_box(L) {
+  translate([L[1], L[2], -FF_T - FF_PLAQUE_T])
+    linear_extrude(FF_PLAQUE_T) offset(r = 0.6) offset(delta = -0.6 - 0.3)
+      square([L[3], L[4]], center = true);
 }
 
 // rough stand-ins for switches, for renders only

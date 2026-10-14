@@ -9,7 +9,7 @@ A home-built, three-seat spaceship cockpit simulator for a dad and two kids. The
 | Folder | What it is |
 |---|---|
 | [`docs/SPEC.md`](docs/SPEC.md) | Master spec: roles, controls, displays, motion, and the contracts between folders |
-| [`cad/`](cad/) | OpenSCAD sources, 3MF exports (multi-material and single-material + letter inserts), PNG renders |
+| [`cad/`](cad/) | OpenSCAD sources, multi-material 3MF exports (panel and letters are separate objects), PNG renders |
 | [`frame/`](frame/) | Wooden frame drawings, cut list, BOM, recline + pod motion geometry, safety rules |
 | [`docs/mechanical/`](docs/mechanical/) | Print settings, switch BOM, display mounting and cabling, projector-dome study |
 | [`firmware/`](firmware/) | ESP32-S3 USB HID joystick firmware (Falcon Pilot / Ops / Command) + WS2812B driver |
