@@ -8,7 +8,7 @@
 //    GROOVES = [[x0, y0, x1, y1], ...] engraved outline on the front
 //    LABELS  = [[id, cx, cy, iw, ih, full_poly, stencil_poly], ...]
 //              poly = [points, paths]  (letters already in panel coords)
-//    PART    = "mm_body" | "mm_letters" | "sm_body" | "sm_inserts" |
+//    PART    = "mm_body" | "mm_letters" |
 //              "preview" | "assembly"
 //    EXPORT  = true -> rotate into print orientation
 // =====================================================================
@@ -61,17 +61,6 @@ module ff_panel_letters() {
   translate([0, 0, -FF_T]) linear_extrude(FF_T) ff_letters2d(5);
 }
 
-// single-material fallback: white plaque + stencil letters, pressed in from the back
-module ff_panel_inserts() {
-  for (L = LABELS) {
-    translate([L[1], L[2], -FF_T - FF_PLAQUE_T])
-      linear_extrude(FF_PLAQUE_T) offset(r = 0.6) offset(delta = -0.6 - 0.3)
-        square([L[3], L[4]], center = true);
-    translate([0, 0, -FF_T - 0.01]) linear_extrude(FF_T + 0.01)
-      offset(delta = -FF_INSERT_CLR) polygon(points = L[6][0], paths = L[6][1]);
-  }
-}
-
 // rough stand-ins for switches, for renders only
 module ff_dummy(c) {
   t = c[0];
@@ -115,8 +104,6 @@ module ff_export_orient() { rotate([180, 0, 0]) children(); }
 module ff_panel_part(part) {
   if (part == "mm_body")         ff_export_orient() ff_panel_body(5);
   else if (part == "mm_letters") ff_export_orient() ff_panel_letters();
-  else if (part == "sm_body")    ff_export_orient() ff_panel_body(6);
-  else if (part == "sm_inserts") translate([0, 0, FF_T + FF_PLAQUE_T]) ff_panel_inserts();
   else if (part == "preview")    ff_panel_preview(true);
   else if (part == "bare")       ff_panel_preview(false);
   else if (part == "asm_body")   ff_panel_body(5);

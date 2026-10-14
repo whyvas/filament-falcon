@@ -70,15 +70,26 @@ bay opening.
 | `CMD_A` | 200 x 200 | 8 | commander: master power key, mission, start/pause, caution reset, PA, dimmer |
 | `CMD_B` | 200 x 200 | 10 | commander: failure injection + crew **MOTION** (key, FLT/BRD hold-to-run, E-stop) |
 
-67 backlit labels in total; every one is listed (id, panel, text, position, strip
+70 backlit labels in total; every one is listed (id, panel, text, position, strip
 order) in `shared/panel_labels.json`. The bill of switches/buttons/LEDs per panel
 is in [`switch_bom.md`](switch_bom.md).
 
 Files per panel (in `cad/export/3mf/panels/`):
 
-- `<ID>_multimaterial.3mf` - body (extruder 1, black) + letters (extruder 2, white) as two parts of one object. Opens with the colours/extruders already assigned in PrusaSlicer, OrcaSlicer and Bambu Studio. In other slicers: import, then assign the "letters" part to the white filament.
-- `<ID>_single_body.3mf` - single-material fallback: the body with through-pockets where the letters go. Letters with closed counters (A, B, D, O, P, R, 0, 4, 6, 8, 9) use small 1.2 mm stencil bridges so the islands stay attached.
-- `<ID>_single_letter_inserts_WHITE.3mf` - the matching white letters on a 0.8 mm carrier plaque per label. Push the letters into the pockets from the back (0.12 mm clearance per side); the plaque stays behind the panel inside the light box and acts as a diffuser. A drop of thin CA if loose.
+- `<ID>.3mf` - ONE file per panel, two colours. Inside are two separate mesh objects in the
+  same coordinates: the **body** (dark, `#1E1F22`: face, light boxes behind every label, ribs,
+  mounting and switch holes) and the **letters** (white, `#F2F2F2`: full 3 mm thick, filling the
+  through-holes in the face). Each object has its own 3MF base material, and both are grouped as
+  the two parts of one assembly so they can't drift apart.
+  - **Bambu Studio / OrcaSlicer:** opens as one object with two parts, body = filament 1,
+    letters = filament 2 (`Metadata/model_settings.config`). Load filament 1 dark, 2 white.
+  - **PrusaSlicer:** opens as one object with two parts, body = extruder 1, letters = extruder 2
+    (`Metadata/Slic3r_PE_model.config`).
+  - Other slicers: if it asks "load as a single object with multiple parts?", answer **yes**, then
+    give the letters part the white filament.
+  - Print face-down as exported (the face is on the bed): 0.2 mm layers, the white only fills
+    the 3 mm face, so purge is small. Single-colour printer: print the body, then swap filament
+    with a pause at 3.0 mm, or fill the letters with white resin / paint.
 - PNG: `cad/export/png/panels/<ID>_front.png` and `<ID>_back.png`.
 
 ### Back side: LED light boxes

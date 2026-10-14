@@ -2,7 +2,7 @@
  "panels": {
   "PILOT_DASH_A": [
    {
-    "name": "PILOT_DASH_A multi-material body",
+    "name": "PILOT_DASH_A body",
     "faces": 13902,
     "volume_cm3": 111.44,
     "size_mm": [
@@ -26,33 +26,21 @@
     "problems": []
    },
    {
-    "name": "PILOT_DASH_A single-material body",
-    "faces": 12638,
-    "volume_cm3": 111.69,
-    "size_mm": [
-     199.5,
-     159.5,
-     15.8
+    "name": "PILOT_DASH_A light boxes / letters / overlap",
+    "labels": 7,
+    "lightbox_walls_found": 14,
+    "lightbox_walls_expected": 14,
+    "letters_z_mm": [
+     0.0,
+     3.0
     ],
-    "watertight": true,
-    "problems": []
-   },
-   {
-    "name": "PILOT_DASH_A letter inserts",
-    "faces": 6994,
-    "volume_cm3": 3.47,
-    "size_mm": [
-     176.3,
-     77.0,
-     3.8
-    ],
-    "watertight": true,
+    "overlap_mm3": 0.0,
     "problems": []
    }
   ],
   "PILOT_DASH_B": [
    {
-    "name": "PILOT_DASH_B multi-material body",
+    "name": "PILOT_DASH_B body",
     "faces": 12370,
     "volume_cm3": 113.99,
     "size_mm": [
@@ -76,33 +64,21 @@
     "problems": []
    },
    {
-    "name": "PILOT_DASH_B single-material body",
-    "faces": 11140,
-    "volume_cm3": 114.25,
-    "size_mm": [
-     199.5,
-     159.5,
-     15.8
+    "name": "PILOT_DASH_B light boxes / letters / overlap",
+    "labels": 8,
+    "lightbox_walls_found": 16,
+    "lightbox_walls_expected": 16,
+    "letters_z_mm": [
+     0.0,
+     3.0
     ],
-    "watertight": true,
-    "problems": []
-   },
-   {
-    "name": "PILOT_DASH_B letter inserts",
-    "faces": 7032,
-    "volume_cm3": 3.1,
-    "size_mm": [
-     152.9,
-     76.0,
-     3.8
-    ],
-    "watertight": true,
+    "overlap_mm3": 0.0,
     "problems": []
    }
   ],
   "PILOT_SIDE": [
    {
-    "name": "PILOT_SIDE multi-material body",
+    "name": "PILOT_SIDE body",
     "faces": 8676,
     "volume_cm3": 104.86,
     "size_mm": [
@@ -126,33 +102,21 @@
     "problems": []
    },
    {
-    "name": "PILOT_SIDE single-material body",
-    "faces": 8032,
-    "volume_cm3": 105.0,
-    "size_mm": [
-     199.5,
-     159.5,
-     15.8
+    "name": "PILOT_SIDE light boxes / letters / overlap",
+    "labels": 7,
+    "lightbox_walls_found": 14,
+    "lightbox_walls_expected": 14,
+    "letters_z_mm": [
+     0.0,
+     3.0
     ],
-    "watertight": true,
-    "problems": []
-   },
-   {
-    "name": "PILOT_SIDE letter inserts",
-    "faces": 4110,
-    "volume_cm3": 2.12,
-    "size_mm": [
-     112.3,
-     103.0,
-     3.8
-    ],
-    "watertight": true,
+    "overlap_mm3": 0.0,
     "problems": []
    }
   ],
   "OPS_DASH_A": [
    {
-    "name": "OPS_DASH_A multi-material body",
+    "name": "OPS_DASH_A body",
     "faces": 15346,
     "volume_cm3": 112.79,
     "size_mm": [
@@ -176,33 +140,21 @@
     "problems": []
    },
    {
-    "name": "OPS_DASH_A single-material body",
-    "faces": 14062,
-    "volume_cm3": 113.04,
-    "size_mm": [
-     199.5,
-     159.5,
-     15.8
+    "name": "OPS_DASH_A light boxes / letters / overlap",
+    "labels": 6,
+    "lightbox_walls_found": 12,
+    "lightbox_walls_expected": 12,
+    "letters_z_mm": [
+     0.0,
+     3.0
     ],
-    "watertight": true,
-    "problems": []
-   },
-   {
-    "name": "OPS_DASH_A letter inserts",
-    "faces": 8352,
-    "volume_cm3": 3.47,
-    "size_mm": [
-     169.1,
-     68.0,
-     3.8
-    ],
-    "watertight": true,
+    "overlap_mm3": 0.0,
     "problems": []
    }
   ],
   "OPS_DASH_B": [
    {
-    "name": "OPS_DASH_B multi-material body",
+    "name": "OPS_DASH_B body",
     "faces": 14644,
     "volume_cm3": 115.0,
     "size_mm": [
@@ -226,33 +178,21 @@
     "problems": []
    },
    {
-    "name": "OPS_DASH_B single-material body",
-    "faces": 13234,
-    "volume_cm3": 115.31,
-    "size_mm": [
-     199.5,
-     159.5,
-     15.8
+    "name": "OPS_DASH_B light boxes / letters / overlap",
+    "labels": 8,
+    "lightbox_walls_found": 16,
+    "lightbox_walls_expected": 16,
+    "letters_z_mm": [
+     0.0,
+     3.0
     ],
-    "watertight": true,
-    "problems": []
-   },
-   {
-    "name": "OPS_DASH_B letter inserts",
-    "faces": 8544,
-    "volume_cm3": 3.9,
-    "size_mm": [
-     166.2,
-     70.0,
-     3.8
-    ],
-    "watertight": true,
+    "overlap_mm3": 0.0,
     "problems": []
    }
   ],
   "OPS_SIDE": [
    {
-    "name": "OPS_SIDE multi-material body",
+    "name": "OPS_SIDE body",
     "faces": 11170,
     "volume_cm3": 108.43,
     "size_mm": [
@@ -276,33 +216,21 @@
     "problems": []
    },
    {
-    "name": "OPS_SIDE single-material body",
-    "faces": 10366,
-    "volume_cm3": 108.62,
-    "size_mm": [
-     199.5,
-     159.5,
-     15.8
+    "name": "OPS_SIDE light boxes / letters / overlap",
+    "labels": 5,
+    "lightbox_walls_found": 10,
+    "lightbox_walls_expected": 10,
+    "letters_z_mm": [
+     0.0,
+     3.0
     ],
-    "watertight": true,
-    "problems": []
-   },
-   {
-    "name": "OPS_SIDE letter inserts",
-    "faces": 5900,
-    "volume_cm3": 3.22,
-    "size_mm": [
-     180.2,
-     104.7,
-     3.8
-    ],
-    "watertight": true,
+    "overlap_mm3": 0.0,
     "problems": []
    }
   ],
   "OVERHEAD_A": [
    {
-    "name": "OVERHEAD_A multi-material body",
+    "name": "OVERHEAD_A body",
     "faces": 7828,
     "volume_cm3": 82.2,
     "size_mm": [
@@ -326,33 +254,21 @@
     "problems": []
    },
    {
-    "name": "OVERHEAD_A single-material body",
-    "faces": 7304,
-    "volume_cm3": 82.31,
-    "size_mm": [
-     199.5,
-     119.5,
-     15.8
+    "name": "OVERHEAD_A light boxes / letters / overlap",
+    "labels": 3,
+    "lightbox_walls_found": 6,
+    "lightbox_walls_expected": 6,
+    "letters_z_mm": [
+     0.0,
+     3.0
     ],
-    "watertight": true,
-    "problems": []
-   },
-   {
-    "name": "OVERHEAD_A letter inserts",
-    "faces": 3620,
-    "volume_cm3": 1.81,
-    "size_mm": [
-     165.9,
-     12.0,
-     3.8
-    ],
-    "watertight": true,
+    "overlap_mm3": 0.0,
     "problems": []
    }
   ],
   "OVERHEAD_B": [
    {
-    "name": "OVERHEAD_B multi-material body",
+    "name": "OVERHEAD_B body",
     "faces": 8240,
     "volume_cm3": 82.62,
     "size_mm": [
@@ -376,33 +292,21 @@
     "problems": []
    },
    {
-    "name": "OVERHEAD_B single-material body",
-    "faces": 7632,
-    "volume_cm3": 82.76,
-    "size_mm": [
-     199.5,
-     119.5,
-     15.8
+    "name": "OVERHEAD_B light boxes / letters / overlap",
+    "labels": 3,
+    "lightbox_walls_found": 6,
+    "lightbox_walls_expected": 6,
+    "letters_z_mm": [
+     0.0,
+     3.0
     ],
-    "watertight": true,
-    "problems": []
-   },
-   {
-    "name": "OVERHEAD_B letter inserts",
-    "faces": 3794,
-    "volume_cm3": 2.03,
-    "size_mm": [
-     176.3,
-     12.0,
-     3.8
-    ],
-    "watertight": true,
+    "overlap_mm3": 0.0,
     "problems": []
    }
   ],
   "OVERHEAD_C": [
    {
-    "name": "OVERHEAD_C multi-material body",
+    "name": "OVERHEAD_C body",
     "faces": 9754,
     "volume_cm3": 83.33,
     "size_mm": [
@@ -426,33 +330,21 @@
     "problems": []
    },
    {
-    "name": "OVERHEAD_C single-material body",
-    "faces": 9022,
-    "volume_cm3": 83.46,
-    "size_mm": [
-     199.5,
-     119.5,
-     15.8
+    "name": "OVERHEAD_C light boxes / letters / overlap",
+    "labels": 4,
+    "lightbox_walls_found": 8,
+    "lightbox_walls_expected": 8,
+    "letters_z_mm": [
+     0.0,
+     3.0
     ],
-    "watertight": true,
-    "problems": []
-   },
-   {
-    "name": "OVERHEAD_C letter inserts",
-    "faces": 4956,
-    "volume_cm3": 2.13,
-    "size_mm": [
-     184.2,
-     21.0,
-     3.8
-    ],
-    "watertight": true,
+    "overlap_mm3": 0.0,
     "problems": []
    }
   ],
   "CMD_A": [
    {
-    "name": "CMD_A multi-material body",
+    "name": "CMD_A body",
     "faces": 18420,
     "volume_cm3": 137.4,
     "size_mm": [
@@ -476,33 +368,21 @@
     "problems": []
    },
    {
-    "name": "CMD_A single-material body",
-    "faces": 16720,
-    "volume_cm3": 137.77,
-    "size_mm": [
-     199.5,
-     199.5,
-     15.8
+    "name": "CMD_A light boxes / letters / overlap",
+    "labels": 9,
+    "lightbox_walls_found": 18,
+    "lightbox_walls_expected": 18,
+    "letters_z_mm": [
+     0.0,
+     3.0
     ],
-    "watertight": true,
-    "problems": []
-   },
-   {
-    "name": "CMD_A letter inserts",
-    "faces": 10810,
-    "volume_cm3": 5.43,
-    "size_mm": [
-     184.2,
-     122.0,
-     3.8
-    ],
-    "watertight": true,
+    "overlap_mm3": 0.0,
     "problems": []
    }
   ],
   "CMD_B": [
    {
-    "name": "CMD_B multi-material body",
+    "name": "CMD_B body",
     "faces": 18606,
     "volume_cm3": 139.21,
     "size_mm": [
@@ -526,27 +406,15 @@
     "problems": []
    },
    {
-    "name": "CMD_B single-material body",
-    "faces": 16804,
-    "volume_cm3": 139.57,
-    "size_mm": [
-     199.5,
-     199.5,
-     15.8
+    "name": "CMD_B light boxes / letters / overlap",
+    "labels": 10,
+    "lightbox_walls_found": 20,
+    "lightbox_walls_expected": 20,
+    "letters_z_mm": [
+     0.0,
+     3.0
     ],
-    "watertight": true,
-    "problems": []
-   },
-   {
-    "name": "CMD_B letter inserts",
-    "faces": 11778,
-    "volume_cm3": 6.06,
-    "size_mm": [
-     158.9,
-     152.7,
-     3.8
-    ],
-    "watertight": true,
+    "overlap_mm3": 0.0,
     "problems": []
    }
   ]
@@ -988,325 +856,552 @@
   }
  },
  "files": {
-  "cad/export/3mf/panels/PILOT_DASH_A_multimaterial.3mf": {
-   "lib3mf_objects": 1,
+  "cad/export/3mf/panels/PILOT_DASH_A.3mf": {
+   "lib3mf_objects": 2,
    "lib3mf_triangles": 21882,
-   "trimesh_triangles": 21882
+   "trimesh_geometries": 2,
+   "trimesh_triangles": 21882,
+   "problems": [],
+   "colours": [
+    "#1E1F22FF",
+    "#F2F2F2FF"
+   ],
+   "object_materials": [
+    [
+     "1",
+     "0"
+    ],
+    [
+     "1",
+     "1"
+    ]
+   ],
+   "components": 2,
+   "extruders_bambu_orca": [
+    "1",
+    "2"
+   ],
+   "extruders_prusa": [
+    "1",
+    "2"
+   ]
   },
-  "cad/export/3mf/panels/PILOT_DASH_A_single_body.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 12638,
-   "trimesh_triangles": 12638
-  },
-  "cad/export/3mf/panels/PILOT_DASH_A_single_letter_inserts_WHITE.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 6994,
-   "trimesh_triangles": 6994
-  },
-  "cad/export/3mf/panels/PILOT_DASH_B_multimaterial.3mf": {
-   "lib3mf_objects": 1,
+  "cad/export/3mf/panels/PILOT_DASH_B.3mf": {
+   "lib3mf_objects": 2,
    "lib3mf_triangles": 19998,
-   "trimesh_triangles": 19998
+   "trimesh_geometries": 2,
+   "trimesh_triangles": 19998,
+   "problems": [],
+   "colours": [
+    "#1E1F22FF",
+    "#F2F2F2FF"
+   ],
+   "object_materials": [
+    [
+     "1",
+     "0"
+    ],
+    [
+     "1",
+     "1"
+    ]
+   ],
+   "components": 2,
+   "extruders_bambu_orca": [
+    "1",
+    "2"
+   ],
+   "extruders_prusa": [
+    "1",
+    "2"
+   ]
   },
-  "cad/export/3mf/panels/PILOT_DASH_B_single_body.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 11140,
-   "trimesh_triangles": 11140
-  },
-  "cad/export/3mf/panels/PILOT_DASH_B_single_letter_inserts_WHITE.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 7032,
-   "trimesh_triangles": 7032
-  },
-  "cad/export/3mf/panels/PILOT_SIDE_multimaterial.3mf": {
-   "lib3mf_objects": 1,
+  "cad/export/3mf/panels/PILOT_SIDE.3mf": {
+   "lib3mf_objects": 2,
    "lib3mf_triangles": 12644,
-   "trimesh_triangles": 12644
+   "trimesh_geometries": 2,
+   "trimesh_triangles": 12644,
+   "problems": [],
+   "colours": [
+    "#1E1F22FF",
+    "#F2F2F2FF"
+   ],
+   "object_materials": [
+    [
+     "1",
+     "0"
+    ],
+    [
+     "1",
+     "1"
+    ]
+   ],
+   "components": 2,
+   "extruders_bambu_orca": [
+    "1",
+    "2"
+   ],
+   "extruders_prusa": [
+    "1",
+    "2"
+   ]
   },
-  "cad/export/3mf/panels/PILOT_SIDE_single_body.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 8032,
-   "trimesh_triangles": 8032
-  },
-  "cad/export/3mf/panels/PILOT_SIDE_single_letter_inserts_WHITE.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 4110,
-   "trimesh_triangles": 4110
-  },
-  "cad/export/3mf/panels/OPS_DASH_A_multimaterial.3mf": {
-   "lib3mf_objects": 1,
+  "cad/export/3mf/panels/OPS_DASH_A.3mf": {
+   "lib3mf_objects": 2,
    "lib3mf_triangles": 24834,
-   "trimesh_triangles": 24834
+   "trimesh_geometries": 2,
+   "trimesh_triangles": 24834,
+   "problems": [],
+   "colours": [
+    "#1E1F22FF",
+    "#F2F2F2FF"
+   ],
+   "object_materials": [
+    [
+     "1",
+     "0"
+    ],
+    [
+     "1",
+     "1"
+    ]
+   ],
+   "components": 2,
+   "extruders_bambu_orca": [
+    "1",
+    "2"
+   ],
+   "extruders_prusa": [
+    "1",
+    "2"
+   ]
   },
-  "cad/export/3mf/panels/OPS_DASH_A_single_body.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 14062,
-   "trimesh_triangles": 14062
-  },
-  "cad/export/3mf/panels/OPS_DASH_A_single_letter_inserts_WHITE.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 8352,
-   "trimesh_triangles": 8352
-  },
-  "cad/export/3mf/panels/OPS_DASH_B_multimaterial.3mf": {
-   "lib3mf_objects": 1,
+  "cad/export/3mf/panels/OPS_DASH_B.3mf": {
+   "lib3mf_objects": 2,
    "lib3mf_triangles": 24252,
-   "trimesh_triangles": 24252
+   "trimesh_geometries": 2,
+   "trimesh_triangles": 24252,
+   "problems": [],
+   "colours": [
+    "#1E1F22FF",
+    "#F2F2F2FF"
+   ],
+   "object_materials": [
+    [
+     "1",
+     "0"
+    ],
+    [
+     "1",
+     "1"
+    ]
+   ],
+   "components": 2,
+   "extruders_bambu_orca": [
+    "1",
+    "2"
+   ],
+   "extruders_prusa": [
+    "1",
+    "2"
+   ]
   },
-  "cad/export/3mf/panels/OPS_DASH_B_single_body.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 13234,
-   "trimesh_triangles": 13234
-  },
-  "cad/export/3mf/panels/OPS_DASH_B_single_letter_inserts_WHITE.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 8544,
-   "trimesh_triangles": 8544
-  },
-  "cad/export/3mf/panels/OPS_SIDE_multimaterial.3mf": {
-   "lib3mf_objects": 1,
+  "cad/export/3mf/panels/OPS_SIDE.3mf": {
+   "lib3mf_objects": 2,
    "lib3mf_triangles": 17442,
-   "trimesh_triangles": 17442
+   "trimesh_geometries": 2,
+   "trimesh_triangles": 17442,
+   "problems": [],
+   "colours": [
+    "#1E1F22FF",
+    "#F2F2F2FF"
+   ],
+   "object_materials": [
+    [
+     "1",
+     "0"
+    ],
+    [
+     "1",
+     "1"
+    ]
+   ],
+   "components": 2,
+   "extruders_bambu_orca": [
+    "1",
+    "2"
+   ],
+   "extruders_prusa": [
+    "1",
+    "2"
+   ]
   },
-  "cad/export/3mf/panels/OPS_SIDE_single_body.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 10366,
-   "trimesh_triangles": 10366
-  },
-  "cad/export/3mf/panels/OPS_SIDE_single_letter_inserts_WHITE.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 5900,
-   "trimesh_triangles": 5900
-  },
-  "cad/export/3mf/panels/OVERHEAD_A_multimaterial.3mf": {
-   "lib3mf_objects": 1,
+  "cad/export/3mf/panels/OVERHEAD_A.3mf": {
+   "lib3mf_objects": 2,
    "lib3mf_triangles": 11948,
-   "trimesh_triangles": 11948
+   "trimesh_geometries": 2,
+   "trimesh_triangles": 11948,
+   "problems": [],
+   "colours": [
+    "#1E1F22FF",
+    "#F2F2F2FF"
+   ],
+   "object_materials": [
+    [
+     "1",
+     "0"
+    ],
+    [
+     "1",
+     "1"
+    ]
+   ],
+   "components": 2,
+   "extruders_bambu_orca": [
+    "1",
+    "2"
+   ],
+   "extruders_prusa": [
+    "1",
+    "2"
+   ]
   },
-  "cad/export/3mf/panels/OVERHEAD_A_single_body.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 7304,
-   "trimesh_triangles": 7304
-  },
-  "cad/export/3mf/panels/OVERHEAD_A_single_letter_inserts_WHITE.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 3620,
-   "trimesh_triangles": 3620
-  },
-  "cad/export/3mf/panels/OVERHEAD_B_multimaterial.3mf": {
-   "lib3mf_objects": 1,
+  "cad/export/3mf/panels/OVERHEAD_B.3mf": {
+   "lib3mf_objects": 2,
    "lib3mf_triangles": 12704,
-   "trimesh_triangles": 12704
+   "trimesh_geometries": 2,
+   "trimesh_triangles": 12704,
+   "problems": [],
+   "colours": [
+    "#1E1F22FF",
+    "#F2F2F2FF"
+   ],
+   "object_materials": [
+    [
+     "1",
+     "0"
+    ],
+    [
+     "1",
+     "1"
+    ]
+   ],
+   "components": 2,
+   "extruders_bambu_orca": [
+    "1",
+    "2"
+   ],
+   "extruders_prusa": [
+    "1",
+    "2"
+   ]
   },
-  "cad/export/3mf/panels/OVERHEAD_B_single_body.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 7632,
-   "trimesh_triangles": 7632
-  },
-  "cad/export/3mf/panels/OVERHEAD_B_single_letter_inserts_WHITE.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 3794,
-   "trimesh_triangles": 3794
-  },
-  "cad/export/3mf/panels/OVERHEAD_C_multimaterial.3mf": {
-   "lib3mf_objects": 1,
+  "cad/export/3mf/panels/OVERHEAD_C.3mf": {
+   "lib3mf_objects": 2,
    "lib3mf_triangles": 15334,
-   "trimesh_triangles": 15334
+   "trimesh_geometries": 2,
+   "trimesh_triangles": 15334,
+   "problems": [],
+   "colours": [
+    "#1E1F22FF",
+    "#F2F2F2FF"
+   ],
+   "object_materials": [
+    [
+     "1",
+     "0"
+    ],
+    [
+     "1",
+     "1"
+    ]
+   ],
+   "components": 2,
+   "extruders_bambu_orca": [
+    "1",
+    "2"
+   ],
+   "extruders_prusa": [
+    "1",
+    "2"
+   ]
   },
-  "cad/export/3mf/panels/OVERHEAD_C_single_body.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 9022,
-   "trimesh_triangles": 9022
-  },
-  "cad/export/3mf/panels/OVERHEAD_C_single_letter_inserts_WHITE.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 4956,
-   "trimesh_triangles": 4956
-  },
-  "cad/export/3mf/panels/CMD_A_multimaterial.3mf": {
-   "lib3mf_objects": 1,
+  "cad/export/3mf/panels/CMD_A.3mf": {
+   "lib3mf_objects": 2,
    "lib3mf_triangles": 30864,
-   "trimesh_triangles": 30864
+   "trimesh_geometries": 2,
+   "trimesh_triangles": 30864,
+   "problems": [],
+   "colours": [
+    "#1E1F22FF",
+    "#F2F2F2FF"
+   ],
+   "object_materials": [
+    [
+     "1",
+     "0"
+    ],
+    [
+     "1",
+     "1"
+    ]
+   ],
+   "components": 2,
+   "extruders_bambu_orca": [
+    "1",
+    "2"
+   ],
+   "extruders_prusa": [
+    "1",
+    "2"
+   ]
   },
-  "cad/export/3mf/panels/CMD_A_single_body.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 16720,
-   "trimesh_triangles": 16720
-  },
-  "cad/export/3mf/panels/CMD_A_single_letter_inserts_WHITE.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 10810,
-   "trimesh_triangles": 10810
-  },
-  "cad/export/3mf/panels/CMD_B_multimaterial.3mf": {
-   "lib3mf_objects": 1,
+  "cad/export/3mf/panels/CMD_B.3mf": {
+   "lib3mf_objects": 2,
    "lib3mf_triangles": 31738,
-   "trimesh_triangles": 31738
-  },
-  "cad/export/3mf/panels/CMD_B_single_body.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 16804,
-   "trimesh_triangles": 16804
-  },
-  "cad/export/3mf/panels/CMD_B_single_letter_inserts_WHITE.3mf": {
-   "lib3mf_objects": 1,
-   "lib3mf_triangles": 11778,
-   "trimesh_triangles": 11778
+   "trimesh_geometries": 2,
+   "trimesh_triangles": 31738,
+   "problems": [],
+   "colours": [
+    "#1E1F22FF",
+    "#F2F2F2FF"
+   ],
+   "object_materials": [
+    [
+     "1",
+     "0"
+    ],
+    [
+     "1",
+     "1"
+    ]
+   ],
+   "components": 2,
+   "extruders_bambu_orca": [
+    "1",
+    "2"
+   ],
+   "extruders_prusa": [
+    "1",
+    "2"
+   ]
   },
   "cad/export/3mf/parts/toggle_guard_base.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 592,
-   "trimesh_triangles": 592
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 592,
+   "problems": []
   },
   "cad/export/3mf/parts/toggle_guard_lid_RED.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 264,
-   "trimesh_triangles": 264
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 264,
+   "problems": []
   },
   "cad/export/3mf/parts/engage_button_collar.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 1434,
-   "trimesh_triangles": 1434
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 1434,
+   "problems": []
   },
   "cad/export/3mf/parts/alignment_pins_x8.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 2080,
-   "trimesh_triangles": 2080
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 2080,
+   "problems": []
   },
   "cad/export/3mf/parts/throttle_housing.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 3060,
-   "trimesh_triangles": 3060
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 3060,
+   "problems": []
   },
   "cad/export/3mf/parts/throttle_lever.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 756,
-   "trimesh_triangles": 756
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 756,
+   "problems": []
   },
   "cad/export/3mf/parts/throttle_grip.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 2438,
-   "trimesh_triangles": 2438
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 2438,
+   "problems": []
   },
   "cad/export/3mf/parts/gear_lever_box.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 2686,
-   "trimesh_triangles": 2686
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 2686,
+   "problems": []
   },
   "cad/export/3mf/parts/gear_lever_arm.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 516,
-   "trimesh_triangles": 516
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 516,
+   "problems": []
   },
   "cad/export/3mf/parts/gear_lever_wheel_knob.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 1488,
-   "trimesh_triangles": 1488
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 1488,
+   "problems": []
   },
   "cad/export/3mf/parts/joystick_housing.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 3454,
-   "trimesh_triangles": 3454
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 3454,
+   "problems": []
   },
   "cad/export/3mf/parts/joystick_adapter_plate.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 4160,
-   "trimesh_triangles": 4160
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 4160,
+   "problems": []
   },
   "cad/export/3mf/parts/esp32_enclosure_base.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 4806,
-   "trimesh_triangles": 4806
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 4806,
+   "problems": []
   },
   "cad/export/3mf/parts/esp32_enclosure_lid_PILOT.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 3708,
-   "trimesh_triangles": 3708
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 3708,
+   "problems": []
   },
   "cad/export/3mf/parts/esp32_enclosure_lid_OPS.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 4458,
-   "trimesh_triangles": 4458
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 4458,
+   "problems": []
   },
   "cad/export/3mf/parts/esp32_enclosure_lid_COMMAND.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 4648,
-   "trimesh_triangles": 4648
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 4648,
+   "problems": []
   },
   "cad/export/3mf/parts/cable_clips_set.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 9172,
-   "trimesh_triangles": 9172
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 9172,
+   "problems": []
   },
   "cad/export/3mf/parts/limit_switch_mount.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 884,
-   "trimesh_triangles": 884
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 884,
+   "problems": []
   },
   "cad/export/3mf/parts/monitor_standoff_C275B_vesa100.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 4878,
-   "trimesh_triangles": 4878
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 4878,
+   "problems": []
   },
   "cad/export/3mf/parts/monitor_standoff_C275W_vesa75.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 4656,
-   "trimesh_triangles": 4656
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 4656,
+   "problems": []
   },
   "cad/export/3mf/parts/td2220_trim_corner_front_left.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 890,
-   "trimesh_triangles": 890
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 890,
+   "problems": []
   },
   "cad/export/3mf/parts/td2220_trim_corner_front_right.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 1028,
-   "trimesh_triangles": 1028
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 1028,
+   "problems": []
   },
   "cad/export/3mf/parts/td2220_trim_corner_rear_left.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 1030,
-   "trimesh_triangles": 1030
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 1030,
+   "problems": []
   },
   "cad/export/3mf/parts/td2220_trim_corner_rear_right.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 890,
-   "trimesh_triangles": 890
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 890,
+   "problems": []
   },
   "cad/export/3mf/parts/td2220_trim_middle_front.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 576,
-   "trimesh_triangles": 576
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 576,
+   "problems": []
   },
   "cad/export/3mf/parts/td2220_trim_middle_rear.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 2440,
-   "trimesh_triangles": 2440
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 2440,
+   "problems": []
   },
   "cad/export/3mf/parts/td2220_vesa100_riser.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 950,
-   "trimesh_triangles": 950
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 950,
+   "problems": []
   },
   "cad/export/3mf/parts/harness_hub_base.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 3482,
-   "trimesh_triangles": 3482
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 3482,
+   "problems": []
   },
   "cad/export/3mf/parts/harness_hub_lid.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 6652,
-   "trimesh_triangles": 6652
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 6652,
+   "problems": []
   },
   "cad/export/3mf/parts/pivot_cable_clamp_base.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 1998,
-   "trimesh_triangles": 1998
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 1998,
+   "problems": []
   },
   "cad/export/3mf/parts/pivot_cable_clamp_cap.3mf": {
    "lib3mf_objects": 1,
    "lib3mf_triangles": 886,
-   "trimesh_triangles": 886
+   "trimesh_geometries": 1,
+   "trimesh_triangles": 886,
+   "problems": []
   }
  }
 }

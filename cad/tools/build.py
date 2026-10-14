@@ -17,6 +17,7 @@ OUT3 = os.path.join(CAD, "export", "3mf")
 OUTP = os.path.join(CAD, "export", "png")
 BUILD = os.path.join(CAD, "build")          # cache (git-ignored)
 BED = 220.0
+FF_T = 3.0
 BLACK, WHITE, RED, GREY = "#1E1F22", "#F2F2F2", "#C81E1E", "#55575C"
 
 # (scad file, PART, extra -D, output name, colour, copies to print)
@@ -133,20 +134,82 @@ def check(m, name, single_shell=False, bed=True):
 
 
 def verify_3mf(path, expect_parts):
-    import lib3mf
+    """Re-open the written 3MF: lib3mf mesh objects, trimesh geometries, and (multi-part) the XML
+    structure: one assembly of separate mesh objects, each with its own base material, plus the
+    Bambu/Orca and PrusaSlicer extruder metadata."""
+    import lib3mf, zipfile
+    import xml.etree.ElementTree as ET
     w = lib3mf.get_wrapper()
     model = w.CreateModel()
     model.QueryReader("3mf").ReadFromFile(path)
     it = model.GetMeshObjects()
-    n = 0
-    tri = 0
+    n = tri = 0
     while it.MoveNext():
-        o = it.GetCurrentMeshObject()
-        tri += o.GetTriangleCount()
+        tri += it.GetCurrentMeshObject().GetTriangleCount()
         n += 1
     sc = trimesh.load(path)
     geoms = list(sc.geometry.values()) if hasattr(sc, "geometry") else [sc]
-    return dict(lib3mf_objects=n, lib3mf_triangles=tri, trimesh_triangles=sum(len(g.faces) for g in geoms))
+    out = dict(lib3mf_objects=n, lib3mf_triangles=tri, trimesh_geometries=len(geoms),
+               trimesh_triangles=sum(len(g.faces) for g in geoms), problems=[])
+    if n != expect_parts:
+        out["problems"].append(f"{n} mesh objects, expected {expect_parts}")
+    if expect_parts > 1:
+        z = zipfile.ZipFile(path)
+        ns = {"m": "http://schemas.microsoft.com/3dmanufacturing/core/2015/02"}
+        root = ET.fromstring(z.read("3D/3dmodel.model"))
+        cols = [b.get("displaycolor") for b in root.findall(".//m:basematerials/m:base", ns)]
+        meshes = [o for o in root.findall(".//m:object", ns) if o.find("m:mesh", ns) is not None]
+        mats = [(o.get("pid"), o.get("pindex")) for o in meshes]
+        comps = root.findall(".//m:components/m:component", ns)
+        bb = ET.fromstring(z.read("Metadata/model_settings.config"))
+        ext_bb = [p.find("metadata[@key='extruder']").get("value") for p in bb.iter("part")]
+        ps = ET.fromstring(z.read("Metadata/Slic3r_PE_model.config"))
+        ext_ps = [v.find("metadata[@key='extruder']").get("value") for v in ps.iter("volume")]
+        out.update(colours=cols, object_materials=mats, components=len(comps), extruders_bambu_orca=ext_bb,
+                   extruders_prusa=ext_ps)
+        if len(set(mats)) != len(meshes) or len(set(cols)) != len(cols):
+            out["problems"].append("objects do not have distinct materials")
+        if len(comps) != len(meshes) or len(set(ext_bb)) != len(meshes) or ext_bb != ext_ps:
+            out["problems"].append("assembly / extruder metadata inconsistent")
+    return out
+
+
+def _inside_z_ray(m, p):
+    """point-in-mesh by counting crossings of a +z ray (no rtree needed)."""
+    t = m.triangles
+    a, b, c = t[:, 0, :2] - p[:2], t[:, 1, :2] - p[:2], t[:, 2, :2] - p[:2]
+    cr = lambda u, v: u[:, 0] * v[:, 1] - u[:, 1] * v[:, 0]
+    d1, d2, d3 = cr(a, b), cr(b, c), cr(c, a)
+    hit = ((d1 > 0) & (d2 > 0) & (d3 > 0)) | ((d1 < 0) & (d2 < 0) & (d3 < 0))
+    tot = d1 + d2 + d3
+    with np.errstate(invalid="ignore", divide="ignore"):
+        z = (d2 * t[:, 0, 2] + d3 * t[:, 1, 2] + d1 * t[:, 2, 2]) / tot
+    return int(np.count_nonzero(hit & (z > p[2]))) % 2 == 1
+
+
+def panel_checks(pid, body, letters):
+    """light box behind every label, full-thickness letters, letters vs body overlap."""
+    probs = []
+    labels = [l for l in json.load(open(os.path.join(ROOT, "shared", "panel_labels.json")))["labels"] if l["panel"] == pid]
+    lz = letters.bounds[:, 2]
+    if abs(lz[0] - 0) > 0.02 or abs(lz[1] - FF_T) > 0.02:
+        probs.append(f"letters z {lz.round(3).tolist()} not the full {FF_T} mm face")
+    # export orientation = rotate 180 about X: y -> -y, back of the panel is z > FF_T
+    pts, owner = [], []
+    for l in labels:
+        hh = max(12.6, l["cap_height_mm"] + 6.0) / 2 + 0.8   # middle of the 1.6 mm long walls (end walls have strip notches)
+        for dy in (-hh, hh):
+            pts.append((l["x_mm"], -(l["y_mm"] + dy), FF_T + 1.5)); owner.append(l["id"])
+    inside = np.array([_inside_z_ray(body, p_) for p_ in pts])
+    missing = sorted({o for o, ok in zip(owner, inside) if not ok})
+    if missing:
+        probs.append(f"no light-box wall behind {missing}")
+    inter = trimesh.boolean.intersection([body, letters])
+    ov = float(inter.volume) if inter is not None and len(inter.faces) else 0.0
+    if ov > 0.05 * letters.area / 2:       # > 0.05 mm average over the letter side walls
+        probs.append(f"letters overlap the body by {ov:.2f} mm3")
+    return dict(name=f"{pid} light boxes / letters / overlap", labels=len(labels), lightbox_walls_found=int(inside.sum()),
+                lightbox_walls_expected=len(pts), letters_z_mm=lz.round(3).tolist(), overlap_mm3=round(ov, 3), problems=probs)
 
 
 def build_panel(pid):
@@ -155,24 +218,20 @@ def build_panel(pid):
     tmp = os.path.join(BUILD, pid)
     os.makedirs(tmp, exist_ok=True)
     meshes = {}
-    for part in ("mm_body", "mm_letters", "sm_body", "sm_inserts"):
+    for part in ("mm_body", "mm_letters"):
         meshes[part] = load(OS.export(scad, os.path.join(tmp, f"{part}.stl"), {"PART": part}))
-    # unrotated copies for the assembly render
-    for part, d in (("body", {"PART": "mm_body"}), ("letters", {"PART": "mm_letters"})):
-        pass
-    res = [check(meshes["mm_body"], f"{pid} multi-material body"),
+    res = [check(meshes["mm_body"], f"{pid} body"),
            check(meshes["mm_letters"], f"{pid} letters"),
-           check(meshes["sm_body"], f"{pid} single-material body", single_shell=True),
-           check(meshes["sm_inserts"], f"{pid} letter inserts")]
+           panel_checks(pid, meshes["mm_body"], meshes["mm_letters"])]
     d = os.path.join(OUT3, "panels")
     os.makedirs(d, exist_ok=True)
-    f_mm = os.path.join(d, f"{pid}_multimaterial.3mf")
-    write_3mf(f_mm, pid, [("body (black)", meshes["mm_body"], 1, BLACK), ("letters (white)", meshes["mm_letters"], 2, WHITE)])
-    f_b = os.path.join(d, f"{pid}_single_body.3mf")
-    write_3mf(f_b, f"{pid}_single_body", [("body", meshes["sm_body"], 1, BLACK)])
-    f_i = os.path.join(d, f"{pid}_single_letter_inserts_WHITE.3mf")
-    write_3mf(f_i, f"{pid}_letter_inserts", [("letter inserts", meshes["sm_inserts"], 1, WHITE)])
-    v = {os.path.relpath(f, ROOT): verify_3mf(f, 2) for f in (f_mm, f_b, f_i)}
+    f = os.path.join(d, f"{pid}.3mf")
+    write_3mf(f, pid, [(f"{pid} body (black, extruder 1)", meshes["mm_body"], 1, BLACK),
+                       (f"{pid} letters (white, extruder 2)", meshes["mm_letters"], 2, WHITE)])
+    v = {os.path.relpath(f, ROOT): verify_3mf(f, 2)}
+    for r_ in v.values():
+        if r_["problems"]:
+            res.append(dict(name=f"{pid} 3MF", problems=r_["problems"]))
     return pid, res, v
 
 
