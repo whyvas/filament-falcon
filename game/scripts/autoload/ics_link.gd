@@ -224,6 +224,52 @@ func cycle_io(s: String, kind: String, d: int) -> void:
 	set_cfg("%s_%s" % [s, kind], opts[posmod(i + d, opts.size())])   # saved + sent live
 
 
+## [[value, text]] for a station's dropdown: Headset, None, System default, then devices no
+## other station has picked (plus this station's own pick, even if unplugged).
+func io_options(s: String, kind: String) -> Array:
+	var lst: Array = inputs if kind == "in" else outputs
+	var opened: Array = routes.get(s, ["", ""])
+	var now := str(opened[0 if kind == "in" else 1]) if opened.size() == 2 else ""
+	var hs := "Headset" + ("  → " + friendly(now, kind) if now != "" and str(Settings.get_v("ics", "%s_%s" % [s, kind])) == "" else "")
+	var out: Array = [["", hs], ["none", "None"], ["default", "System default"]]
+	var cur := str(Settings.get_v("ics", "%s_%s" % [s, kind]))
+	var have_cur := cur in ["", "none", "default"]
+	for dv: Dictionary in lst:
+		var nm := str(dv["name"])
+		var taken := false
+		for o in SEATS:
+			if o != s and str(Settings.get_v("ics", "%s_%s" % [o, kind])) == nm:
+				taken = true
+		if taken:
+			continue
+		out.append([nm, friendly(nm, kind)])
+		have_cur = have_cur or nm == cur
+	if not have_cur:
+		out.append([cur, friendly(cur, kind) + "  (not plugged in)"])
+	return out
+
+
+## "Blue Snowball", "Logi USB Headset (port 3.3.4)": description + USB port when two match.
+func friendly(nm: String, kind: String) -> String:
+	var lst: Array = inputs if kind == "in" else outputs
+	var desc := ""
+	for dv: Dictionary in lst:
+		if str(dv["name"]) == nm:
+			desc = str(dv["desc"])
+	if desc == "":
+		desc = nm.get_slice(".", 1).trim_prefix("usb-").replace("_", " ") if nm.count(".") >= 1 else nm
+		return desc
+	desc = desc.replace(" Mono", "").replace(" Analog Stereo", "").replace(" Digital Stereo", "")
+	var dup := 0
+	for dv: Dictionary in lst:
+		if str(dv["desc"]).begins_with(desc):
+			dup += 1
+	if dup > 1:
+		var port := str(lst.filter(func(x: Dictionary) -> bool: return str(x["name"]) == nm)[0].get("port", ""))
+		desc += "  (port %s)" % port if port != "" else ("  #2" if nm.contains(".2.") else "  #1")
+	return desc
+
+
 func io_label(s: String, kind: String) -> String:
 	var cur := str(Settings.get_v("ics", "%s_%s" % [s, kind]))
 	var opened: Array = routes.get(s, ["", ""])

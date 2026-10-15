@@ -605,7 +605,10 @@ def plain_list(items):
         p = it["props"]
         if it["name"].endswith(".monitor") or p.get("device.class") == "monitor" or it["name"].startswith("falcon_"):
             continue
-        out.append({"name": it["name"], "desc": it["description"] or it["name"], "spec": it.get("spec", "")})
+        bp = p.get("device.bus_path") or p.get("device.bus-path") or ""
+        m = re.search(r"usb-\d+:([\d.]+):", bp)   # "...-usb-0:3.3.4:1.0" -> "3.3.4"
+        port = m.group(1) if m else ""
+        out.append({"name": it["name"], "desc": it["description"] or it["name"], "spec": it.get("spec", ""), "port": port})
     return out
 
 

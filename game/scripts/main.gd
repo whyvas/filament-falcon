@@ -12,6 +12,9 @@ var display: DisplayManager
 
 
 func _ready() -> void:
+	if Settings.cli.has("ui-fit"):
+		add_child(load("res://tests/ui_fit.gd").new())
+		return
 	if Settings.is_eva_client():
 		# the VR spacewalk client (2nd process): only the world + the spacewalker's view
 		var c := EvaClient.new()
