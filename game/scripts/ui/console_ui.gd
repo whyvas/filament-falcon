@@ -342,7 +342,9 @@ func _build_flight(page: Control) -> void:
 			return [s.booster_fuel / s.booster_fuel_max, "BOOSTER %d%%" % int(s.booster_fuel / s.booster_fuel_max * 100.0), C_AMBER]
 		return [s.fuel / s.fuel_max, "%d kg" % int(s.fuel), C_GREEN if s.fuel > 1500.0 else C_RED], 170)
 	var r1 := hbox(p, 8)
-	for b: Button in [switch_button("engine_arm", "ENGINE ARM", 26, 84), pulse_button("ignition", "IGNITION", 26, 84), switch_button("gear", "GEAR DOWN", 26, 84), switch_button("airbrake", "AIRBRAKE", 26, 84)]:
+	for b: Button in [switch_button("engine_arm", "ENGINE ARM", 26, 84), pulse_button("ignition", "IGNITION", 26, 84), switch_button("gear", "GEAR DOWN", 26, 84), switch_button("airbrake", "AIRBRAKE", 26, 84), button("👋 WAVE", func() -> void:
+			Game.wave(0)
+			Sfx.click(), 26, 84)]:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		r1.add_child(b)
 	var r2 := hbox(p, 8)
@@ -386,7 +388,9 @@ func _build_flight(page: Control) -> void:
 	nt.custom_minimum_size.x = 260
 	tg.add_child(nt)
 	var oa := hbox(o, 8)
-	for b: Button in [pulse_button("scanner_ping", "SCANNER PING", 24, 84), pulse_button("ops_trigger", "TRIGGER", 24, 84), switch_button("cargo_doors", "CARGO DOORS", 24, 84), switch_button("dock_clamp", "DOCK CLAMP", 24, 84)]:
+	for b: Button in [pulse_button("scanner_ping", "SCANNER PING", 24, 84), pulse_button("ops_trigger", "TRIGGER", 24, 84), switch_button("cargo_doors", "CARGO DOORS", 24, 84), switch_button("dock_clamp", "DOCK CLAMP", 24, 84), button("WAVE 👋", func() -> void:
+			Game.wave(1)
+			Sfx.click(), 24, 84)]:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		oa.add_child(b)
 	var pw := hbox(o, 8)

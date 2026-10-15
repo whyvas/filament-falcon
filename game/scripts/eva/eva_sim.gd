@@ -25,8 +25,8 @@ const THROW_MAX := 1.2
 const RAIL_SPEED := 0.75      # flat hand-over-hand speed
 const WALK_SPEED := 1.3       # moon lope
 const HOP_V := 1.4
-const CANOPY_C := Vector3(0.0, 0.95, -4.4)
-const CANOPY_R := Vector3(1.05, 0.55, 2.0)
+const CANOPY_C := Vector3(0.0, 1.05, -4.6)   # crew-deck window glass (ellipsoid), cut into the hull
+const CANOPY_R := Vector3(1.1, 0.62, 1.9)
 
 # ---- scenario (built by EvaScenarios, sent to the driver process)
 var scen := {}
@@ -54,6 +54,7 @@ var rig := Transform3D.IDENTITY
 var vel := Vector3.ZERO
 var head := Transform3D(Basis.IDENTITY, Vector3(0, 1.6, 0))      # rig-local
 var hands: Array[Transform3D] = [Transform3D(Basis.IDENTITY, Vector3(-0.3, 1.0, -0.3)), Transform3D(Basis.IDENTITY, Vector3(0.3, 1.0, -0.3))]
+var hand_curl: Array[Vector3] = [Vector3(-1, 0, 0), Vector3(-1, 0, 0)]   # (grip, trigger, thumb) 0..1; x<0 = no analog data
 var hand_pose: Array[String] = ["open", "open"]   # open | fist | point (avatar fingers)
 var grip_prev: Array[bool] = [false, false]
 var grab_kind: Array[String] = ["", ""]           # "" | rail | arm | item
@@ -285,6 +286,10 @@ func step_sim(dt: float, inp: Dictionary) -> void:
 		var hs: Array = inp["hands"]
 		hands[0] = hs[0]
 		hands[1] = hs[1]
+	var hc: Array = inp.get("curl", [])
+	if hc.size() == 2:
+		hand_curl[0] = hc[0]
+		hand_curl[1] = hc[1]
 	var grip: Array = inp.get("grip", [false, false])
 	var use: Array = inp.get("use", [false, false])
 	var pnt: Array = inp.get("point", [false, false])
@@ -643,6 +648,41 @@ func _free_motion(dt: float, inp: Dictionary) -> void:
 				jet_on = maxf(jet_on, 0.6)
 				gas = maxf(0.0, gas - dt * 0.2)
 	rig.origin += vel * dt
+	if not surface:
+		_hull_collide()
+
+
+## Solid hull: the suit (feet, waist, chest, helmet spheres) can't pass through the fuselage.
+## Analytic shape = the same lathe profile the model is built from (EvaScenarios.hull_r / YS),
+## so it matches the mesh exactly and costs nothing. Low-speed contact: a soft bump that
+## cancels the inward velocity and leaves a gentle push-off (restitution 0.15) plus friction.
+const SUIT_R := 0.28
+func _hull_collide() -> void:
+	var up := rig.basis.y
+	for h: float in [0.8, 1.25, 1.6]:   # waist, chest, helmet (legs may brush the skin)
+		var p := rig.origin + up * h
+		var r := EvaScenarios.hull_r(p.z)
+		if r <= 0.0:
+			continue
+		# open-top cargo bay (doors on the roof): you can reach in; its floor is the limit
+		if absf(p.x) < 1.5 and p.z > -1.4 and p.z < 4.4 and p.y > 0.5:
+			if p.y < 0.85 + SUIT_R * 0.5:
+				rig.origin.y += 0.85 + SUIT_R * 0.5 - p.y
+				vel.y = maxf(vel.y, 0.0)
+			continue
+		var q := Vector2(p.x, p.y / EvaScenarios.YS)
+		var d := q.length()
+		var lim := r + SUIT_R
+		if d >= lim or d < 1e-4:
+			continue
+		var n := Vector3(q.x / d * EvaScenarios.YS, q.y / d, 0.0).normalized()
+		rig.origin += n * (lim - d)
+		var vn := vel.dot(n)
+		if vn < 0.0:
+			vel -= n * vn * 1.15
+			vel = vel.lerp(n * vel.dot(n), 0.25)   # scuff: friction along the hull
+			if vn < -0.4:
+				_event("knock", {"pos": p - n * SUIT_R, "n": n, "hand": 1})
 
 
 func _tether(_dt: float) -> void:
@@ -890,7 +930,7 @@ func to_net() -> Dictionary:
 	var ps := []
 	for p: Dictionary in props:
 		ps.append([p.get("id", ""), p.get("state", "")])
-	return {"rig": rig, "vel": vel, "head": head, "hands": [hands[0], hands[1]], "hp": [hand_pose[0], hand_pose[1]],
+	return {"rig": rig, "vel": vel, "head": head, "hands": [hands[0], hands[1]], "hp": [hand_pose[0], hand_pose[1]], "hc": [hand_curl[0], hand_curl[1]],
 		"step": step, "prog": progress, "col": collected, "riding": riding, "lamp": lamp, "jet": jet_on,
 		"suit": [o2, batt, co2, suit_temp, heart, gas, tether_used, exertion], "taut": taut, "done": done,
 		"failed": failed, "score": score, "time": time_out, "items": its, "props": ps, "ground": on_ground, "perch": perch}
@@ -904,6 +944,10 @@ func from_net(d: Dictionary) -> void:
 	if hs.size() == 2:
 		hands[0] = hs[0]
 		hands[1] = hs[1]
+	var hc: Array = d.get("hc", [])
+	if hc.size() == 2:
+		hand_curl[0] = hc[0]
+		hand_curl[1] = hc[1]
 	var hp: Array = d.get("hp", [])
 	if hp.size() == 2:
 		hand_pose[0] = str(hp[0])
@@ -947,5 +991,5 @@ func from_net(d: Dictionary) -> void:
 
 ## Pose snapshot for the avatar (and its interpolation buffer).
 func pose() -> Dictionary:
-	return {"head": head_s(), "l": hand_s(0), "r": hand_s(1), "hp": [hand_pose[0], hand_pose[1]],
+	return {"head": head_s(), "l": hand_s(0), "r": hand_s(1), "hp": [hand_pose[0], hand_pose[1]], "hc": [hand_curl[0], hand_curl[1]],
 		"up": body_up(), "vel": vel, "lamp": lamp, "jet": jet_on, "riding": riding, "ground": on_ground}

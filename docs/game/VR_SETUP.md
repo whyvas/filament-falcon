@@ -277,3 +277,10 @@ You don't need to open WiVRn yourself. When the VR client starts (`./run.sh --ev
 3. waits up to 20 s for the runtime (`WIVRN_TIMEOUT=40 ./run.sh --eva-vr` waits longer), then points `XR_RUNTIME_JSON` at WiVRn's `openxr_wivrn.json` unless you already set it.
 
 A server the game started is stopped when the VR client or game exits. A server you started yourself is never stopped. Progress shows in the Commander EVA log and in `~/.local/share/filament-falcon/wivrn.log`. Run it by hand with `game/tools/wivrn_up.sh start` / `stop`.
+
+## Crew wave, hull and gloves
+
+- **WAVE:** the kids each have a WAVE button on their page of the touch console (Pilot on the left, Ops on the right). The kid waves at the spacewalker through the crew windows, and the wave shows in VR and on the EVA helmet cam. To use a board button instead, add a `FF_BTN(..., "wave_pilot")` or `"wave_ops"` entry to the board's `firmware/include/config_*.h` and regenerate `shared/input_map.json`, or add `"wave_pilot": {"device": "Falcon Pilot", "button": N}` to the json by hand.
+- **The hull is solid.** You bump off it gently (low-speed contact cancels your inward speed). The open-top cargo bay is the exception, so you can reach in. Handrails work as before.
+- **Gloves follow the Touch controllers:** the trigger curls the index finger, grip curls the other three, and resting your thumb on A/B/stick folds the thumb.
+- **VR clipping range** is near 3 cm / far 30 km, so your visor can touch the hull without clipping into it.

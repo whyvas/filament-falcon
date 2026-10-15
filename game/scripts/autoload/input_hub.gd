@@ -57,6 +57,8 @@ const ACTIONS := [
 	{"id": "ops_mode_next", "role": "OPS", "type": "button", "label": "MODE knob >", "keys": ["0"], "bind": [DEV_OPS, "button", 7]},
 	{"id": "ops_mode_prev", "role": "OPS", "type": "button", "label": "MODE knob <", "keys": [], "bind": [DEV_OPS, "button", 8]},
 	{"id": "ops_mode_push", "role": "OPS", "type": "button", "label": "MODE knob push", "keys": [], "bind": [DEV_OPS, "button", 9]},
+	{"id": "wave_pilot", "role": "PILOT", "type": "button", "label": "WAVE (Pilot, to the spacewalker)", "keys": [], "bind": []},
+	{"id": "wave_ops", "role": "OPS", "type": "button", "label": "WAVE (Ops, to the spacewalker)", "keys": [], "bind": []},
 	{"id": "scanner_ping", "role": "OPS", "type": "button", "label": "SCANNER PING", "keys": ["P"], "bind": [DEV_OPS, "button", 10]},
 	{"id": "cargo_doors", "role": "OPS", "type": "switch", "label": "CARGO DOORS", "keys": ["O"], "bind": [DEV_OPS, "button", 11]},
 	{"id": "dock_clamp", "role": "OPS", "type": "switch", "label": "DOCK CLAMP", "keys": ["U"], "bind": [DEV_OPS, "button", 12]},

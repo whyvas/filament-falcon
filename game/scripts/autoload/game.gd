@@ -407,7 +407,21 @@ func _update_entities(h: float) -> void:
 var external_clock := false     # tests drive tick() themselves (faster than real time)
 
 
+var crew_wave := [0.0, 0.0]   # Pilot, Ops: seconds of waving left (seen from outside / VR)
+
+
+func wave(seat: int) -> void:
+	crew_wave[seat] = 2.6
+
+
 func _process(dt: float) -> void:
+	if not Settings.is_eva_client():
+		if InputHub.just_pressed("wave_pilot"):
+			wave(0)
+		if InputHub.just_pressed("wave_ops"):
+			wave(1)
+	for i in 2:
+		crew_wave[i] = maxf(0.0, float(crew_wave[i]) - dt)
 	if not external_clock:
 		tick(dt)
 

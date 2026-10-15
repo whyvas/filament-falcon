@@ -28,8 +28,10 @@ const MISSION_EVA := {
 	"sandbox": ["rescue", -1],
 }
 
-const PROFILE := [Vector2(-7.7, 0.0), Vector2(-7.5, 0.55), Vector2(-7.0, 1.05), Vector2(-6.0, 1.5), Vector2(-4.5, 1.8),
-	Vector2(-2.0, 1.95), Vector2(3.0, 1.95), Vector2(6.0, 1.8), Vector2(7.2, 1.55), Vector2(7.25, 0.0)]
+## Starship-style hull: ogive nose, long straight barrel, flat aft dome (the model AND the
+## EVA collision both use this profile).
+const PROFILE := [Vector2(-7.7, 0.0), Vector2(-7.6, 0.35), Vector2(-7.3, 0.75), Vector2(-6.8, 1.12), Vector2(-6.0, 1.48),
+	Vector2(-5.0, 1.74), Vector2(-4.0, 1.88), Vector2(-3.0, 1.95), Vector2(6.9, 1.95), Vector2(7.2, 1.8), Vector2(7.3, 1.2), Vector2(7.32, 0.0)]
 const YS := 0.82
 const HATCH_Z := -1.5
 

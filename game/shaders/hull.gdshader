@@ -5,7 +5,7 @@ shader_type spatial;
 // - belly heat-shield tiles (black, rough) on down-facing surfaces when belly_tiles = 1
 // - mli = 1 turns it into crinkled gold multi-layer insulation foil
 // - heat_glow for reentry
-render_mode cull_back;
+render_mode cull_disabled;   // never see through the skin from inside / at the near plane
 
 #include "res://shaders/noise.gdshaderinc"
 

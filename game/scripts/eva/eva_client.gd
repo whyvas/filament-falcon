@@ -43,8 +43,8 @@ var _vig := 0.0
 var _sent := 0
 var _rx := 0
 var _t := 0.0
-const XR_NEAR := 0.1
-const XR_FAR := 1.0e5
+const XR_NEAR := 0.03   # face right at the hull without clipping into it
+const XR_FAR := 3.0e4   # keep far/near ~1e6 (XR combined-frustum culling breaks beyond)
 var _ptt := false
 
 
@@ -252,6 +252,10 @@ func _process(dt: float) -> void:
 		_handle_local_events()
 	world.eva_view.client_sim = sim
 	if has_xr:
+		for c in ctrl:   # placeholder gloves until the articulated suit gloves exist
+			var gl := c.get_node_or_null("Glove")
+			if gl:
+				gl.visible = sim == null
 		_place_origin()
 		_update_comfort(dt)
 		_xlog_t -= dt
@@ -347,13 +351,26 @@ func _hand_xform(i: int) -> Array:
 	return [Transform3D(Basis.IDENTITY, Vector3(0.25 * (-1 if i == 0 else 1), 1.0, -0.3)), false, false, false, false]
 
 
+## Touch controller analog values -> glove fingers: grip = middle/ring/pinky, trigger = index,
+## thumb resting on A/B/stick = thumb down.
+func _curl(c: XRController3D) -> Vector3:
+	if not c.get_has_tracking_data():
+		return Vector3(-1, 0, 0)
+	var th := c.is_button_pressed("ax_touch") or c.is_button_pressed("by_touch") or c.is_button_pressed("primary_touch")
+	var tr := c.get_float("trigger")
+	if c.is_button_pressed("trigger_touch"):
+		tr = maxf(tr, 0.25)
+	return Vector3(clampf(c.get_float("grip"), 0, 1), clampf(tr, 0, 1), 1.0 if th else 0.0)
+
+
 func _xr_input(dt: float) -> Dictionary:
 	var off := Transform3D(Basis.IDENTITY, Vector3(0, SEATED_OFFSET if bool(_cfg.get("seated", false)) else 0.0, 0))
 	var head := off * xr_cam.transform
 	var L := _hand_xform(0)
 	var R := _hand_xform(1)
 	var inp := {"head": head, "hands": [off * (L[0] as Transform3D), off * (R[0] as Transform3D)],
-		"grip": [L[1], R[1]], "use": [L[2], R[2]], "point": [L[3], R[3]]}
+		"grip": [L[1], R[1]], "use": [L[2], R[2]], "point": [L[3], R[3]],
+		"curl": [_curl(ctrl[0]), _curl(ctrl[1])]}
 	var lc := ctrl[0]
 	var rc := ctrl[1]
 	# left stick: jetpack / moon walk, relative to where you look; right stick Y: up / down
@@ -456,6 +473,9 @@ func _apply_world(w: Dictionary) -> void:
 	_mid = mid
 	var s: ShipSim = Game.sim
 	Game.t = float(w["gt"])
+	var wv: Array = w.get("wave", [])
+	if wv.size() == 2:
+		Game.crew_wave = [maxf(float(Game.crew_wave[0]), float(wv[0])), maxf(float(Game.crew_wave[1]), float(wv[1]))]
 	for b in Game.bodies:
 		(b as CelestialBody).update(Game.t)
 	s.pos.set_xyz(float(w["px"]), float(w["py"]), float(w["pz"]))

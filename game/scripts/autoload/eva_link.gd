@@ -481,7 +481,7 @@ func _net_tx() -> void:
 		"vel": s.vel, "basis": s.basis, "w": s.ang_vel, "sun": Game.sun_dir, "door": Game.cargo_door,
 		"arm": [Game.arm_yaw, Game.arm_pitch, Game.arm_len, Game.arm_extend, bool(Game.powered.get("arm", false))],
 		"thr": s.thrust_now, "eng": s.engine_on, "dens": s.density_now, "ents": ents, "cmds": _cmds.slice(0, 4),
-		"ack": _ev_seen, "state": Game.state, "eva": active, "acc": s.accel_proper if s.thrust_now > 0.0 or s.in_trans.length() > 0.01 else Vector3.ZERO,
+		"ack": _ev_seen, "state": Game.state, "eva": active, "wave": Game.crew_wave, "acc": s.accel_proper if s.thrust_now > 0.0 or s.in_trans.length() > 0.01 else Vector3.ZERO,
 		"cfg": {"snap": float(Settings.get_v("eva", "snap_deg")), "vignette": float(Settings.get_v("eva", "vignette")),
 			"seated": str(Settings.get_v("eva", "play_height")) == "seated"}}
 	_udp.set_dest_address(_client_ip, _client_port)

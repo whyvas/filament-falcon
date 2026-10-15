@@ -28,6 +28,14 @@ var self_view := false     # true in the wearer's own process: hide helmet / bod
 func _ready() -> void:
 	suit_mat = ProcGen.mat(Color(0.93, 0.93, 0.9), 0.0, 0.78)
 	var soft := ProcGen.mat(Color(0.86, 0.86, 0.83), 0.0, 0.85)
+	# fabric folds + weave: one shared procedural normal map (no texture files)
+	var fab := _fabric_normal()
+	for m: StandardMaterial3D in [suit_mat, soft]:
+		m.normal_enabled = true
+		m.normal_texture = fab
+		m.normal_scale = 0.9
+		m.uv1_triplanar = true
+		m.uv1_scale = Vector3(6, 6, 6)
 	var grey := ProcGen.mat(Color(0.55, 0.56, 0.58), 0.3, 0.5)
 	var dark := ProcGen.mat(Color(0.15, 0.15, 0.16), 0.4, 0.5)
 	var red := ProcGen.mat(Color(0.75, 0.08, 0.08), 0.0, 0.6)
@@ -59,23 +67,39 @@ func _ready() -> void:
 		_part("stripe_" + s, ProcGen.cyl(0.093, 0.093, 0.08, 12), red, b)
 		_part("knee_" + s, ProcGen.sphere(0.085, 12, 6), soft, b)
 		_part("boot_" + s, ProcGen.box(Vector3(0.13, 0.12, 0.27)), dark, b)
-		# glove: palm + curled finger block + index finger + thumb
+		# articulated glove: palm, 4 fingers x 2 segments, 2-segment thumb (EMU-style
+		# dark palm pad + white gauntlet). Driven by the Touch analog values (see apply_pose).
 		var g := Node3D.new()
 		g.name = "glove_" + s
 		add_child(g)
 		parts["glove_" + s] = g
-		g.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.09, 0.035, 0.1)), glove))
-		var curl := Node3D.new()
-		curl.position = Vector3(0.012, 0, -0.05)
-		g.add_child(curl)
-		curl.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.06, 0.03, 0.08)), glove, Vector3(0, 0, -0.04)))
-		var idx := Node3D.new()
-		idx.position = Vector3(-0.03 if s == "r" else 0.03, 0.0, -0.05)
-		g.add_child(idx)
-		idx.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.022, 0.025, 0.085)), glove, Vector3(0, 0, -0.042)))
-		var th := ProcGen.mesh_node(ProcGen.box(Vector3(0.024, 0.024, 0.06)), glove, Vector3(-0.05 if s == "r" else 0.05, 0.0, -0.02), Vector3(0, 0.6 if s == "r" else -0.6, 0))
-		g.add_child(th)
-		fingers[s] = {"curl": curl, "index": idx}
+		var sg := -1.0 if s == "r" else 1.0
+		g.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.085, 0.032, 0.095)), glove))
+		g.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.07, 0.006, 0.08)), dark, Vector3(0, -0.018, 0)))
+		g.add_child(ProcGen.mesh_node(ProcGen.cyl(0.05, 0.055, 0.07, 12), glove, Vector3(0, 0, 0.075), Vector3(PI * 0.5, 0, 0)))
+		var fl: Array = []
+		for k in 4:
+			var x := sg * (0.03 - k * 0.02)
+			var ln := [0.034, 0.038, 0.036, 0.028][k] as float
+			var root := Node3D.new()
+			root.position = Vector3(x, 0.0, -0.048)
+			g.add_child(root)
+			root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.017, 0.019, ln)), glove, Vector3(0, 0, -ln * 0.5)))
+			var tip := Node3D.new()
+			tip.position = Vector3(0, 0, -ln)
+			root.add_child(tip)
+			tip.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.016, 0.017, ln * 0.8)), glove, Vector3(0, 0, -ln * 0.4)))
+			fl.append([root, tip])
+		var th_root := Node3D.new()
+		th_root.position = Vector3(sg * 0.045, -0.005, -0.01)
+		th_root.rotation = Vector3(0, -sg * 0.7, 0)
+		g.add_child(th_root)
+		th_root.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.02, 0.02, 0.035)), glove, Vector3(0, 0, -0.0175)))
+		var th_tip := Node3D.new()
+		th_tip.position = Vector3(0, 0, -0.035)
+		th_root.add_child(th_tip)
+		th_tip.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.018, 0.018, 0.03)), glove, Vector3(0, 0, -0.015)))
+		fingers[s] = {"f": fl, "thumb": [th_root, th_tip], "c": Vector3.ZERO}
 	# helmet lamps (EMU style, either side of the helmet)
 	for sx: float in [-1.0, 1.0]:
 		var lg := ProcGen.mesh_node(ProcGen.cyl(0.03, 0.03, 0.06, 10), ProcGen.glow_mat(Color(1.0, 0.95, 0.85), 4.0), Vector3.ZERO, Vector3(PI * 0.5, 0, 0))
@@ -93,6 +117,24 @@ func _ready() -> void:
 	jet_glow = ProcGen.mesh_node(ProcGen.cyl(0.01, 0.07, 0.25, 8), ProcGen.glow_mat(Color(0.7, 0.85, 1.0), 2.5))
 	jet_glow.visible = false
 	add_child(jet_glow)
+
+
+static var _fab_tex: NoiseTexture2D
+static func _fabric_normal() -> NoiseTexture2D:
+	if _fab_tex == null:
+		var n := FastNoiseLite.new()
+		n.noise_type = FastNoiseLite.TYPE_CELLULAR
+		n.frequency = 0.035
+		n.fractal_type = FastNoiseLite.FRACTAL_FBM
+		n.fractal_octaves = 3
+		_fab_tex = NoiseTexture2D.new()
+		_fab_tex.width = 256
+		_fab_tex.height = 256
+		_fab_tex.seamless = true
+		_fab_tex.as_normal_map = true
+		_fab_tex.bump_strength = 6.0
+		_fab_tex.noise = n
+	return _fab_tex
 
 
 func _capsule(r: float, h: float) -> CapsuleMesh:
@@ -200,8 +242,20 @@ func apply_pose(p: Dictionary, dt: float) -> void:
 		var hp: Array = p.get("hp", ["open", "open"])
 		var st := str(hp[0 if s == "l" else 1])
 		var f: Dictionary = fingers[s]
-		(f["curl"] as Node3D).rotation.x = -1.4 if st != "open" else -0.15
-		(f["index"] as Node3D).rotation.x = -1.4 if st == "fist" else (0.0 if st == "point" else -0.15)
+		var hcs: Array = p.get("hc", [])
+		var want: Vector3 = hcs[0 if s == "l" else 1] if hcs.size() == 2 else Vector3(-1, 0, 0)
+		if want.x < 0.0:   # no analog data (flat mode / hand tracking): from the discrete pose
+			want = Vector3(0.1, 0.1, 0.0) if st == "open" else (Vector3(1, 0, 1) if st == "point" else Vector3(1, 1, 1))
+		var c: Vector3 = (f["c"] as Vector3).lerp(want, clampf(dt * 18.0, 0.0, 1.0))
+		f["c"] = c
+		var fl2: Array = f["f"]
+		for k in 4:
+			var amt := c.y if k == 0 else c.x
+			(fl2[k][0] as Node3D).rotation.x = -(0.12 + amt * 1.2)
+			(fl2[k][1] as Node3D).rotation.x = -(0.1 + amt * 1.3)
+		var sgn := -1.0 if s == "r" else 1.0
+		(f["thumb"][0] as Node3D).rotation = Vector3(-c.z * 0.4, -sgn * (0.7 - c.z * 0.5), 0)
+		(f["thumb"][1] as Node3D).rotation.x = -(0.15 + c.z * 0.9)
 	# legs
 	var v: Vector3 = p.get("vel", Vector3.ZERO)
 	var on_ground := bool(p.get("ground", false))

@@ -31,6 +31,7 @@ var beacon_mesh: MeshInstance3D
 var rcs_emitters: Array[GPUParticles3D] = []
 var smoke: GPUParticles3D
 var cargo_root: Node3D
+var crew: CrewModel
 var haze_mat: ShaderMaterial
 var _t := 0.0
 
@@ -40,37 +41,60 @@ func _ready() -> void:
 
 
 func _build() -> void:
-	hull_mat = ProcGen.shader_mat("res://shaders/hull.gdshader")
-	var profile := [Vector2(-7.7, 0.0), Vector2(-7.5, 0.55), Vector2(-7.0, 1.05), Vector2(-6.0, 1.5), Vector2(-4.5, 1.8),
-		Vector2(-2.0, 1.95), Vector2(3.0, 1.95), Vector2(6.0, 1.8), Vector2(7.2, 1.55), Vector2(7.25, 0.0)]
-	var body := ProcGen.mesh_node(ProcGen.lathe(profile, 48, 0.82), hull_mat)
+	# Starship-style: 304L stainless body, black hex heat tiles on the windward belly,
+	# ogive nose, forward + aft flaps, crew-deck windows, Raptor cluster aft.
+	hull_mat = ProcGen.shader_mat("res://shaders/hull.gdshader", {"base_color": Color(0.74, 0.75, 0.77), "metallic_base": 0.85,
+		"rough_base": 0.3, "stripes": 0.0, "belly_tiles": 1.0, "panel_scale": 0.9, "bump_strength": 0.5})
+	var profile: Array = EvaScenarios.PROFILE
+	var body := ProcGen.mesh_node(_hull_mesh(profile, 64, EvaScenarios.YS), hull_mat)
+	body.name = "Hull"
 	add_child(body)
-	# Canopy (dark glass)
-	var glass := ProcGen.mat(Color(0.03, 0.05, 0.08), 0.9, 0.05)
+	# dark cabin shell behind the windows, so you never look into an empty model
+	var cabin := ProcGen.mat(Color(0.16, 0.17, 0.19), 0.2, 0.7)
+	cabin.cull_mode = BaseMaterial3D.CULL_DISABLED
+	add_child(ProcGen.mesh_node(ProcGen.box(Vector3(2.6, 0.08, 3.8)), cabin, Vector3(0, 0.2, -4.6)))     # deck
+	add_child(ProcGen.mesh_node(ProcGen.box(Vector3(3.2, 2.6, 0.08)), cabin, Vector3(0, 0.6, -2.75)))    # aft bulkhead
+	var panel := ProcGen.mat(Color(0.05, 0.06, 0.07), 0.3, 0.4, Color(0.2, 0.55, 1.0), 0.6)
+	add_child(ProcGen.mesh_node(ProcGen.box(Vector3(1.8, 0.35, 0.1)), panel, Vector3(0, 0.75, -5.95), Vector3(-0.5, 0, 0)))
+	# crew windows: tinted, see-through glass over the cut-outs in the hull
+	var glass := ProcGen.mat(Color(0.1, 0.14, 0.2, 0.35), 0.9, 0.04)
+	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glass.cull_mode = BaseMaterial3D.CULL_DISABLED
 	glass.rim_enabled = true
-	glass.rim = 0.4
-	add_child(ProcGen.mesh_node(ProcGen.sphere(1.0, 32, 16), glass, Vector3(0, 0.95, -4.4), Vector3.ZERO, Vector3(1.05, 0.55, 2.0)))
-	# Wings
-	var wing_poly := PackedVector2Array([Vector2(1.5, -2.5), Vector2(6.6, 4.6), Vector2(6.6, 5.8), Vector2(1.5, 6.4)])
-	var wing_mesh := ProcGen.extrude(wing_poly, 0.32)
-	add_child(ProcGen.mesh_node(wing_mesh, hull_mat, Vector3(0, -0.75, 0)))
-	var wing_poly_l := PackedVector2Array([Vector2(-1.5, 6.4), Vector2(-6.6, 5.8), Vector2(-6.6, 4.6), Vector2(-1.5, -2.5)])
-	add_child(ProcGen.mesh_node(ProcGen.extrude(wing_poly_l, 0.32), hull_mat, Vector3(0, -0.75, 0)))
-	# Wingtip fins
-	var tipfin := ProcGen.extrude(PackedVector2Array([Vector2(-0.12, 4.4), Vector2(0.12, 4.4), Vector2(0.12, 5.9), Vector2(-0.12, 5.9)]), 1.2)
-	add_child(ProcGen.mesh_node(tipfin, hull_mat, Vector3(6.6, -0.2, 0)))
-	add_child(ProcGen.mesh_node(tipfin, hull_mat, Vector3(-6.6, -0.2, 0)))
-	# Tail fin (YZ plane): extrude in X
-	var fin_poly := PackedVector2Array([Vector2(0.0, 3.2), Vector2(3.2, 6.6), Vector2(3.2, 7.4), Vector2(0.0, 7.3)])
-	var fin := ProcGen.mesh_node(ProcGen.extrude(fin_poly, 0.28), hull_mat, Vector3(0, 1.3, 0))
-	fin.basis = Basis(Vector3(0, 1, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1))
-	add_child(fin)
-	# Engine bell + glow
+	glass.rim = 0.5
+	add_child(ProcGen.mesh_node(ProcGen.sphere(1.0, 40, 20), glass, EvaSim.CANOPY_C, Vector3.ZERO, EvaSim.CANOPY_R))
+	crew = CrewModel.new()
+	crew.name = "Crew"
+	add_child(crew)
+	# flaps (hinged near the waterline; tiles on the windward face)
+	var flap_mat := ProcGen.shader_mat("res://shaders/hull.gdshader", {"base_color": Color(0.08, 0.08, 0.09), "metallic_base": 0.1,
+		"rough_base": 0.7, "stripes": 0.0, "belly_tiles": 1.0, "panel_scale": 3.0})
+	for sx: float in [-1.0, 1.0]:
+		var fwd := PackedVector2Array([Vector2(0.0, -5.6), Vector2(1.5 * sx, -5.0), Vector2(1.5 * sx, -3.9), Vector2(0.0, -3.4)])
+		if sx > 0.0:
+			fwd.reverse()
+		var ff := ProcGen.mesh_node(ProcGen.extrude(fwd, 0.14), flap_mat, Vector3(sx * 1.55, -0.35, 0))
+		ff.name = "FwdFlap"
+		add_child(ff)
+		var aft := PackedVector2Array([Vector2(0.0, 3.4), Vector2(2.1 * sx, 4.6), Vector2(2.1 * sx, 6.9), Vector2(0.0, 7.0)])
+		if sx > 0.0:
+			aft.reverse()
+		var af := ProcGen.mesh_node(ProcGen.extrude(aft, 0.18), flap_mat, Vector3(sx * 1.85, -0.35, 0))
+		af.name = "AftFlap"
+		add_child(af)
+		# flap hinge fairings
+		add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.3, 0.3, 1.8)), hull_mat, Vector3(sx * 1.55, -0.3, -4.5)))
+		add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.3, 0.3, 3.2)), hull_mat, Vector3(sx * 1.85, -0.3, 5.3)))
+	# Raptor cluster: 3 sea-level (centre) + 3 vacuum bells (outer), on an aft dome
 	var metal := ProcGen.mat(Color(0.25, 0.24, 0.23), 0.9, 0.35)
 	var bell_mat := ProcGen.shader_mat("res://shaders/hull.gdshader", {"base_color": Color(0.3, 0.28, 0.27), "belly_tiles": 0.0, "stripes": 0.0,
 		"panel_scale": 7.0, "metallic_base": 0.9, "rough_base": 0.3, "bump_strength": 0.6})
-	var bell := ProcGen.mesh_node(ProcGen.cyl(0.65, 1.25, 2.0, 48), bell_mat, Vector3(0, 0, 8.2), Vector3(PI * 0.5, 0, 0))
-	add_child(bell)
+	add_child(ProcGen.mesh_node(ProcGen.cyl(1.5, 1.5, 0.12, 48), metal, Vector3(0, 0, 7.3), Vector3(PI * 0.5, 0, 0)))
+	for k in 3:
+		var ang := TAU * k / 3.0
+		add_child(ProcGen.mesh_node(ProcGen.cyl(0.18, 0.38, 0.9, 24), bell_mat, Vector3(cos(ang) * 0.42, sin(ang) * 0.42 * EvaScenarios.YS, 7.8), Vector3(PI * 0.5, 0, 0)))
+		var ang2 := ang + PI / 3.0
+		add_child(ProcGen.mesh_node(ProcGen.cyl(0.25, 0.62, 1.5, 24), bell_mat, Vector3(cos(ang2) * 1.05, sin(ang2) * 1.05 * EvaScenarios.YS, 8.1), Vector3(PI * 0.5, 0, 0)))
 	var hot := ProcGen.glow_mat(Color(1.0, 0.5, 0.2), 2.0)
 	add_child(ProcGen.mesh_node(ProcGen.cyl(0.6, 0.6, 0.05, 24), hot, Vector3(0, 0, 7.3), Vector3(PI * 0.5, 0, 0)))
 	plume_mat = ProcGen.shader_mat("res://shaders/plume.gdshader")
@@ -199,25 +223,6 @@ func _build() -> void:
 	add_child(laser)
 	# Docking port ring at the nose
 	add_child(ProcGen.mesh_node(ProcGen.torus(0.45, 0.7, 32), metal, Vector3(0, 0, -7.75), Vector3(PI * 0.5, 0, 0)))
-	# Landing gear: belly wheels
-	var tire := ProcGen.mat(Color(0.05, 0.05, 0.05), 0.0, 0.9)
-	for wp: Vector3 in [Vector3(0, -1.25, -4.6), Vector3(2.3, -1.25, 2.6), Vector3(-2.3, -1.25, 2.6)]:
-		var g := Node3D.new()
-		g.position = wp
-		add_child(g)
-		g.add_child(ProcGen.mesh_node(ProcGen.cyl(0.1, 0.1, 0.9, 8), metal, Vector3(0, -0.45, 0)))
-		g.add_child(ProcGen.mesh_node(ProcGen.cyl(0.42, 0.42, 0.3, 16), tire, Vector3(0, -0.95, 0), Vector3(0, 0, PI * 0.5)))
-		wheels.append(g)
-	# Tail legs for vertical landings
-	for lp: Vector3 in [Vector3(2.0, 0, 7.0), Vector3(-2.0, 0, 7.0), Vector3(0, 2.0, 7.0), Vector3(0, -2.0, 7.0)]:
-		var lg := Node3D.new()
-		lg.position = lp
-		add_child(lg)
-		var outward := Vector3(lp.x, lp.y, 0).normalized()
-		lg.add_child(ProcGen.mesh_node(ProcGen.cyl(0.09, 0.09, 1.0, 8), metal, Vector3.ZERO, Vector3.ZERO))
-		lg.add_child(ProcGen.mesh_node(ProcGen.cyl(0.35, 0.35, 0.1, 12), metal, Vector3.ZERO))
-		lg.set_meta("out", outward)
-		legs.append(lg)
 	# Lights
 	nav_red = _light(Vector3(-6.7, -0.3, 5.0), Color(1, 0.1, 0.1), 0.6)
 	nav_green = _light(Vector3(6.7, -0.3, 5.0), Color(0.1, 1, 0.2), 0.6)
@@ -240,15 +245,9 @@ func _build() -> void:
 ## Small surface details: canopy frame, OMS pods, RCS nozzle clusters, antennas, sensor dome.
 func _greebles(metal: Material) -> void:
 	var frame := ProcGen.mat(Color(0.08, 0.08, 0.09), 0.6, 0.4)
-	for x: float in [-0.45, 0.45]:
-		var st := ProcGen.mesh_node(ProcGen.box(Vector3(0.06, 0.06, 3.4)), frame, Vector3(x, 1.38, -4.3))
-		st.rotation = Vector3(0.12, 0, 0)
-		add_child(st)
-	add_child(ProcGen.mesh_node(ProcGen.box(Vector3(1.6, 0.06, 0.06)), frame, Vector3(0, 1.32, -3.2)))
-	# OMS pods with small nozzles either side of the fin
-	for s: float in [-1.0, 1.0]:
-		add_child(ProcGen.mesh_node(ProcGen.cyl(0.42, 0.5, 3.4, 20), hull_mat, Vector3(s * 1.25, 1.25, 6.0), Vector3(PI * 0.5, 0, 0)))
-		add_child(ProcGen.mesh_node(ProcGen.cyl(0.15, 0.3, 0.5, 16), metal, Vector3(s * 1.25, 1.25, 7.9), Vector3(PI * 0.5, 0, 0)))
+	# window frames (mullions) over the crew windows
+	for x: float in [-0.35, 0.35]:
+		add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.05, 0.05, 2.6)), hull_mat, Vector3(x, 1.43, -4.6), Vector3(0.1, 0, 0)))
 	# RCS nozzle clusters (three little cones per quad)
 	for p: Vector3 in [Vector3(1.75, 0.6, -5.5), Vector3(-1.75, 0.6, -5.5), Vector3(1.6, 0.6, 6.2), Vector3(-1.6, 0.6, 6.2)]:
 		var sx := signf(p.x)
@@ -262,6 +261,40 @@ func _greebles(metal: Material) -> void:
 	# hatch outline on the side
 	for s2: float in [-1.0, 1.0]:
 		add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.03, 0.9, 0.7)), frame, Vector3(s2 * 1.62, 0.5, -1.5)))
+
+
+## Lathe like ProcGen.lathe but indexed (smooth normals), closed at both ends, with the hull
+## cut away under the crew windows (the canopy ellipsoid) so the crew inside can be seen.
+func _hull_mesh(profile: Array, seg: int, ys: float) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var rings := profile.size()
+	for i in rings:
+		var a: Vector2 = profile[i]
+		for k in seg + 1:
+			var t := TAU * k / seg
+			st.set_uv(Vector2(float(k) / seg, float(i) / (rings - 1)))
+			st.add_vertex(Vector3(cos(t) * a.y, sin(t) * a.y * ys, a.x))
+	for i in rings - 1:
+		for k in seg:
+			var i0 := i * (seg + 1) + k
+			var i1 := i0 + seg + 1
+			var a: Vector2 = profile[i]
+			var b: Vector2 = profile[i + 1]
+			var tm := TAU * (k + 0.5) / seg
+			var zm := (a.x + b.x) * 0.5
+			var rm := (a.y + b.y) * 0.5
+			var cen := Vector3(cos(tm) * rm, sin(tm) * rm * ys, zm)
+			if ((cen - EvaSim.CANOPY_C) / EvaSim.CANOPY_R).length() < 0.97:
+				continue   # window cut-out (glass covers it)
+			st.add_index(i0)
+			st.add_index(i1 + 1)
+			st.add_index(i1)
+			st.add_index(i0)
+			st.add_index(i0 + 1)
+			st.add_index(i1 + 1)
+	st.generate_normals()
+	return st.commit()
 
 
 func _light(p: Vector3, c: Color, e: float) -> OmniLight3D:
@@ -290,6 +323,8 @@ static func _soft_dot() -> GradientTexture2D:
 
 ## Animate from game state (called every frame by the World).
 func animate(g: Node, dt: float) -> void:
+	if crew:
+		crew.animate(g.crew_wave, dt)
 	_t += dt
 	var sim: ShipSim = g.sim
 	var thr_frac := sim.thrust_now / maxf(sim.main_thrust, 1.0)
