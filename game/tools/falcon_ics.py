@@ -54,7 +54,7 @@ except ImportError:  # pragma: no cover - reported to the game
     np = None
 
 RATE = 48000
-BLOCK = 240                    # 5 ms
+BLOCK = 480                    # 10 ms (5 ms blocks + Python sleep jitter underran -> garble)
 SEATS = ("pilot", "ops", "commander", "eva")
 KIDS = ("pilot", "ops")
 LISTENERS_DUCKED = ("pilot", "ops", "eva")    # ALL-CALL: the Commander talks over everyone else
@@ -431,9 +431,9 @@ class Engine:
 class Ring:
     """Single-producer/single-consumer sample FIFO with gentle drift control: when the fill
     drifts more than a quarter block from the target, read() resamples n+1 or n-1 samples into n
-    (one sample per 5 ms block = up to 4000 ppm, inaudible)."""
+    (one sample per 10 ms block = up to 2000 ppm, inaudible). Target ~30 ms of cushion.."""
 
-    def __init__(self, target=BLOCK * 3 // 2, cap=RATE):
+    def __init__(self, target=BLOCK * 3, cap=RATE):
         self.buf = np.zeros(cap)
         self.r = 0
         self.w = 0
@@ -699,7 +699,7 @@ class Pulse:
 class Capture(threading.Thread):
     """parec -> Ring. Restarts the recorder if the device disappears (replug)."""
 
-    def __init__(self, device, ring, name, latency_ms=10):
+    def __init__(self, device, ring, name, latency_ms=20):
         super().__init__(daemon=True, name="cap-" + name)
         self.device, self.ring, self.latency_ms = device, ring, latency_ms
         self.proc = None
@@ -736,7 +736,7 @@ class Capture(threading.Thread):
 class Playback(threading.Thread):
     """Ring -> pacat. The sink's clock paces the blocking write; the ring absorbs drift."""
 
-    def __init__(self, device, ring, name, latency_ms=15):
+    def __init__(self, device, ring, name, latency_ms=30):
         super().__init__(daemon=True, name="play-" + name)
         self.device, self.ring, self.latency_ms = device, ring, latency_ms
         self.proc = None
@@ -1017,7 +1017,7 @@ class Helper:
         return {"type": "status", "ok": self.ok, "msg": self.msg, "server": self.server, "seats": st,
                 "allcall": self.engine.allcall, "xruns": xr, "late": self.late, "mock": bool(self.args.mock),
                 "game_sink": GAME_SINK if self.ok and not self.args.mock else "", "mc_sink": MC_SINK if self.ok and not self.args.mock else "",
-                "latency_ms": 35 if not self.args.mock else 0}
+                "latency_ms": 55 if not self.args.mock else 0}
 
     def parent_alive(self):
         if not self.parent:

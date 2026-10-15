@@ -26,6 +26,10 @@ var _lp_w := 0.0
 var _hp_r := 0.0
 var _prev_white := 0.0
 var _ph := [0.0, 0.0, 0.0, 0.0]
+var _ph_w := 0.0      # turbopump whine
+var _ph_f2 := 0.0     # second cabin fan (slightly detuned -> slow beat)
+var _rcs_prev := 0.0  # RCS onset detector -> valve 'thunk'
+var _thunk := 0.0
 var _alarm_t := 0.0
 var _tones: Array = []   # {f0, f1, dur, t, vol, wave, delay}
 var _rng := RandomNumberGenerator.new()
@@ -34,7 +38,7 @@ var _rng := RandomNumberGenerator.new()
 func _ready() -> void:
 	var gen := AudioStreamGenerator.new()
 	gen.mix_rate = RATE
-	gen.buffer_length = 0.12
+	gen.buffer_length = 0.25   # survive frame hitches without crackle
 	player = AudioStreamPlayer.new()
 	player.stream = gen
 	player.volume_db = float(Settings.get_v("audio", "master_db"))
@@ -142,8 +146,17 @@ func _process(_dt: float) -> void:
 			ph1 = fmod(ph1 + 63.0 * inv, 1.0)
 			var throb := sin(ph0 * TAU) * 0.35 + sin(ph1 * TAU) * 0.2
 			var crackle := white * 0.25 if _rng.randf() < 0.002 * _eng else 0.0
-			s += (_lp_e2 * 2.6 + throb * 0.5 + crackle) * _eng * 0.55
-		# RCS: high-passed hiss
+			# Turbopump whine rises with throttle (heard through the structure, quiet)
+			_ph_w = fmod(_ph_w + (1800.0 + 2600.0 * _eng) * inv, 1.0)
+			var whine := sin(_ph_w * TAU) * 0.018 * _eng
+			s += (_lp_e2 * 2.6 + throb * 0.5 + crackle + whine) * _eng * 0.55
+		# RCS: solenoid valve thunk on each pulse onset, then high-passed hiss
+		if rcs_t > 0.05 and _rcs_prev <= 0.05:
+			_thunk = 1.0
+		_rcs_prev = rcs_t
+		if _thunk > 0.001:
+			s += _brown * _thunk * 0.35
+			_thunk *= 0.993
 		if _rcs > 0.002:
 			var hp := white - _prev_white
 			_hp_r += (hp - _hp_r) * 0.5
@@ -155,7 +168,8 @@ func _process(_dt: float) -> void:
 			s += _lp_w * _wind * 0.6
 		# Cabin ambience: fan hum + air
 		ph2 = fmod(ph2 + 118.0 * inv, 1.0)
-		s += (sin(ph2 * TAU) * 0.012 + _brown * 0.02) * amb
+		_ph_f2 = fmod(_ph_f2 + 119.3 * inv, 1.0)
+		s += (sin(ph2 * TAU) * 0.012 + sin(_ph_f2 * TAU) * 0.008 + _brown * 0.02) * amb
 		# Master caution alarm (two-tone)
 		if alarm_on:
 			_alarm_t += inv
@@ -163,6 +177,8 @@ func _process(_dt: float) -> void:
 			ph3 = fmod(ph3 + f * inv, 1.0)
 			var sq := 1.0 if ph3 < 0.5 else -1.0
 			s += sq * 0.07 * (0.6 + 0.4 * sin(ph3 * TAU))
+		# Soft clip: layered sources can sum past 1.0 (hard clipping = harsh garble)
+		s = s / (1.0 + absf(s))
 		buf[i] = Vector2(s, s)
 	_ph[0] = ph0
 	_ph[1] = ph1
