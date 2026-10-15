@@ -43,6 +43,8 @@ var _vig := 0.0
 var _sent := 0
 var _rx := 0
 var _t := 0.0
+const XR_NEAR := 0.1
+const XR_FAR := 1.0e5
 var _ptt := false
 
 
@@ -53,6 +55,13 @@ func _ready() -> void:
 		bot = EvaBot.new()
 	world = WorldView.new()
 	world.name = "World"
+	var xr_probe := XRServer.find_interface("OpenXR")
+	if xr_probe and xr_probe.is_initialized():
+		# XR: Godot culls with ONE combined frustum built from both eye projections; with
+		# near 0.05 / far 1e6 (ratio 2e7) that frustum degenerates and culls every mesh,
+		# leaving only the sky. Keep the ratio ~1e6 and pull scaled-space bodies inside it.
+		world.FAR_SAFE = XR_FAR * 0.9
+		world.ATMO_PROXY_R = XR_FAR * 0.8
 	add_child(world)
 	world.eva_view.client_sim = null
 	_setup_xr()
@@ -80,15 +89,18 @@ func _setup_xr() -> void:
 	var oxr := xr_if as OpenXRInterface
 	if oxr:
 		oxr.session_begun.connect(func() -> void: _xlog("session begun"))
-		oxr.pose_recentered.connect(func() -> void: _xlog("pose recentered"))
+		oxr.pose_recentered.connect(func() -> void: _xlog("pose recentered (runtime)"))
+		oxr.session_focussed.connect(func() -> void: _xlog("session FOCUSED (input + poses live)"))
+		oxr.session_visible.connect(func() -> void: _xlog("session visible only (system menu / proximity sensor: no input)"))
+		_xlog("near=%.2f far=%.0f reference_space=%s" % [XR_NEAR, XR_FAR, ProjectSettings.get_setting("xr/openxr/reference_space", "?")])
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)   # the runtime paces frames
 	Engine.max_fps = 0
 	get_viewport().use_xr = true
 	origin = XROrigin3D.new()
 	world.eva_view.add_child(origin)
 	xr_cam = XRCamera3D.new()
-	xr_cam.near = 0.05
-	xr_cam.far = 1.0e6
+	xr_cam.near = XR_NEAR
+	xr_cam.far = XR_FAR
 	xr_cam.cull_mask = 0xFFFFF & ~(Eva.EVA_HEAD_LAYER | Eva.EVA_BODY_LAYER)   # you see your arms + gloves, not your helmet
 	origin.add_child(xr_cam)
 	xr_cam.current = true
@@ -143,8 +155,8 @@ void fragment() {
 	vq.position = Vector3(0, 0, -0.08)
 	vq.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	xr_cam.add_child(vq)
-	if xr_if.has_signal("pose_recentered"):   # OpenXRInterface: the runtime's own recenter
-		xr_if.connect("pose_recentered", func() -> void: XRServer.center_on_hmd(XRServer.RESET_BUT_KEEP_TILT, true))
+	# The runtime recenters on its own (Quest: hold Meta button). Do NOT call center_on_hmd
+	# from pose_recentered: that fed back into repeated recenters.
 
 
 func _setup_flat() -> void:
@@ -217,7 +229,14 @@ func _xr_status() -> void:
 		s += "%s: %s profile=%s · " % [side, "present" if t else "MISSING", t.profile if t else "-"]
 	s += "trackers=%s · origin=%s head=%s" % [str(XRServer.get_trackers(0xFF).keys()), origin.global_position.snapped(Vector3.ONE * 0.1), xr_cam.global_position.snapped(Vector3.ONE * 0.1)]
 	for i in ctrl.size():
-		s += " · c%d tracked=%s" % [i, ctrl[i].get_has_tracking_data()]
+		var t := XRServer.get_tracker(ctrl[i].tracker) as XRPositionalTracker
+		var poses := ""
+		if t:
+			for pn: String in ["grip_pose", "aim_pose", "palm_pose", "default"]:
+				var ps := t.get_pose(pn)
+				if ps:
+					poses += "%s(%s) " % [pn, ps.has_tracking_data]
+		s += " · c%d tracked=%s pose=%s has=[%s]" % [i, ctrl[i].get_has_tracking_data(), ctrl[i].pose, poses.strip_edges()]
 	_xlog(s)
 
 
@@ -299,6 +318,17 @@ func _hand_xform(i: int) -> Array:
 	# [transform relative to the origin, grip, use, point, tracked]
 	var c := ctrl[i]
 	var tracked := c.get_has_tracking_data()
+	if not tracked:
+		# fall back to any pose the runtime does report (aim/palm) instead of losing the hand
+		var t := XRServer.get_tracker(c.tracker) as XRPositionalTracker
+		if t:
+			for pn: String in ["aim_pose", "palm_pose"]:
+				var ps := t.get_pose(pn)
+				if ps and ps.has_tracking_data:
+					c.pose = pn
+					_xlog("controller %d: grip_pose untracked, using %s" % [i, pn])
+					tracked = true
+					break
 	if tracked:
 		var g := c.get_float("grip")
 		var tr := c.get_float("trigger")
@@ -348,7 +378,8 @@ func _xr_input(dt: float) -> Dictionary:
 	if _xr_pressed(lc, "menu_button"):
 		_menu_t += dt
 		if _menu_t > 0.9:
-			_menu_t = -10.0
+			_menu_t = -1.0e9   # once per hold; reset only on release
+			_xlog("menu hold: recenter")
 			XRServer.center_on_hmd(XRServer.RESET_BUT_KEEP_TILT, true)
 	else:
 		_menu_t = 0.0

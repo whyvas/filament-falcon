@@ -267,3 +267,4 @@ height offset), tether 10/20/30 m.
 - `XR init FAILED`: WiVRn isn't running or the Quest isn't connected. Start the WiVRn server, connect the headset, then run `./run.sh --eva-vr` again.
 - `left_hand: MISSING` or `tracked=false`: wake the controllers (press a button). On a fresh clone, run `./run.sh` once so the project re-imports, which picks up `openxr_action_map.tres`.
 - Controls: grip grabs handrails, the left stick moves the jetpack, the right stick goes up/down and snap-turns, the trigger uses the tool, and holding Menu for 1 s recenters.
+- The log should show `near=0.10 far=100000`, then `session FOCUSED`, and controller lines like `c0 tracked=true pose=grip_pose has=[grip_pose(true) ...]`. `session visible only` means the Quest has the system menu open or the headset is off your face, and input pauses until it's FOCUSED again. A lot of `pose recentered (runtime)` lines come from the Quest itself (holding the Meta button), not from the game.

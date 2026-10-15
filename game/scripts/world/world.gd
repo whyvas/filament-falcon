@@ -31,8 +31,9 @@ const EYE := Vector3(0, 1.05, -5.3)
 ## Cameras use far = 1e6 m (larger ratios break Godot's frustum culling). Bodies whose visible
 ## disc would reach past that are drawn in "scaled space": shrunk about the camera by s and
 ## moved to s * distance, which keeps exactly the same angular size and shading.
-const FAR_SAFE := 9.0e5
-const ATMO_PROXY_R := 8.0e5
+## The VR client lowers these (XR combined-frustum culling breaks at huge far/near ratios).
+var FAR_SAFE := 9.0e5
+var ATMO_PROXY_R := 8.0e5
 var atmo_node: MeshInstance3D
 var earth_scale := 1.0
 var eva_view: EvaView
