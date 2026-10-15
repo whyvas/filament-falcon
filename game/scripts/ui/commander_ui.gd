@@ -326,6 +326,29 @@ func _headset_rows(parent: Control, meters: bool) -> void:
 			var m := level_meter(s)
 			m.custom_minimum_size = Vector2(120, 18)
 			parent.add_child(m)
+		# per-station INPUT / OUTPUT override (beats the headset; skips devices other stations use)
+		for kind: String in ["in", "out"]:
+			var r2 := hbox(parent, 6)
+			var k2 := kind
+			var l2 := label("   MIC IN" if kind == "in" else "   AUDIO OUT", 16, C_DIM, false)
+			l2.custom_minimum_size.x = 120
+			r2.add_child(l2)
+			var b1 := button("◀", func() -> void: Ics.cycle_io(s, k2, -1), 18, 40)
+			b1.custom_minimum_size.x = 48
+			r2.add_child(b1)
+			var v2 := label("", 16, C_GREEN)
+			v2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			v2.clip_text = true
+			r2.add_child(v2)
+			var b2 := button("▶", func() -> void: Ics.cycle_io(s, k2, 1), 18, 40)
+			b2.custom_minimum_size.x = 48
+			r2.add_child(b2)
+			if kind == "in":
+				var m2 := level_meter(s)   # live mic level: watch it move when you talk
+				m2.custom_minimum_size = Vector2(140, 16)
+				r2.add_child(m2)
+			live["io_%s_%s_%d" % [s, kind, r2.get_instance_id()]] = func() -> void:
+				v2.text = Ics.io_label(s, k2)
 		live["hs_%s_%d" % [s, row.get_instance_id()]] = func() -> void:
 			var id := str(Settings.get_v("ics", s + "_headset"))
 			var st := Ics.seat(s)

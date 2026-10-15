@@ -62,6 +62,7 @@ if [ "$DO_ICS" = 1 ] && command -v python3 >/dev/null 2>&1; then
   LOGDIR="${XDG_DATA_HOME:-$HOME/.local/share}/filament-falcon"
   mkdir -p "$LOGDIR"
   # --parent-pid $$: exec below keeps this pid, so the helper exits when the game does.
+  export FALCON_ICS=runsh
   nohup python3 tools/falcon_ics.py --parent-pid $$ --log "$LOGDIR/ics.log" >/dev/null 2>&1 &
 fi
 exec "$GODOT" --path . -- "${GAME_ARGS[@]}"

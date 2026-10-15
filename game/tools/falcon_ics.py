@@ -521,6 +521,10 @@ def parse_pactl_list(text):
             cur["name"] = line[5:].strip()
         elif line.startswith("Description:"):
             cur["description"] = line[12:].strip()
+        elif line.startswith("Sample Specification:"):
+            cur["spec"] = line[21:].strip()
+        elif line.startswith("Mute:"):
+            cur["mute"] = line[5:].strip()
         elif line.startswith("Properties:"):
             in_props = True
         elif in_props:
@@ -591,6 +595,43 @@ def headsets_from(sinks, sources):
         if seen[h["label"]] > 1:
             h["label"] += f' #{h["sink"][-6:] or h["source"][-6:]}'
     return out
+
+
+def plain_list(items):
+    """Every real source/sink (no monitors, none of ours) as {name, desc, spec}: the per-station
+    INPUT / OUTPUT pickers. Matched by node NAME (stable across boots), not by index."""
+    out = []
+    for it in items:
+        p = it["props"]
+        if it["name"].endswith(".monitor") or p.get("device.class") == "monitor" or it["name"].startswith("falcon_"):
+            continue
+        out.append({"name": it["name"], "desc": it["description"] or it["name"], "spec": it.get("spec", "")})
+    return out
+
+
+def resolve(choice, lst, default_name, used=()):
+    """choice: "" (follow the seat's headset), "none", "default", or a node name. Returns a
+    device name, "" (nothing) or None (= use the headset). Falls back from name to description."""
+    if choice in ("", None):
+        return None
+    if choice == "none":
+        return ""
+    if choice == "default":
+        return default_name
+    names = [d["name"] for d in lst]
+    if choice in names:
+        return choice
+    for d in lst:                          # name changed between boots: same description
+        if d["desc"] == choice:
+            return d["name"]
+    # same card, different profile (e.g. Snowball "...-00.analog-stereo" vs "...-00.mono-fallback")
+    # Only when exactly ONE free device matches: two identical headsets (same serial, names
+    # differ only by ".2") must never be guessed between.
+    core = choice.split(".")[1] if choice.count(".") >= 2 else ""
+    cands = [d["name"] for d in lst if core and core in d["name"] and d["name"] not in used]
+    if len(cands) == 1:
+        return cands[0]
+    return ""
 
 
 def is_wivrn(it):
@@ -711,7 +752,7 @@ class Capture(threading.Thread):
                    f"--latency-msec={self.latency_ms}", f"--device={self.device}", "--client-name=falcon-ics",
                    "--stream-name=" + self.name]
             try:
-                self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+                self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             except OSError:
                 return
             nbytes = BLOCK * 2
@@ -893,18 +934,49 @@ class Helper:
             return
         sinks, sources = self.pulse.list("sinks"), self.pulse.list("sources")
         self.devs = headsets_from(sinks, sources)
+        self.inputs = plain_list(sources)
+        self.outputs = plain_list(sinks)
         self._rematch()
 
     def _rematch(self):
         saved = {s: str(self.cfg.get(f"{s}_headset", "")) for s in SEATS}
         new = match_assignments(self.devs, saved)
+        info = run(["pactl", "info"])[1]
+        dsrc = (re.search(r"Default Source: (.+)", info) or [None, ""])[1].strip()
+        dsink = Pulse.default_sink(info)
+        if not hasattr(self, "routes"):
+            self.routes = {}
+        used_in, used_out = set(), set()
+        for s in SEATS:   # explicit picks first, so a headset never takes a device another seat chose
+            for kind, used in (("in", used_in), ("out", used_out)):
+                v = str(self.cfg.get(f"{s}_{kind}", ""))
+                if v not in ("", "none", "default"):
+                    used.add(v)
         for s in SEATS:
-            old = self.assign.get(s)
-            nd = new.get(s)
-            if (old or {}).get("id") != (nd or {}).get("id") or (nd and not self.args.mock and s not in self.caps):
-                self._attach(s, nd)
+            hs = new.get(s) or {}
+            src = resolve(str(self.cfg.get(f"{s}_in", "")), getattr(self, "inputs", []), dsrc, used_in)
+            snk = resolve(str(self.cfg.get(f"{s}_out", "")), getattr(self, "outputs", []), dsink, used_out)
+            if src is None:
+                src = hs.get("source", "")
+                src = "" if src in used_in else src
+            if snk is None:
+                snk = hs.get("sink", "")
+                snk = "" if snk in used_out else snk
+            if src and src != dsrc:
+                used_in.add(src)
+            if snk and snk != dsink:
+                used_out.add(snk)
+            route = (src, snk)
+            if self.routes.get(s) != route or (any(route) and not self.args.mock and s not in self.caps and s not in self.plays):
+                self._attach(s, {"source": route[0], "sink": route[1], "label": hs.get("label") or (route[0] or route[1] or "none")} if any(route) else None)
+                self.routes[s] = route
         self.assign = new
-        self.send({"type": "devices", "list": self.devs, "assign": {s: (d["id"] if d else "") for s, d in new.items()}})
+        self._send_devices()
+
+    def _send_devices(self):
+        self.send({"type": "devices", "list": self.devs, "assign": {s: (d["id"] if d else "") for s, d in self.assign.items()},
+                   "inputs": getattr(self, "inputs", []), "outputs": getattr(self, "outputs", []),
+                   "routes": {s: list(r) for s, r in getattr(self, "routes", {}).items()}})
 
     def _attach(self, seat, dev):
         for d in (self.caps, self.plays):
@@ -915,10 +987,20 @@ class Helper:
         if dev is None or self.args.mock:
             return
         if dev.get("source"):
+            spec = next((d.get("spec", "") for d in getattr(self, "inputs", []) if d["name"] == dev["source"]), "?")
+            # a muted or suspended source records pure silence: wake it (logged)
+            if not dev["source"].startswith("@"):
+                run(["pactl", "suspend-source", dev["source"], "0"])
+                rc, out = run(["pactl", "get-source-mute", dev["source"]])
+                if "yes" in out:
+                    run(["pactl", "set-source-mute", dev["source"], "0"])
+                    log(f"{seat}: source was MUTED in the system mixer; unmuted it")
+            log(f"{seat}: INPUT {dev['source']}  native [{spec}] -> captured as s16le 48000 Hz mono (server converts)")
             self.in_rings[seat] = Ring()
             self.caps[seat] = Capture(dev["source"], self.in_rings[seat], seat)
             self.caps[seat].start()
         if dev.get("sink"):
+            log(f"{seat}: OUTPUT {dev['sink']}")
             self.out_rings[seat] = Ring()
             self.plays[seat] = Playback(dev["sink"], self.out_rings[seat], seat)
             self.plays[seat].start()
@@ -939,7 +1021,7 @@ class Helper:
                 self.parent = int(msg["pid"])
             if isinstance(msg.get("values"), dict):
                 self.apply_cfg(msg["values"])
-            self.send({"type": "devices", "list": self.devs, "assign": {s: (d["id"] if d else "") for s, d in self.assign.items()}})
+            self._send_devices()
         elif cmd == "cfg":
             self.apply_cfg(msg.get("values", {}))
         elif cmd == "state":
@@ -967,7 +1049,7 @@ class Helper:
 
     def apply_cfg(self, values):
         with self.lock:
-            changed_dev = any(k.endswith("_headset") and self.cfg.get(k) != v for k, v in values.items())
+            changed_dev = any((k.endswith("_headset") or k.endswith("_in") or k.endswith("_out")) and self.cfg.get(k) != v for k, v in values.items())
             spk = "speakers" in values and bool(values["speakers"]) != bool(self.cfg.get("speakers"))
             self.cfg.update(values)
             self.engine.set_cfg(values)
@@ -1062,6 +1144,11 @@ class Helper:
                 if now - last_status > 1 / 15:
                     last_status = now
                     self.send(self.status())
+                    if started and now - getattr(self, "_lvl_t", 0.0) > 10.0:
+                        self._lvl_t = now
+                        st = self.engine.status()
+                        log("levels: " + "  ".join(f"{s}={st[s].get('level', -90):.0f}dB{'(open)' if st[s].get('open') else ''}"
+                                                   f"[{(getattr(self, 'routes', {}).get(s) or ('', ''))[0] or '-'}]" for s in SEATS))
                     if not self.parent_alive():
                         log("game exited; stopping")
                         break

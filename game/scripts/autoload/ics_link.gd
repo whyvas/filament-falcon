@@ -21,6 +21,9 @@ var enabled := false
 var mock := false
 var helper_pid := -1
 var status := {}               # last status from the helper
+var inputs: Array = []         # [{name, desc, spec}] every mic / source
+var outputs: Array = []        # every speaker / sink
+var routes: Dictionary = {}    # seat -> [source, sink] actually opened
 var devices: Array = []        # [{id, label, product, serial, path, sink, source}]
 var assign := {}               # seat -> device id
 var touch_ptt := {"pilot": false, "ops": false, "commander": false, "eva": false}
@@ -187,17 +190,57 @@ func toggle_mute(s: String) -> void:
 func cycle_headset(s: String, d: int) -> void:
 	var ids: Array = [""]
 	for dv in devices:
-		ids.append(str(dv["id"]))
+		var taken := false
+		for o in SEATS:
+			if o != s and str(Settings.get_v("ics", o + "_headset")) == str(dv["id"]):
+				taken = true
+		if not taken:   # skip headsets other seats use: never steal (USB port path keeps ids stable)
+			ids.append(str(dv["id"]))
 	var cur := str(Settings.get_v("ics", s + "_headset"))
 	var i := ids.find(cur)
 	if i < 0:
 		i = 0
 	var nxt: String = ids[posmod(i + d, ids.size())]
-	# one headset per seat: take it away from the seat that had it
-	for o in SEATS:
-		if o != s and nxt != "" and str(Settings.get_v("ics", o + "_headset")) == nxt:
-			Settings.set_v("ics", o + "_headset", "", false)
 	set_cfg(s + "_headset", nxt)
+
+
+## Step a station's INPUT ("in") or OUTPUT ("out") through: headset, none, system default,
+## then every device not already picked by another station (never steals one).
+func cycle_io(s: String, kind: String, d: int) -> void:
+	var lst: Array = inputs if kind == "in" else outputs
+	var opts: Array = ["", "none", "default"]
+	for dv: Dictionary in lst:
+		var nm := str(dv["name"])
+		var taken := false
+		for o in SEATS:
+			if o != s and str(Settings.get_v("ics", "%s_%s" % [o, kind])) == nm:
+				taken = true
+		if not taken:
+			opts.append(nm)
+	var cur := str(Settings.get_v("ics", "%s_%s" % [s, kind]))
+	var i := opts.find(cur)
+	if i < 0:
+		i = 0
+	set_cfg("%s_%s" % [s, kind], opts[posmod(i + d, opts.size())])   # saved + sent live
+
+
+func io_label(s: String, kind: String) -> String:
+	var cur := str(Settings.get_v("ics", "%s_%s" % [s, kind]))
+	var opened: Array = routes.get(s, ["", ""])
+	var now := str(opened[0 if kind == "in" else 1]) if opened.size() == 2 else ""
+	var pretty := func(nm: String) -> String:
+		for dv: Dictionary in (inputs if kind == "in" else outputs):
+			if str(dv["name"]) == nm:
+				return str(dv["desc"])
+		return nm
+	match cur:
+		"":
+			return "Headset" + ("  → " + pretty.call(now) if now != "" else "  (none)")
+		"none":
+			return "None"
+		"default":
+			return "System default" + ("  → " + pretty.call(now) if now != "" else "")
+	return pretty.call(cur) + ("" if now == cur else "  (not found)")
 
 
 func device_label(id: String) -> String:
@@ -224,13 +267,18 @@ func _process(dt: float) -> void:
 				status_changed.emit()
 			"devices":
 				devices = d.get("list", [])
+				inputs = d.get("inputs", [])
+				outputs = d.get("outputs", [])
+				routes = d.get("routes", {})
 				assign = d.get("assign", {})
 				devices_changed.emit()
 	_hello_t += dt
 	if _hello_t > 1.0:
 		_hello_t = 0.0
 		_hello()
-	if not connected() and not _start_tried and _now() - _t0 > 1.5:
+	# run.sh already started the helper (it can take a few s to open the devices): never start a
+	# second one, which raced it, reset the sinks and looked like endless restarts.
+	if not connected() and not _start_tried and OS.get_environment("FALCON_ICS") != "runsh" and _now() - _t0 > 5.0:
 		_start_helper()
 	elif not connected() and helper_pid > 0 and not OS.is_process_running(helper_pid):
 		helper_pid = -1
