@@ -268,3 +268,12 @@ height offset), tether 10/20/30 m.
 - `left_hand: MISSING` or `tracked=false`: wake the controllers (press a button). On a fresh clone, run `./run.sh` once so the project re-imports, which picks up `openxr_action_map.tres`.
 - Controls: grip grabs handrails, the left stick moves the jetpack, the right stick goes up/down and snap-turns, the trigger uses the tool, and holding Menu for 1 s recenters.
 - The log should show `near=0.10 far=100000`, then `session FOCUSED`, and controller lines like `c0 tracked=true pose=grip_pose has=[grip_pose(true) ...]`. `session visible only` means the Quest has the system menu open or the headset is off your face, and input pauses until it's FOCUSED again. A lot of `pose recentered (runtime)` lines come from the Quest itself (holding the Meta button), not from the game.
+
+## WiVRn starts automatically
+
+You don't need to open WiVRn yourself. When the VR client starts (`./run.sh --eva-vr`, or **Commander → EVA → LAUNCH VR CLIENT**), the game runs `tools/wivrn_up.sh start`, which:
+1. runs `adb reverse tcp:9757 tcp:9757` when `adb` is installed and the Quest is plugged in over USB;
+2. leaves an already-running WiVRn server alone. Otherwise it starts the native `wivrn-server`, or the Flatpak (`flatpak run --command=wivrn-server io.github.wivrn.wivrn`);
+3. waits up to 20 s for the runtime (`WIVRN_TIMEOUT=40 ./run.sh --eva-vr` waits longer), then points `XR_RUNTIME_JSON` at WiVRn's `openxr_wivrn.json` unless you already set it.
+
+A server the game started is stopped when the VR client or game exits. A server you started yourself is never stopped. Progress shows in the Commander EVA log and in `~/.local/share/filament-falcon/wivrn.log`. Run it by hand with `game/tools/wivrn_up.sh start` / `stop`.

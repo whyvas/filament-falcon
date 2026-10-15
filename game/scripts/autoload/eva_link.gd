@@ -356,8 +356,44 @@ func launch_client(headless: bool = false, extra: Array = []) -> bool:
 		return false
 	if client_pid > 0 and OS.is_process_running(client_pid):
 		return true
+	if not headless and not _wivrn_busy:
+		# start WiVRn first (off the main thread: it can take up to ~20 s), then launch
+		_wivrn_busy = true
+		status_msg = "Starting WiVRn server..."
+		_log(status_msg)
+		var th := Thread.new()
+		th.start(func() -> void:
+			var out: Array = []
+			OS.execute(ProjectSettings.globalize_path("res://tools/wivrn_up.sh"), ["start"], out, true)
+			_after_wivrn.call_deferred(th, "\n".join(out), extra))
+		return true
+	return _spawn_client(headless, extra, "")
+
+
+var _wivrn_busy := false
+var _wivrn_started := false
+var status_msg := ""
+
+
+func _after_wivrn(th: Thread, out: String, extra: Array) -> void:
+	th.wait_to_finish()
+	_wivrn_busy = false
+	_wivrn_started = true
+	var rt := ""
+	for line in out.split("\n"):
+		if line.begins_with("XR_RUNTIME_JSON="):
+			rt = line.substr(16).strip_edges()
+		elif line.begins_with("[WiVRn]"):
+			status_msg = line
+			_log(line)
+	_spawn_client(false, extra, rt)
+
+
+func _spawn_client(headless: bool, extra: Array, wivrn_rt: String) -> bool:
 	var rt := str(Settings.get_v("eva", "xr_runtime_json"))
-	if rt != "":
+	if rt == "":
+		rt = wivrn_rt
+	if rt != "" and OS.get_environment("XR_RUNTIME_JSON") == "":
 		OS.set_environment("XR_RUNTIME_JSON", rt)
 	var args: Array[String] = []
 	if headless:
@@ -378,6 +414,14 @@ func stop_client() -> void:
 		_net_tx()
 		OS.kill(client_pid)
 	client_pid = -1
+	_stop_wivrn()
+
+
+## Only stops a server tools/wivrn_up.sh started (it keeps a pid file); never one Yves started.
+func _stop_wivrn() -> void:
+	if _wivrn_started:
+		_wivrn_started = false
+		OS.execute(ProjectSettings.globalize_path("res://tools/wivrn_up.sh"), ["stop"])
 
 
 func _send_cmd(kind: String, data: Dictionary) -> void:

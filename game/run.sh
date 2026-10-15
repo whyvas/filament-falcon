@@ -45,6 +45,14 @@ fi
 if [ "$EVA_VR" = 1 ]; then
   # The cockpit instance owns the displays and the intercom; the VR client only renders the
   # headset view and streams the spacewalker's pose to it over localhost (UDP 47820).
+  # Start WiVRn if it isn't running (stopped again on exit only if we started it).
+  if [ "$XR_MODE" = on ] && [ -x tools/wivrn_up.sh ]; then
+    RT=$(tools/wivrn_up.sh start | sed -n 's/^XR_RUNTIME_JSON=//p' | tail -1)
+    [ -n "$RT" ] && [ -z "$XR_RUNTIME_JSON" ] && export XR_RUNTIME_JSON="$RT"
+    trap 'tools/wivrn_up.sh stop' EXIT
+    "$GODOT" --path . --xr-mode "$XR_MODE" -- --eva-client "${GAME_ARGS[@]}" || true
+    exit 0
+  fi
   exec "$GODOT" --path . --xr-mode "$XR_MODE" -- --eva-client "${GAME_ARGS[@]}"
 fi
 if [ "$DO_SETUP" = 1 ] && [ -x tools/setup_displays.sh ]; then
