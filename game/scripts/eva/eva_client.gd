@@ -73,8 +73,14 @@ func _setup_xr() -> void:
 		return
 	if not xr_if.is_initialized():
 		xr_error = "no OpenXR runtime / headset (start WiVRn and connect the Quest)"
+		_xlog("XR init FAILED: " + xr_error)
 		return
 	has_xr = true
+	_xlog("XR init ok: %s · action map %s" % [str(_system_info()), ProjectSettings.get_setting("xr/openxr/default_action_map", "?")])
+	var oxr := xr_if as OpenXRInterface
+	if oxr:
+		oxr.session_begun.connect(func() -> void: _xlog("session begun"))
+		oxr.pose_recentered.connect(func() -> void: _xlog("pose recentered"))
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)   # the runtime paces frames
 	Engine.max_fps = 0
 	get_viewport().use_xr = true
@@ -89,9 +95,21 @@ func _setup_xr() -> void:
 	for side: String in ["left_hand", "right_hand"]:
 		var c := XRController3D.new()
 		c.tracker = side
-		c.pose = &"grip"
+		c.pose = &"grip_pose"   # Godot's default action map names it grip_pose ("grip" never tracked)
 		origin.add_child(c)
 		ctrl.append(c)
+		# simple glove so you always see your hands, even before the avatar exists
+		var glove := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.09, 0.05, 0.13)
+		var gm := StandardMaterial3D.new()
+		gm.albedo_color = Color(0.92, 0.92, 0.88)
+		gm.roughness = 0.8
+		bm.material = gm
+		glove.mesh = bm
+		glove.name = "Glove"
+		c.add_child(glove)
+		c.button_pressed.connect(func(b: String) -> void: _xlog("%s pressed %s" % [side, b]))
 	# wrist cuff checklist (real EVA suits have one): a little screen on the left forearm
 	cuff = Label3D.new()
 	cuff.pixel_size = 0.00035
@@ -180,6 +198,29 @@ func _selftest() -> void:
 	get_tree().quit(0)
 
 
+var _xlog_t := 0.0
+## XR diagnostics -> ~/.local/share/filament-falcon/eva_vr.log (user://eva_vr.log)
+func _xlog(msg: String) -> void:
+	var path := OS.get_environment("HOME") + "/.local/share/filament-falcon/eva_vr.log"
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	var f := FileAccess.open(path, FileAccess.READ_WRITE if FileAccess.file_exists(path) else FileAccess.WRITE)
+	if f:
+		f.seek_end()
+		f.store_line("%s  %s" % [Time.get_datetime_string_from_system(), msg])
+	print("[EVA-VR] ", msg)
+
+
+func _xr_status() -> void:
+	var s := ""
+	for side: String in ["left_hand", "right_hand"]:
+		var t := XRServer.get_tracker(side) as XRPositionalTracker
+		s += "%s: %s profile=%s · " % [side, "present" if t else "MISSING", t.profile if t else "-"]
+	s += "trackers=%s · origin=%s head=%s" % [str(XRServer.get_trackers(0xFF).keys()), origin.global_position.snapped(Vector3.ONE * 0.1), xr_cam.global_position.snapped(Vector3.ONE * 0.1)]
+	for i in ctrl.size():
+		s += " · c%d tracked=%s" % [i, ctrl[i].get_has_tracking_data()]
+	_xlog(s)
+
+
 # ======================================================================== frame
 func _process(dt: float) -> void:
 	_t += dt
@@ -194,6 +235,10 @@ func _process(dt: float) -> void:
 	if has_xr:
 		_place_origin()
 		_update_comfort(dt)
+		_xlog_t -= dt
+		if _xlog_t <= 0.0:
+			_xlog_t = 10.0
+			_xr_status()
 		cuff.text = _cuff_text()
 	else:
 		_place_flat_cam()
@@ -203,7 +248,12 @@ func _process(dt: float) -> void:
 
 func _place_origin() -> void:
 	if sim == null:
-		origin.transform = Transform3D(Basis.IDENTITY, EvaScenarios.hatch_point() + Vector3(0, -1.0, 0))
+		# waiting at the airlock handrail: head ~1 m out from the hull, facing the hatch
+		# (the old spot put your eyes inside the hull, where back-face culling shows only stars)
+		var n := EvaScenarios.hatch_normal()
+		var head := EvaScenarios.hatch_point() + n * 1.0
+		var fwd := Vector3(-n.x, 0.0, -n.z).normalized() if Vector3(n.x, 0, n.z).length() > 0.1 else Vector3.FORWARD
+		origin.transform = Transform3D(Basis.looking_at(fwd, Vector3.UP), head - Vector3(0, 1.6, 0))
 		return
 	origin.transform = sim.rig * Transform3D(Basis.IDENTITY, Vector3(0, SEATED_OFFSET if bool(_cfg.get("seated", false)) else 0.0, 0))
 
