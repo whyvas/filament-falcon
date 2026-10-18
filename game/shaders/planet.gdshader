@@ -5,6 +5,15 @@ shader_type spatial;
 render_mode unshaded, cull_back;
 
 #include "res://shaders/noise.gdshaderinc"
+#include "res://shaders/geo_tex.gdshaderinc"
+
+// Real NASA imagery when downloaded (Blue Marble day, Black Marble night, clouds, GEBCO/SRTM
+// elevation); the procedural planet is the fallback and adds close-up detail on top.
+uniform bool use_tex = false;
+uniform sampler2D day_tex : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D night_tex : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D cloud_tex : filter_linear_mipmap, repeat_enable;
+uniform sampler2D height_tex : filter_linear_mipmap, repeat_enable;
 
 uniform vec3 sun_dir = vec3(0.0, 0.0, 1.0);
 uniform float time = 0.0;
@@ -30,6 +39,12 @@ float land_mask(vec3 d) {
 
 float clouds(vec3 d) {
 	vec3 q = rot_y(cloud_rot) * d;
+	if (use_tex) {
+		float ct = geo_sample(cloud_tex, geo_uv(q)).r;
+		ct = smoothstep(0.12, 0.9, ct);
+		ct *= smoothstep(0.05, 0.11, acos(clamp(dot(d, normalize(site_a)), -1.0, 1.0)));
+		return ct * smoothstep(0.05, 0.11, acos(clamp(dot(d, normalize(site_b)), -1.0, 1.0)));
+	}
 	float c = fbm(q * 4.0 + vec3(0.0, time * 0.002, 0.0), 6);
 	float bands = 0.5 + 0.5 * sin(q.y * 9.0 + fbm(q * 2.0, 3) * 4.0);
 	float a = smoothstep(0.65, 0.82, c * (0.75 + 0.35 * bands));
@@ -75,8 +90,22 @@ void fragment() {
 	float ice = smoothstep(0.86, 0.9, lat + 0.05 * fbm(d * 12.0, 3));
 	vec3 albedo = mix(ocean, land, is_land);
 	albedo = mix(albedo, snow, ice);
+	float tex_h = 0.0;
+	vec2 guv = geo_uv(d);
+	if (use_tex) {
+		tex_h = geo_sample(height_tex, guv).r;
+		vec3 dayc = geo_sample(day_tex, guv).rgb;
+		// land / water from the day image (water is dark and blue-dominant)
+		float water = smoothstep(0.02, 0.06, dayc.b - max(dayc.r, dayc.g) * 0.9) * (1.0 - smoothstep(0.003, 0.02, tex_h));
+		is_land = 1.0 - water;
+		ice = smoothstep(0.55, 0.75, min(dayc.r, min(dayc.g, dayc.b)));
+		albedo = dayc * (0.92 + 0.16 * fine);
+	}
 	// relief: derivative bump mapping from the terrain height (mountains, hills, fine detail)
 	float hgt = (mount * 1.5 + fine * 0.6) * is_land;
+	if (use_tex) {
+		hgt = tex_h * 6.0 + fine * 0.25 * is_land;
+	}
 	vec3 pu = normalize(world_p - MODEL_MATRIX[3].xyz);   // unit sphere, world orientation
 	vec3 dpdx = dFdx(pu);
 	vec3 dpdy = dFdy(pu);
@@ -107,6 +136,12 @@ void fragment() {
 	// city lights on the night side
 	float city = smoothstep(0.62, 0.8, fbm(d * 60.0, 4)) * smoothstep(0.35, 0.6, fbm(d * 7.0 + 5.0, 3));
 	city *= is_land * (1.0 - ice) * (1.0 - smoothstep(0.25, 0.4, 1.0 - moist));
+	if (use_tex) {
+		vec3 nl = geo_sample(night_tex, guv).rgb;
+		city = smoothstep(0.08, 0.6, dot(nl, vec3(0.3, 0.5, 0.2)));
+		// clouds dim the lights; a thin airglow band at the terminator
+		city *= 1.0 - 0.7 * clouds(d);
+	}
 	col += vec3(1.0, 0.65, 0.3) * city * (1.0 - day) * 1.6;
 	ALBEDO = col;
 }

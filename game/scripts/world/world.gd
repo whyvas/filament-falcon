@@ -37,13 +37,18 @@ var ATMO_PROXY_R := 8.0e5
 var atmo_node: MeshInstance3D
 var earth_scale := 1.0
 var eva_view: EvaView
+var region: RegionView
 
 
 func _ready() -> void:
 	add_to_group("world")
 	_build_environment()
 	_build_bodies()
+	_apply_nasa_textures()
 	_build_patches()
+	region = RegionView.new()
+	region.name = "Region"
+	add_child(region)
 	ship = ShipModel.new()
 	ship.name = "Falcon"
 	add_child(ship)
@@ -165,11 +170,40 @@ func _build_bodies() -> void:
 	moon_node = Node3D.new()
 	moon_node.name = "Moon"
 	add_child(moon_node)
-	moon_mat = ProcGen.shader_mat("res://shaders/moon.gdshader")
-	var ms := ProcGen.mesh_node(ProcGen.sphere(m.radius - 20.0, seg, seg / 2), moon_mat)
+	moon_mat = ProcGen.shader_mat("res://shaders/moon.gdshader", {"site_dir": Game.lunar_site_dir})
+	var ms := ProcGen.mesh_node(ProcGen.sphere(m.radius - 20.0, seg * 2, seg), moon_mat)
 	ms.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	ms.extra_cull_margin = 16384.0
 	moon_node.add_child(ms)
+
+
+## NASA textures from the asset cache (tools/fetch_assets.sh); the procedural shaders stay as
+## the fallback when they're missing (offline / not fetched yet).
+func _apply_nasa_textures() -> void:
+	var month := clampi(int(Settings.get_v("graphics", "earth_month")), 1, 12)
+	var day := Geo.tex("earth_day_%02d.jpg" % month)
+	if day == null:
+		day = Geo.tex("earth_day_07.jpg")
+	var night := Geo.tex("earth_night.jpg")
+	var clouds := Geo.tex("earth_clouds.jpg")
+	var height := Geo.tex("earth_height.png")
+	var gfg := Geo.game_from_geo().inverse()
+	if day and night and clouds and height:
+		for mt: ShaderMaterial in [earth_mat, cloud_mat]:
+			mt.set_shader_parameter("use_tex", true)
+			mt.set_shader_parameter("geo_from_game", gfg)
+			mt.set_shader_parameter("cloud_tex", clouds)
+		earth_mat.set_shader_parameter("day_tex", day)
+		earth_mat.set_shader_parameter("night_tex", night)
+		earth_mat.set_shader_parameter("height_tex", height)
+		print("Earth: NASA textures (month %d)" % month)
+	var mc := Geo.tex("moon_color.jpg")
+	var mh := Geo.tex("moon_height.png")
+	if mc and mh:
+		moon_mat.set_shader_parameter("use_tex", true)
+		moon_mat.set_shader_parameter("color_tex", mc)
+		moon_mat.set_shader_parameter("height_tex", mh)
+		print("Moon: LRO textures")
 
 
 func _build_patches() -> void:
@@ -383,6 +417,8 @@ func _process(dt: float) -> void:
 	var night := (1.0 - clampf(sim.altitude / 45000.0, 0.0, 1.0)) * (1.0 - smoothstep(-0.12, 0.05, elev)) if in_air else 0.0
 	var exp_target := lerpf(0.92, 0.78, day_factor) + night * 0.35
 	env.tonemap_exposure = lerpf(env.tonemap_exposure, exp_target, clampf(dt * 1.5, 0.0, 1.0)) if dt < 0.5 else exp_target
+	if region:
+		region.place(origin)
 	# Terrain patches: visible only when near
 	for p in patches:
 		var body2: CelestialBody = p["body"]

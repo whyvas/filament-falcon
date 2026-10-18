@@ -45,7 +45,7 @@ const DEFAULTS := {
 		"left_warp": "",           # res:// or absolute path to a canvas_item .gdshader, "" = none
 		"right_warp": "",
 	},
-	"graphics": {"quality": "high"},
+	"graphics": {"quality": "high", "earth_month": 7},   # earth_month: Blue Marble month 1-12 (seasons)
 	"audio": {"master_db": 0.0, "voice": true, "voice_engine": "auto", "piper_model": ""},
 	"led": {"enabled": true, "udp_port": 47800, "serial_port": "auto", "brightness": 160},
 	"game": {"start_mission": "launch", "difficulty": "normal", "skip_checklist": false},

@@ -5,6 +5,9 @@ shader_type spatial;
 render_mode unshaded, blend_mix, cull_disabled, depth_draw_never;
 
 #include "res://shaders/noise.gdshaderinc"
+#include "res://shaders/geo_tex.gdshaderinc"
+uniform bool use_tex = false;
+uniform sampler2D cloud_tex : filter_linear_mipmap, repeat_enable;
 
 uniform vec3 sun_dir = vec3(0.0, 0.0, 1.0);
 uniform float time = 0.0;
@@ -33,6 +36,9 @@ void fragment() {
 	// small cumulus cells break up the big systems
 	float cells = fbm(q * 55.0 + 7.0, 4);
 	float a = smoothstep(0.65, 0.82, cov + (cells - 0.5) * 0.18);
+	if (use_tex) {   // NASA cloud map, drifting with cloud_rot, broken up by the procedural cells
+		a = smoothstep(0.12, 0.9, geo_sample(cloud_tex, geo_uv(q)).r + (cells - 0.5) * 0.12);
+	}
 	float detail = fbm(q * 160.0, 3);
 	a *= 0.75 + 0.4 * detail;
 	// clear weather over the launch site and the runway

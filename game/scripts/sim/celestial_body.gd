@@ -66,7 +66,14 @@ func density(alt: float) -> float:
 
 
 ## Terrain height (m above `radius`) for a unit direction from the body centre.
+var height_hook: Callable   # a loaded detail region (RegionView.height_at): NAN = outside it
+
+
 func terrain_height(dir: Vector3) -> float:
+	if height_hook.is_valid():
+		var rh: float = height_hook.call(dir)
+		if not is_nan(rh):
+			return rh
 	if terrain_amp <= 0.0:
 		return 0.0
 	var p := dir * radius

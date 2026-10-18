@@ -6,6 +6,7 @@
 # Usage: ./run.sh [--cockpit|--dev] [--quality=ultra] [--mission=docking] ...
 #        ./run.sh --landscape-console     also rotate the console monitor to landscape
 #        ./run.sh --no-display-setup      skip the touch mapping
+#        ./run.sh --no-fetch          skip the first-run Earth/Moon/OSM download (tools/fetch_assets.sh)
 #        ./run.sh --no-ics                no intercom helper (headsets off)
 #        ./run.sh --eva-vr                the spacewalker's VR client (Meta Quest 3 via WiVRn);
 #                                         start the cockpit first, then this (or LAUNCH VR CLIENT
@@ -21,6 +22,7 @@ SETUP_ARGS=()
 GAME_ARGS=()
 DO_SETUP=1
 DO_ICS=1
+DO_FETCH=1
 EVA_VR=0
 XR_MODE=on
 for a in "$@"; do
@@ -28,6 +30,7 @@ for a in "$@"; do
     --landscape-console) SETUP_ARGS+=("--landscape") ;;
     --no-display-setup) DO_SETUP=0 ;;
     --no-ics) DO_ICS=0; GAME_ARGS+=("$a") ;;
+    --no-fetch) DO_FETCH=0 ;;
     --eva-vr) EVA_VR=1 ;;
     --eva-flat) XR_MODE=off ;;
     *) GAME_ARGS+=("$a") ;;
@@ -41,6 +44,12 @@ if [ ! -f .godot/global_script_class_cache.cfg ] || [ ! -f "$STAMP" ] || \
   echo "Importing project (first run or after an update, ~1 minute)..."
   "$GODOT" --headless --path . --import
   touch "$STAMP"
+fi
+ASSETS="${XDG_DATA_HOME:-$HOME/.local/share}/filament-falcon/assets"
+if [ "$DO_FETCH" = 1 ] && [ ! -f "$ASSETS/.fetched" ] && [ ! -f "$ASSETS/.tried" ]; then
+  # first run: real Earth/Moon textures + OSM region (~60 MB); failures never block launch
+  mkdir -p "$ASSETS" && touch "$ASSETS/.tried"
+  tools/fetch_assets.sh || true
 fi
 if [ "$EVA_VR" = 1 ]; then
   # The cockpit instance owns the displays and the intercom; the VR client only renders the

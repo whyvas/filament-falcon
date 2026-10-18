@@ -12,6 +12,9 @@ var display: DisplayManager
 
 
 func _ready() -> void:
+	if Settings.cli.has("region-test"):
+		add_child(load("res://tests/region_test.gd").new())
+		return
 	if Settings.cli.has("ui-fit"):
 		add_child(load("res://tests/ui_fit.gd").new())
 		return

@@ -2,7 +2,7 @@ extends Mission
 ## (f) Free-flight sandbox. Everything works; the jump drive hops between destinations.
 ## The Commander ends the flight from the MISSION page.
 
-const DESTS := ["STATION", "MOON ORBIT", "ASTEROID FIELD", "RUNWAY APPROACH", "LAUNCH PAD"]
+const DESTS := ["STATION", "MOON ORBIT", "ASTEROID FIELD", "RUNWAY APPROACH", "LAUNCH PAD", "FREDERICTON"]
 var dest_index := 0
 var visited := {}
 
@@ -72,6 +72,19 @@ func go_to(i: int) -> void:
 			var rw: Dictionary = game.entities_of("runway")[0]
 			rw["revealed"] = true
 			game.nav_targets = [{"name": "RUNWAY", "entity": rw}]
+		"FREDERICTON":
+			# descent over downtown Fredericton NB and the Saint John River (OSM detail region,
+			# tools/fetch_assets.sh); 8 km west, 4 km up, gliding east
+			var e4 := earth()
+			var fd := Geo.game_dir(45.962, -66.643)
+			var east4 := CelestialBody.east_at(fd)
+			var d4 := (fd * cos(8000.0 / e4.radius) - east4 * sin(8000.0 / e4.radius)).normalized()
+			var r4 := e4.radius + e4.terrain_height(fd) + 4000.0
+			sim.pos.set_xyz(d4.x * r4, d4.y * r4, d4.z * r4)
+			var e5 := CelestialBody.east_at(d4)
+			sim.vel = e5 * 120.0 - d4 * 15.0
+			sim.basis = ship_basis(e5 - d4 * 0.15, d4)
+			game.nav_targets = [{"name": "EARTH", "body": e4}]
 		"LAUNCH PAD":
 			var e3 := earth()
 			var up2: Vector3 = game.pad_dir
