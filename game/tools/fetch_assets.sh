@@ -32,6 +32,8 @@ get "$N/57000/57747/cloud_combined_2048.jpg" earth_clouds.jpg
 get "$N/73000/73934/gebco_08_rev_elev_21600x10800.png" gebco_raw.png
 get "$S/lroc_color_poles_4k.tif" moon_color.tif
 get "$S/ldem_4.tif" moon_ldem.tif
+curl -fsm 15 "https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE" -o "$A/iss.tle.part" && \
+  grep -q "^2 25544" "$A/iss.tle.part" && mv "$A/iss.tle.part" "$A/iss.tle" && echo "  iss.tle (REAL ISS mission)"
 python3 - "$A" <<'P' || echo "  ! conversion skipped (sudo apt install python3-pil python3-numpy)"
 import os, sys
 from PIL import Image

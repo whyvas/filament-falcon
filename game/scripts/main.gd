@@ -12,6 +12,10 @@ var display: DisplayManager
 
 
 func _ready() -> void:
+	if Settings.cli.has("iss"):    # print where the ISS is now (TLE source + age)
+		print("ISS NOW: ", Geo.iss_now(float(Settings.cli.get("iss", -1.0)) if str(Settings.cli["iss"]).is_valid_float() else -1.0))
+		get_tree().quit()
+		return
 	if Settings.cli.has("region-test"):
 		add_child(load("res://tests/region_test.gd").new())
 		return

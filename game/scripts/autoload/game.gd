@@ -11,9 +11,13 @@ signal game_event(kind: String, data: Dictionary)
 enum State { BRIEFING, ACTIVE, PAUSED, COMPLETE, FAILED }
 const STATE_NAMES := ["BRIEFING", "ACTIVE", "PAUSED", "COMPLETE", "FAILED"]
 
-const MISSION_ORDER := ["launch", "docking", "lunar", "asteroids", "reentry", "sandbox"]
+const MISSION_ORDER := ["launch", "docking", "lunar", "asteroids", "reentry", "sandbox",
+	"iss", "night_pass", "emergency", "splashdown", "rescue", "flag", "captains_log", "signal", "ground_crew", "bedtime"]
 const MISSION_TITLES := {"launch": "FIRST LIGHT", "docking": "SPACE HUG", "lunar": "EAGLE EYE",
-	"asteroids": "ROCK HOPPERS", "reentry": "HOMECOMING", "sandbox": "FREE FLIGHT"}
+	"asteroids": "ROCK HOPPERS", "reentry": "HOMECOMING", "sandbox": "FREE FLIGHT",
+	"iss": "REAL ISS", "night_pass": "CITY LIGHTS", "emergency": "HOUSTON, A PROBLEM", "splashdown": "SPLASHDOWN",
+	"rescue": "CATCH THE SPACEWALKER", "flag": "PLANT THE FLAG", "captains_log": "CAPTAIN'S LOG",
+	"signal": "ALIEN SIGNAL", "ground_crew": "GROUND CREW", "bedtime": "BEDTIME CRUISE"}
 const DIFFICULTIES := ["easy", "normal", "hard"]
 const MISSION_SCRIPTS := {
 	"launch": "res://scripts/missions/m_launch.gd",
@@ -22,6 +26,16 @@ const MISSION_SCRIPTS := {
 	"asteroids": "res://scripts/missions/m_asteroids.gd",
 	"reentry": "res://scripts/missions/m_reentry.gd",
 	"sandbox": "res://scripts/missions/m_sandbox.gd",
+	"iss": "res://scripts/missions/m_iss.gd",
+	"night_pass": "res://scripts/missions/m_night_pass.gd",
+	"emergency": "res://scripts/missions/m_emergency.gd",
+	"splashdown": "res://scripts/missions/m_splashdown.gd",
+	"rescue": "res://scripts/missions/m_rescue.gd",
+	"flag": "res://scripts/missions/m_flag.gd",
+	"captains_log": "res://scripts/missions/m_captains_log.gd",
+	"signal": "res://scripts/missions/m_signal.gd",
+	"ground_crew": "res://scripts/missions/m_ground_crew.gd",
+	"bedtime": "res://scripts/missions/m_bedtime.gd",
 }
 
 # ---- universe (1:10.6 scale, real surface gravity)
@@ -108,6 +122,9 @@ var laser_on := false
 var laser_target: Dictionary = {}
 var view_mode := 0             # 0 cockpit, 1 chase
 var camera_shake := 0.0
+var cabin_dim := 0.0           # 0 normal .. 1 night-light cabin (bedtime): dims the console + exposure
+var force_eva := ""            # MISSIONS page EVA entry: weave this spacewalk into its host mission
+var last_result := {}          # {id, title, score, stars, ok}: the Captain's Log saves it with the voice log
 var stage_flash := 0.0
 
 # ---- scoring & messages
@@ -166,6 +183,7 @@ func load_mission(id: String) -> void:
 	if not MISSION_SCRIPTS.has(id):
 		return
 	mission_id = id
+	force_eva = ""
 	t = 0.0
 	mission_time = 0.0
 	warp = 1.0
@@ -256,6 +274,7 @@ func _reset_systems() -> void:
 	nav_targets.clear()
 	nav_index = -1
 	nav_vector = "PROGRADE"
+	cabin_dim = 0.0
 	score_items.clear()
 	score_total = 0
 	stars = 0
@@ -339,13 +358,15 @@ func _place_entity(e: Dictionary) -> void:
 			var r: float = e["orbit_r"]
 			var n := sqrt(earth.gm / pow(r, 3.0))
 			var th: float = e["phase0"] + n * t
-			e["pos"].set_xyz(r * cos(th), 0.0, -r * sin(th))
-			e["vel"] = Vector3(-sin(th), 0.0, -cos(th)) * (n * r)
+			var pl: Basis = e.get("plane", Basis.IDENTITY)    # orbit plane (equatorial unless a mission tilts it)
+			var pp := pl * Vector3(r * cos(th), 0.0, -r * sin(th))
+			e["pos"].set_xyz(pp.x, pp.y, pp.z)
+			e["vel"] = pl * Vector3(-sin(th), 0.0, -cos(th)) * (n * r)
 			if e.get("lvlh", false):
 				var zz := Vector3(-sin(th), 0.0, -cos(th))
 				var yy := Vector3(cos(th), 0.0, -sin(th))
 				# port (+Z) faces the zenith: the Falcon docks from above (R-bar), Earth behind the station
-				e["basis"] = Basis(zz.cross(yy), zz, yy)
+				e["basis"] = pl * Basis(zz.cross(yy), zz, yy)
 		"surface":
 			var body: CelestialBody = e["body"]
 			var d: Vector3 = e["dir"]
@@ -575,7 +596,7 @@ func try_start() -> bool:
 
 
 func inject_failure(kind: String) -> void:
-	if failures.get(kind, false):
+	if failures.get(kind, false) or (mission and mission.calm):
 		return
 	failures[kind] = true
 	failure_time[kind] = mission_time
@@ -1041,8 +1062,13 @@ func complete_mission(text: String = "") -> void:
 	for s in score_items:
 		score_total += int(s[1])
 	stars = 3 if score_total >= mission.star_thresholds[1] else (2 if score_total >= mission.star_thresholds[0] else 1)
-	Voice.say(result_text + " %d stars!" % stars, 1)
-	Sfx.fanfare()
+	if mission_id != "captains_log":
+		last_result = {"id": mission_id, "title": mission.title, "score": score_total, "stars": stars, "ok": true}
+	if mission.calm:
+		Voice.say(result_text, 1)
+	else:
+		Voice.say(result_text + " %d stars!" % stars, 1)
+		Sfx.fanfare()
 	mission_finished.emit(true)
 	game_event.emit("complete", {})
 

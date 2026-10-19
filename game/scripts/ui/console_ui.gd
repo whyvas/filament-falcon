@@ -216,6 +216,7 @@ func _build_top(root: VBoxContainer) -> void:
 	for l: Label in [pl, ol]:
 		l.custom_minimum_size.y = 66
 		l.max_lines_visible = 2
+	_build_card(root)
 	live["top"] = func() -> void:
 		var m: Mission = Game.mission
 		if m == null:
@@ -246,6 +247,53 @@ func _build_top(root: VBoxContainer) -> void:
 				ol.text = "OPS ▸ " + (txt if role in ["OPS", "BOTH", "ALL"] else "Watch the screens and help the Pilot.")
 		pl.modulate = Color.WHITE if role in ["PILOT", "BOTH", "ALL"] or Game.state != Game.State.ACTIVE else Color(1, 1, 1, 0.55)
 		ol.modulate = Color.WHITE if role in ["OPS", "BOTH", "ALL"] or Game.state != Game.State.ACTIVE else Color(1, 1, 1, 0.55)
+
+
+## Mission card: a big, simple panel (checklist steps, a pattern to copy, RECORD...) with huge
+## tap buttons for the little ones. Shown while the mission has one (Mission.card).
+func _build_card(root: VBoxContainer) -> void:
+	var cp := PanelContainer.new()
+	cp.add_theme_stylebox_override("panel", sb(Color(0.08, 0.06, 0.02, 0.97), C_AMBER, 3, 18))
+	root.add_child(cp)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 14)
+	cp.add_child(row)
+	var tv := VBoxContainer.new()
+	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(tv)
+	var ct := label("", 34, C_AMBER)
+	var cx := label("", 26, C_TEXT)
+	cx.max_lines_visible = 3
+	tv.add_child(ct)
+	tv.add_child(cx)
+	var bx := HFlowContainer.new()
+	bx.add_theme_constant_override("h_separation", 12)
+	bx.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(bx)
+	var rev := [-1, null]
+	live["card"] = func() -> void:
+		var m: Mission = Game.mission
+		modulate = Color.WHITE.lerp(Color(0.5, 0.47, 0.58), Game.cabin_dim)
+		var c: Dictionary = m.card if m else {}
+		cp.visible = not c.is_empty() and Game.state in [Game.State.ACTIVE, Game.State.COMPLETE, Game.State.BRIEFING]
+		if not cp.visible or (int(c.get("rev", 0)) == rev[0] and rev[1] == m):
+			return
+		rev[0] = int(c.get("rev", 0))
+		rev[1] = m
+		ct.text = str(c.get("title", ""))
+		cx.text = str(c.get("text", ""))
+		for ch in bx.get_children():
+			ch.queue_free()
+		for bd: Array in c.get("buttons", []):
+			var cid := str(bd[1])
+			var b := button(str(bd[0]), func() -> void:
+				Sfx.click()
+				if Game.state == Game.State.ACTIVE and Game.mission:
+					Game.mission.on_card(cid), 36, 110)
+			b.custom_minimum_size.x = 220
+			if bd.size() > 2:
+				b.add_theme_stylebox_override("normal", sb((bd[2] as Color).darkened(0.6), bd[2], 4, 22))
+			bx.add_child(b)
 
 
 ## Intercom push-to-talk for one kid (works in VOX mode too: holding it forces the mic open).

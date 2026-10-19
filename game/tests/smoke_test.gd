@@ -107,6 +107,32 @@ func _check_ui() -> bool:
 	ok = _check_pod() and ok
 	ok = (await _check_ics()) and ok
 	ok = (await _check_eva()) and ok
+	ok = (await _check_ground()) and ok
+	return ok
+
+
+## GROUND CREW phone page: the built-in HTTP server answers the page, status and a button.
+func _check_ground() -> bool:
+	var gl := GroundLink.get_link()
+	await _frames(2)
+	var got := {}
+	for path: String in ["/", "/s", "/c?x=hello"]:
+		var c := HTTPClient.new()
+		c.connect_to_host("127.0.0.1", gl.port)
+		var body := PackedByteArray()
+		for i in 300:
+			c.poll()
+			var st := c.get_status()
+			if st == HTTPClient.STATUS_CONNECTED:
+				c.request(HTTPClient.METHOD_GET, path, [])
+			elif st == HTTPClient.STATUS_BODY:
+				body.append_array(c.read_response_body_chunk())
+			elif st == HTTPClient.STATUS_DISCONNECTED and body.size() > 0:
+				break
+			await _frames(1)
+		got[path] = body.get_string_from_utf8()
+	var ok: bool = str(got["/"]).contains("MISSION CONTROL") and str(got["/s"]).contains("objective") and str(got["/c?x=hello"]).contains("ok") and gl.presses >= 1
+	print("  ground crew web page (port %d, %s): %s" % [gl.port, " ".join(gl.urls()), "ok" if ok else "FAIL " + str(got.keys().map(func(k: String) -> int: return str(got[k]).length()))])
 	return ok
 
 

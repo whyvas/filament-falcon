@@ -23,6 +23,10 @@ func setup() -> void:
 	go_to(0)
 
 
+func go_to_name(nm: String) -> void:
+	go_to(maxi(0, DESTS.find(nm)))
+
+
 func go_to(i: int) -> void:
 	dest_index = i % DESTS.size()
 	var nm: String = DESTS[dest_index]

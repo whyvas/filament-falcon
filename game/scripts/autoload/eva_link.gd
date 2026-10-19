@@ -167,9 +167,9 @@ func _finish(ok: bool, text: String) -> void:
 ## step counter moved: when this is the planned point, a SPACEWALK objective becomes current
 ## (Mission.eva_obj; the mission's own logic pauses) and the spacewalk starts.
 func mission_hook(m: Mission) -> bool:
-	if role != "server" or Game.test_mode or not bool(Settings.get_v("eva", "in_missions")):
+	if role != "server" or Game.test_mode or m.eva_inserted or not EvaScenarios.MISSION_EVA.has(m.id):
 		return false
-	if m.eva_inserted or not EvaScenarios.MISSION_EVA.has(m.id):
+	if not bool(Settings.get_v("eva", "in_missions")) and Game.force_eva != str(EvaScenarios.MISSION_EVA[m.id][0]):
 		return false
 	var plan: Array = EvaScenarios.MISSION_EVA[m.id]
 	var at := int(plan[1])

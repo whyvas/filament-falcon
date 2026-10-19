@@ -12,6 +12,7 @@ var _contact_speed := 0.0
 var _contact_offset := 0.0
 var _bounces := 0
 var _capture_offset := Vector3.ZERO
+var start_range := 205.0                # subclasses (REAL ISS) start further out
 
 
 func setup() -> void:
@@ -32,13 +33,13 @@ func setup() -> void:
 	game.sun_dir = Vector3(0.75, 0.55, -0.35).normalized()   # high sun: lit station, daylit Earth below
 	st = game.station
 	# Station at phase 0 moves along -Z; its port faces world -Z (ahead of it along the orbit).
-	st["phase0"] = 0.0
+	st["phase0"] = float(st.get("phase_set", 0.0))
 	game._place_entity(st)
 	var port_w := port_world()
 	var normal := port_normal()
 	var p: BigVec = port_w.copy()
 	var lateral := Vector3(6.0, -3.5, 0.0)
-	p.add(normal * 205.0 + lateral)
+	p.add(normal * start_range + lateral)
 	sim.pos.set_from(p)
 	sim.vel = frame_vel(sim.pos.rel(st["pos"]))   # co-moving with the station's rotating LVLH frame
 	var aim := Basis(Vector3.UP, deg_to_rad(5.0)) * Basis(Vector3.RIGHT, deg_to_rad(-3.0))

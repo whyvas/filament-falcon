@@ -416,6 +416,7 @@ func _process(dt: float) -> void:
 	# daytime sky stops down, sunlit space a little less, night in the atmosphere opens up.
 	var night := (1.0 - clampf(sim.altitude / 45000.0, 0.0, 1.0)) * (1.0 - smoothstep(-0.12, 0.05, elev)) if in_air else 0.0
 	var exp_target := lerpf(0.92, 0.78, day_factor) + night * 0.35
+	exp_target *= 1.0 - 0.35 * g.cabin_dim     # bedtime: a darker, calmer view
 	env.tonemap_exposure = lerpf(env.tonemap_exposure, exp_target, clampf(dt * 1.5, 0.0, 1.0)) if dt < 0.5 else exp_target
 	if region:
 		region.place(origin)

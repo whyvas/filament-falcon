@@ -48,7 +48,9 @@ const DEFAULTS := {
 	"graphics": {"quality": "high", "earth_month": 7},   # earth_month: Blue Marble month 1-12 (seasons)
 	"audio": {"master_db": 0.0, "voice": true, "voice_engine": "auto", "piper_model": ""},
 	"led": {"enabled": true, "udp_port": 47800, "serial_port": "auto", "brightness": 160},
-	"game": {"start_mission": "launch", "difficulty": "normal", "skip_checklist": false},
+	"game": {"start_mission": "launch", "difficulty": "normal", "skip_checklist": false,
+		"home_lat": 45.9636, "home_lon": -66.6431},   # CITY LIGHTS: our house (default: downtown Fredericton)
+	"ground": {"port": 8088},                         # GROUND CREW phone page: http://<pc>:8088
 	# Virtual panels: on-screen copies of a Falcon board's controls appear while that board is
 	# unplugged. force_virtual_panels shows them even with the boards connected (demo / testing).
 	"input": {"force_virtual_panels": false},

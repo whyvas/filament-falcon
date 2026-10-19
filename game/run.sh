@@ -51,6 +51,14 @@ if [ "$DO_FETCH" = 1 ] && [ ! -f "$ASSETS/.fetched" ] && [ ! -f "$ASSETS/.tried"
   mkdir -p "$ASSETS" && touch "$ASSETS/.tried"
   tools/fetch_assets.sh || true
 fi
+# REAL ISS mission: refresh the ISS orbit (TLE, ~150 bytes) twice a day in the background;
+# the game falls back to the last file, then to built-in elements.
+TLE="$ASSETS/iss.tle"
+if [ "$DO_FETCH" = 1 ] && command -v curl >/dev/null 2>&1 && [ -z "$(find "$TLE" -mmin -720 2>/dev/null)" ]; then
+  mkdir -p "$ASSETS"
+  ( curl -fsm 15 "https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE" -o "$TLE.part" && \
+    grep -q "^2 25544" "$TLE.part" && mv "$TLE.part" "$TLE" ) >/dev/null 2>&1 &
+fi
 if [ "$EVA_VR" = 1 ]; then
   # The cockpit instance owns the displays and the intercom; the VR client only renders the
   # headset view and streams the spacewalker's pose to it over localhost (UDP 47820).

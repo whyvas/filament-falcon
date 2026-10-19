@@ -11,6 +11,7 @@ extends Node
 
 signal status_changed
 signal devices_changed
+signal recorded(path: String, secs: float)    # Captain's Log WAV written by the helper
 
 const SEATS := ["pilot", "ops", "commander", "eva"]
 const SEAT_NAMES := {"pilot": "PILOT", "ops": "OPS", "commander": "COMMANDER", "eva": "SPACEWALKER"}
@@ -112,6 +113,18 @@ func _send(obj: Dictionary) -> void:
 	if not enabled:
 		return
 	_tx.put_packet(JSON.stringify(obj).to_utf8_buffer())
+
+
+## Captain's Log: the helper mixes the crew's (gated) headset voices into a WAV at `abs_path`.
+func record_start(abs_path: String, max_s: float = 90.0) -> bool:
+	if not ok():
+		return false
+	_send({"cmd": "record", "path": abs_path, "max_s": max_s})
+	return true
+
+
+func record_stop() -> void:
+	_send({"cmd": "record_stop"})
 
 
 func _hello() -> void:
@@ -318,6 +331,8 @@ func _process(dt: float) -> void:
 				routes = d.get("routes", {})
 				assign = d.get("assign", {})
 				devices_changed.emit()
+			"record":
+				recorded.emit(str(d.get("path", "")), float(d.get("secs", 0.0)))
 	_hello_t += dt
 	if _hello_t > 1.0:
 		_hello_t = 0.0

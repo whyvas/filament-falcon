@@ -25,6 +25,8 @@ Latency budget (48 kHz, 5 ms blocks): capture ~10 ms + ring ~5-8 ms + playback ~
 Protocol: JSON datagrams. Game -> helper on 127.0.0.1:47810, helper -> game on :47811.
     {"cmd":"hello","pid":N}  {"cmd":"cfg","values":{...}}  {"cmd":"state","ptt":{seat:bool},
     "allcall":bool,"mute":{seat:bool}}  {"cmd":"ident","device":ID|"seat":S}  {"cmd":"rescan"}
+    {"cmd":"record","path":P,"max_s":N}  {"cmd":"record_stop"}   (Captain's Log: the crew's gated
+    voices mixed to a 48 kHz mono WAV; helper -> game {"type":"record","path":P,"secs":S})
     {"cmd":"quit"}
     helper -> game: {"type":"status",...} ~15 Hz (levels, gate state), {"type":"devices",...}
 Config: the [ics] section of ~/.local/share/filament-falcon/falcon_settings.cfg (written by the
@@ -349,6 +351,7 @@ class Engine:
     """Pure DSP + routing, no I/O: feed one block per input, get one block per headset."""
 
     def __init__(self, cfg=None):
+        self.voice_mix = np.zeros(BLOCK) if np else None
         self.cfg = dict(DEFAULTS)
         if cfg:
             self.cfg.update(cfg)
@@ -386,6 +389,7 @@ class Engine:
         for s in SEATS:
             x = mics.get(s)
             out_v[s], out_t[s] = self.ch[s].process(z if x is None else x)
+        self.voice_mix = sum(out_v[s] for s in SEATS)
         mcv, mct = self.mc.process(z if mc is None else mc)
         g = z if game is None else np.asarray(game, dtype=np.float64)
         res = {}
@@ -877,6 +881,7 @@ class Helper:
         self.ticks = 0
         self.late = 0
         self.default_sink = ""
+        self.rec = None              # Captain's Log recording: [path, [blocks], max_blocks]
 
     # ---------------------------------------------------------------- setup
     def setup_audio(self):
@@ -1047,8 +1052,34 @@ class Helper:
             self.send({"type": "ident", "device": dev["id"] if dev else ""})
         elif cmd == "rescan":
             self.rescan()
+        elif cmd == "record":
+            with self.lock:
+                self.rec = [str(msg.get("path", "")), [], int(float(msg.get("max_s", 90)) * RATE / BLOCK)]
+        elif cmd == "record_stop":
+            self.finish_record()
         elif cmd == "quit":
             self.running = False
+
+    def finish_record(self):
+        with self.lock:
+            rec, self.rec = self.rec, None
+        if not rec or not rec[0]:
+            return
+        import wave
+        x = np.concatenate(rec[1]) if rec[1] else np.zeros(RATE // 10)
+        peak = float(np.max(np.abs(x))) or 1.0
+        pcm = (np.clip(x * min(4.0, 0.9 / peak), -1.0, 1.0) * 32767).astype("<i2")
+        try:
+            os.makedirs(os.path.dirname(rec[0]), exist_ok=True)
+            with wave.open(rec[0], "wb") as w:
+                w.setnchannels(1)
+                w.setsampwidth(2)
+                w.setframerate(RATE)
+                w.writeframes(pcm.tobytes())
+            log("captain's log saved", rec[0], f"{len(x) / RATE:.1f} s")
+        except OSError as ex:
+            log("captain's log failed", ex)
+        self.send({"type": "record", "path": rec[0], "secs": round(len(x) / RATE, 1)})
 
     def apply_cfg(self, values):
         with self.lock:
@@ -1088,6 +1119,13 @@ class Helper:
         mc = self.in_rings["mc"].read(BLOCK) if "mc" in self.in_rings else None
         with self.lock:
             outs = self.engine.process(mics, game, mc)
+            if self.rec is not None:
+                self.rec[1].append(self.engine.voice_mix.copy())
+                stop = len(self.rec[1]) >= self.rec[2]
+            else:
+                stop = False
+        if stop:
+            self.finish_record()
         for s, y in outs.items():
             if s in self.out_rings:
                 self.out_rings[s].write(y)

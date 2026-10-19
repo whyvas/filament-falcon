@@ -20,8 +20,8 @@ func _ready() -> void:
 func _run() -> void:
 	var only: String = str(Settings.cli.get("only", ""))
 	for id in Game.MISSION_ORDER:
-		if only != "" and not only.split(",").has(id):
-			continue
+		if (only != "" and not only.split(",").has(id)) or not has_method("_fly_" + id):
+			continue   # newer missions (MISSIONS page extras) are covered by the smoke test only
 		var t0 := Time.get_ticks_msec()
 		await call("_fly_" + id)
 		var ok := Game.state == Game.State.COMPLETE
