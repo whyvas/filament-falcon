@@ -32,6 +32,19 @@ func _run() -> void:
 				bad += 1
 			var n := _check(c, Rect2(Vector2.ZERO, Vector2(sz)), p, sz)
 			print("UI FIT %dx%d %-16s %s" % [sz.x, sz.y, p, "ok" if n == 0 else "%d controls off-screen" % n])
+			if p == "MISSIONS":
+				# every entry's detail panel (patch, diagram, overview, actions, logs, START)
+				var worst := 0
+				for e: Dictionary in MissionCatalog.ALL:
+					c.select_entry(e["key"])
+					for i in 2:
+						await get_tree().process_frame
+					if pg.get_combined_minimum_size().x > float(sz.x) - 28.0 and sz.x >= 1920:
+						print("   MISSIONS/%s needs sideways scrolling" % e["key"])
+						bad += 1
+					var ne := _check(c, Rect2(Vector2.ZERO, Vector2(sz)), p + "/" + str(e["key"]), sz)
+					worst = maxi(worst, ne)
+				print("UI FIT %dx%d %-16s %s" % [sz.x, sz.y, "MISSIONS x%d" % MissionCatalog.ALL.size(), "ok" if worst == 0 else "off-screen controls"])
 		vp.queue_free()
 		await get_tree().process_frame
 	print("UI FIT RESULT: ", "PASS" if bad == 0 else "FAIL")

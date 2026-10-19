@@ -22,6 +22,11 @@ var guidance := {}              # hints for the HUD (pitch targets, glide boxes,
 var _done_timer := -1.0
 var eva_inserted := false       # a SPACEWALK objective was woven in (Eva.mission_hook)
 var eva_done := false
+var calm := false               # no failures can be injected (bedtime)
+## Big card on the kids' console (tap-friendly): {title, text, buttons: [[label, id, color]], rev}.
+## Card buttons call on_card(id). Missions bump "rev" when the buttons change.
+var card := {}
+var category := ""               # MISSIONS page group (see MissionCatalog)
 var eva_obj := {}               # non-empty while that spacewalk is the current objective: the
                                 # mission's own update / physics pause, step indices stay put
 
@@ -92,6 +97,39 @@ func final_score() -> void:
 
 func guidance_dir() -> Vector3:
 	return Vector3.ZERO
+
+
+func on_card(_id: String) -> void:
+	pass
+
+
+## A Ground Crew (phone page) button. Return true when the mission handled it.
+func on_ground(_cmd: String) -> bool:
+	return false
+
+
+## Commander buttons shown on the MISSIONS page while this mission is loaded: [[label, id]].
+func commander_actions() -> Array:
+	return []
+
+
+func on_commander(_id: String) -> void:
+	pass
+
+
+func set_card(t: String, text: String, buttons: Array = []) -> void:
+	card = {"title": t, "text": text, "buttons": buttons, "rev": int(card.get("rev", 0)) + 1}
+
+
+## Weave a spacewalk in as the current objective (flat or VR, Commander > EVA picks the driver).
+## Tests just advance. Eva calls advance() when the walker is back inside.
+func start_eva_step(scen: String) -> void:
+	if game.test_mode:
+		return
+	eva_inserted = true
+	eva_done = false
+	if not Eva.start(scen, true):
+		Voice.say("Spacewalk not possible right now. Commander: SKIP STEP to carry on.", 1)
 
 
 func on_ops_trigger() -> void:

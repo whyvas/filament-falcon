@@ -1,7 +1,10 @@
 class_name CommanderUI
 extends FalconPanel
 ## COMMANDER screen (the grown-up's monitor; mouse and keyboard, no touch needed).
-##   MISSION CONTROL  mission select, START/PAUSE/RESTART, harness check, orbit map, live
+##   MISSIONS         every mission, spacewalk and destination by category: patch, illustrated
+##                    diagram, objective, crew roles, difficulty, duration, Commander injects,
+##                    START (+ Captain's Log playback).
+##   MISSION CONTROL  current mission, START/PAUSE/RESTART, harness check, orbit map, live
 ##                    telemetry, crew status with both kids' current tasks, ship health,
 ##                    faults, MASTER CAUTION RESET, failure injection, live score.
 ##   BRIEFING         the full briefing, crew jobs, objectives, Commander tips.
@@ -19,7 +22,7 @@ extends FalconPanel
 ## seats, from the read-only senses) and intercom state.
 ## On a 3-screen rig this whole UI is a tab on the kids' console (Escape toggles it).
 
-const PAGES := ["MISSION CONTROL", "BRIEFING", "TRAINING", "CONTROLS", "PANEL", "ICS", "EVA", "SETUP"]
+const PAGES := ["MISSIONS", "MISSION CONTROL", "BRIEFING", "TRAINING", "CONTROLS", "PANEL", "ICS", "EVA", "SETUP"]
 const SEAT_COL := {"pilot": FalconPanel.C_PILOT, "ops": FalconPanel.C_OPS, "commander": FalconPanel.C_AMBER, "eva": Color(1.0, 0.85, 0.4)}
 const C_EVA := Color(1.0, 0.85, 0.4)
 
@@ -60,7 +63,9 @@ func _ready() -> void:
 	holder.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(holder)
 	for p in PAGES:
-		var b := button(p, func() -> void: show_page(p), 24, 60)
+		var b := button(p, func() -> void: show_page(p), 22, 60)
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART   # 9 tabs: long names wrap on 1280 px screens
+		b.custom_minimum_size.x = 90
 		b.toggle_mode = true
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tabbar.add_child(b)
@@ -76,6 +81,7 @@ func _ready() -> void:
 		page.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		sc.add_child(page)
 		pages[p] = page
+	_build_missions(pages["MISSIONS"])
 	_build_control(pages["MISSION CONTROL"])
 	_build_briefing(pages["BRIEFING"])
 	_build_training(pages["TRAINING"])
@@ -84,7 +90,7 @@ func _ready() -> void:
 	_build_ics(pages["ICS"])
 	_build_eva(pages["EVA"])
 	_build_setup(pages["SETUP"])
-	show_page("MISSION CONTROL")
+	show_page("MISSIONS")
 
 
 func show_page(p: String) -> void:
@@ -449,23 +455,193 @@ func _headset_rows(parent: Control, meters: bool) -> void:
 
 
 # ======================================================================== MISSION CONTROL
+# ======================================================================== MISSIONS
+var sel_key := "launch"
+var _ms := {}            # widgets of the MISSIONS page
+var _switch_armed := -100.0
+
+
+func _build_missions(page: Control) -> void:
+	var h := hbox(page, 12)
+	var left := panel(h, "ALL MISSIONS", true, true, C_AMBER)
+	var btns := {}
+	for cat: String in MissionCatalog.CATS:
+		left.add_child(label(cat, 20, MissionCatalog.CAT_COL[cat], false))
+		var g := grid(left, 3, 6)
+		for e: Dictionary in MissionCatalog.ALL:
+			if e["cat"] != cat:
+				continue
+			var key: String = e["key"]
+			var b := button(MissionCatalog.title_of(e), func() -> void: select_entry(key), 17, 50)
+			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			b.custom_minimum_size.x = 140
+			g.add_child(b)
+			btns[key] = b
+	var right := panel(h, "", true, true, C_EDGE)
+	right.get_parent().size_flags_stretch_ratio = 1.25
+	var top := hbox(right, 14)
+	var patch := MissionArt.new()
+	patch.patch = true
+	patch.custom_minimum_size = Vector2(130, 130)
+	top.add_child(patch)
+	var tv := VBoxContainer.new()
+	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(tv)
+	var title := label("", 34, C_AMBER)
+	var chips := label("", 18, C_DIM)
+	tv.add_child(title)
+	tv.add_child(chips)
+	var art := MissionArt.new()
+	art.custom_minimum_size = Vector2(280, 220)
+	art.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right.add_child(art)
+	var info := label("", 18, C_TEXT)
+	right.add_child(info)
+	var acts := HFlowContainer.new()
+	acts.add_theme_constant_override("h_separation", 8)
+	acts.add_theme_constant_override("v_separation", 6)
+	right.add_child(acts)
+	var logs := VBoxContainer.new()
+	right.add_child(logs)
+	var start := button("START", _on_start_pressed, 40, 100)
+	right.add_child(start)
+	_ms = {"btns": btns, "patch": patch, "title": title, "chips": chips, "art": art, "info": info, "acts": acts, "logs": logs, "start": start, "acts_for": "", "logs_n": -1}
+	select_entry(Game.mission_id if not MissionCatalog.by_key(Game.mission_id).is_empty() else "launch")
+	live["missions"] = func() -> void:
+		var e := MissionCatalog.by_key(sel_key)
+		for k: String in btns:
+			var be: Dictionary = MissionCatalog.by_key(k)
+			var loaded: bool = be["id"] == Game.mission_id and (be["kind"] != "eva" or Game.force_eva == be.get("eva", ""))
+			(btns[k] as Button).modulate = C_GREEN if k == sel_key else (C_AMBER if loaded else Color.WHITE)
+		var is_loaded: bool = e["id"] == Game.mission_id and Game.mission != null
+		var running := Game.state == Game.State.ACTIVE
+		if running and is_loaded:
+			start.text = "RUNNING · MISSION CONTROL ▶"
+			start.modulate = C_AMBER
+		elif running:
+			start.text = "SWITCH TO THIS MISSION? PRESS AGAIN" if _now() - _switch_armed < 4.0 else "START (ends the current mission)"
+			start.modulate = C_RED if _now() - _switch_armed < 4.0 else C_GREEN
+		else:
+			start.text = "START  " + MissionCatalog.title_of(e)
+			start.modulate = C_GREEN
+		var key := "%s|%d|%s" % [sel_key, Game.mission.get_instance_id() if Game.mission else 0, Eva.available()]
+		if _ms["acts_for"] != key:
+			_ms["acts_for"] = key
+			_rebuild_actions(e, is_loaded)
+		if e.get("log", false):
+			var n := CaptainsLog.entries().size()
+			if n != int(_ms["logs_n"]):
+				_ms["logs_n"] = n
+				_rebuild_logs()
+
+
+func _now() -> float:
+	return Time.get_ticks_msec() / 1000.0
+
+
+func select_entry(key: String) -> void:
+	var e := MissionCatalog.by_key(key)
+	if e.is_empty():
+		return
+	sel_key = key
+	var col: Color = MissionCatalog.CAT_COL[e["cat"]]
+	var p: MissionArt = _ms["patch"]
+	p.accent = col
+	p.caption = str(e["cat"]).get_slice(" ", 0)
+	p.art = e["art"]
+	(_ms["art"] as MissionArt).accent = col
+	(_ms["art"] as MissionArt).art = e["art"]
+	(_ms["title"] as Label).text = MissionCatalog.title_of(e)
+	var host := ""
+	if e["kind"] == "eva":
+		host = "  ·  flown inside %s" % Game.MISSION_TITLES.get(e["id"], "")
+	(_ms["chips"] as Label).text = "%s  ·  difficulty %s  ·  ~%s min%s" % [e["cat"], e["diff"], e["mins"], host]
+	(_ms["info"] as Label).text = "OBJECTIVE  %s\nCREW  %s\nCOMMANDER CAN INJECT  %s" % [e["obj"], e["crew"], e["inject"]]
+	_ms["acts_for"] = ""
+	_ms["logs_n"] = -1
+	if not e.get("log", false):
+		for c in (_ms["logs"] as Control).get_children():
+			c.queue_free()
+	refresh()
+
+
+func _on_start_pressed() -> void:
+	var e := MissionCatalog.by_key(sel_key)
+	if Game.state == Game.State.ACTIVE:
+		if e["id"] == Game.mission_id:
+			show_page("MISSION CONTROL")
+			return
+		if _now() - _switch_armed > 4.0:
+			_switch_armed = _now()
+			refresh()
+			return
+	_switch_armed = -100.0
+	Sfx.beep()
+	MissionCatalog.launch(e)
+	show_page("MISSION CONTROL")
+
+
+func _rebuild_actions(e: Dictionary, is_loaded: bool) -> void:
+	var acts: HFlowContainer = _ms["acts"]
+	for c in acts.get_children():
+		c.queue_free()
+	if e["kind"] == "eva" and str(e["eva"]) in Eva.available() and not Eva.active:
+		var ev: String = e["eva"]
+		acts.add_child(button("SPACEWALK NOW (from here)", func() -> void:
+			Eva.start(ev)
+			show_page("EVA"), 18, 46))
+	if e["id"] == "ground_crew":
+		var gl := GroundLink.get_link(false)
+		acts.add_child(button("PHONE LINK: " + (" · ".join(gl.urls()) if gl else "OFF (tap to open)"), func() -> void:
+			GroundLink.get_link(true)
+			_ms["acts_for"] = "", 18, 46))
+	if not is_loaded or Game.mission == null:
+		return
+	for a: Array in Game.mission.commander_actions():
+		var aid := str(a[1])
+		acts.add_child(button(str(a[0]), func() -> void:
+			if Game.mission:
+				Game.mission.on_commander(aid)
+				Sfx.click(), 18, 46))
+
+
+func _rebuild_logs() -> void:
+	var logs: VBoxContainer = _ms["logs"]
+	for c in logs.get_children():
+		c.queue_free()
+	var l := CaptainsLog.entries()
+	logs.add_child(label("CAPTAIN'S LOG  ·  %d saved" % l.size(), 18, C_AMBER, false))
+	for e: Dictionary in l.slice(0, 6):
+		var row := hbox(logs, 8)
+		var pa := MissionArt.new()
+		pa.patch = true
+		var me := MissionCatalog.by_key(str(e.get("patch", "")))
+		pa.art = str(me.get("art", "log"))
+		pa.accent = MissionCatalog.CAT_COL.get(me.get("cat", ""), C_EDGE)
+		pa.custom_minimum_size = Vector2(48, 48)
+		row.add_child(pa)
+		var t := label("%s  ·  %s  ·  %d pts %s  ·  %.0f s" % [str(e.get("date", "")).left(16), e.get("title", ""), int(e.get("score", 0)), "★".repeat(int(e.get("stars", 0))), float(e.get("secs", 0.0))], 16, C_TEXT)
+		t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(t)
+		var ent := e
+		row.add_child(button("▶ PLAY", func() -> void: CaptainsLog.play(ent), 16, 40))
+	if l.size() > 0:
+		logs.add_child(button("■ STOP PLAYBACK", func() -> void: CaptainsLog.stop(), 16, 40))
+
+
 func _build_control(page: Control) -> void:
 	var h := hbox(page, 12)
 	# ---- left: mission + flow + score
 	var left := panel(h, "MISSION", true, true, C_AMBER)
 	left.get_parent().size_flags_stretch_ratio = 0.9
-	var mg := grid(left, 2, 6)
-	var mbtn := {}
-	for id: String in Game.MISSION_ORDER:
-		var b := button("%d  %s" % [Game.MISSION_ORDER.find(id) + 1, Game.MISSION_TITLES[id]], func() -> void:
-			if Game.state == Game.State.ACTIVE:
-				Voice.say("Pause the mission before changing it.")
-				return
-			Game.load_mission(id)
-			Sfx.beep(), 22, 56)
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		mg.add_child(b)
-		mbtn[id] = b
+	var mrow := hbox(left, 8)
+	var cur := label("", 26, C_GREEN, false)
+	cur.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cur.clip_text = true
+	cur.custom_minimum_size.x = 120
+	mrow.add_child(cur)
+	mrow.add_child(button("ALL MISSIONS ▶", func() -> void: show_page("MISSIONS"), 22, 56))
 	var tag := label("", 22, C_DIM)
 	left.add_child(tag)
 	var start := button("START", func() -> void: Game.start_pause(), 38, 100)
@@ -502,9 +678,7 @@ func _build_control(page: Control) -> void:
 		var m: Mission = Game.mission
 		if m == null:
 			return
-		for id in mbtn:
-			(mbtn[id] as Button).modulate = C_GREEN if id == Game.mission_id else Color.WHITE
-			(mbtn[id] as Button).disabled = Game.state == Game.State.ACTIVE and id != Game.mission_id
+		cur.text = m.title + ((" + " + str(EvaScenarios.TITLES.get(Game.force_eva, "")).to_upper()) if Game.force_eva != "" else "")
 		tag.text = m.tagline
 		match Game.state:
 			Game.State.BRIEFING:
