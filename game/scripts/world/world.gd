@@ -148,12 +148,13 @@ func _build_bodies() -> void:
 	earth_node.name = "Earth"
 	add_child(earth_node)
 	var seg := _quality_segments()
-	earth_mat = ProcGen.shader_mat("res://shaders/planet.gdshader", {"site_a": Game.pad_dir, "site_b": Game.runway_dir})
+	var air := {"planet_r_km": e.radius / 1000.0, "atmo_r_km": e.radius / 1000.0 + 90.0}
+	earth_mat = ProcGen.shader_mat("res://shaders/planet.gdshader", {"site_a": Game.pad_dir, "site_b": Game.runway_dir}.merged(air))
 	var surf := ProcGen.mesh_node(ProcGen.sphere(e.radius - 20.0, seg, seg / 2), earth_mat)
 	surf.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	surf.extra_cull_margin = 16384.0
 	earth_node.add_child(surf)
-	cloud_mat = ProcGen.shader_mat("res://shaders/clouds.gdshader", {"site_a": Game.pad_dir, "site_b": Game.runway_dir})
+	cloud_mat = ProcGen.shader_mat("res://shaders/clouds.gdshader", {"site_a": Game.pad_dir, "site_b": Game.runway_dir}.merged(air))
 	var cl := ProcGen.mesh_node(ProcGen.sphere(e.radius + 4500.0, seg, seg / 2), cloud_mat)
 	cl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	cl.extra_cull_margin = 16384.0
@@ -197,6 +198,23 @@ func _apply_nasa_textures() -> void:
 		earth_mat.set_shader_parameter("night_tex", night)
 		earth_mat.set_shader_parameter("height_tex", height)
 		print("Earth: NASA textures (month %d)" % month)
+	# HD set (16k Blue Marble, 8k night / clouds, DEM normal map + land mask) streams in on a
+	# worker thread and replaces the 5400 px set when ready (cached compressed after 1st run).
+	if FileAccess.file_exists(Geo.asset_dir() + "/earth_normal.png") or FileAccess.file_exists(Geo.asset_dir() + "/earth_day_%02d_hd.jpg" % month):
+		var wr: WeakRef = weakref(self)
+		WorkerThreadPool.add_task(func() -> void:
+			var t0 := Time.get_ticks_msec()
+			var out := {}
+			for spec: Array in [["day_tex", "earth_day_%02d_hd.jpg" % month, "color"], ["night_tex", "earth_night_hd.jpg", "color"],
+					["cloud_tex", "earth_clouds_hd.png", "gray"], ["normal_tex", "earth_normal.png", "normal"], ["mask_tex", "earth_mask.png", "gray"]]:
+				var img := Geo.hd_image(spec[1], spec[2])
+				if img:
+					out[spec[0]] = img
+			out["_ms"] = Time.get_ticks_msec() - t0
+			(func() -> void:
+				var w: Object = wr.get_ref()
+				if w:
+					w.call("_apply_hd", out)).call_deferred(), false, "earth HD textures")
 	var mc := Geo.tex("moon_color.jpg")
 	var mh := Geo.tex("moon_height.png")
 	if mc and mh:
@@ -204,6 +222,20 @@ func _apply_nasa_textures() -> void:
 		moon_mat.set_shader_parameter("color_tex", mc)
 		moon_mat.set_shader_parameter("height_tex", mh)
 		print("Moon: LRO textures")
+
+
+func _apply_hd(out: Dictionary) -> void:
+	var names := []
+	for k: String in out:
+		if k.begins_with("_"):
+			continue
+		var t := ImageTexture.create_from_image(out[k])
+		names.append(k.trim_suffix("_tex"))
+		if k == "cloud_tex":
+			cloud_mat.set_shader_parameter(k, t)
+		earth_mat.set_shader_parameter(k, t)
+	earth_mat.set_shader_parameter("use_normal", out.has("normal_tex") and out.has("mask_tex"))
+	print("Earth: HD textures %s (%d ms, cache %s/tex)" % [str(names), int(out.get("_ms", 0)), Geo.cache_dir()])
 
 
 func _build_patches() -> void:

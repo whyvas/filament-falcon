@@ -4,8 +4,11 @@
 # are skipped, partial ones resume, each file has fallback URLs (next one on 404 / timeout).
 # Offline / failures: the game falls back to its procedural planet and Moon.
 # Usage (from anywhere: repo root, game/ or game/tools/):
-#   tools/fetch_assets.sh [--months=all|7] [--region=fredericton] [--bbox=S,W,N,E] [--no-region]
-# Needs curl; python3-numpy + python3-pil for the TIF/GEBCO conversion and the region.
+#   tools/fetch_assets.sh [--months=all|7] [--hd-months=7|all] [--no-hd] [--region=NAME] [--bbox=S,W,N,E] [--no-region]
+# HD Earth (default on, ~80 MB once): 21600 px Blue Marble -> 16k, 8k clouds + night, GEBCO DEM
+# -> 8k normal map + land mask. The game block-compresses them on first use and caches the
+# result in ~/.local/share/filament-falcon/cache/tex (fast loads afterwards).
+# Needs curl; python3-numpy + python3-pil for the TIF/GEBCO conversion; python3-osmium for the city.
 GAME_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)" || { echo "fetch_assets: cannot find the game folder" >&2; exit 1; }
 cd "$GAME_DIR" || exit 1
 A="${XDG_DATA_HOME:-$HOME/.local/share}/filament-falcon/assets"
@@ -13,11 +16,12 @@ mkdir -p "$A" || { echo "fetch_assets: cannot create $A" >&2; exit 1; }
 command -v curl >/dev/null 2>&1 || { echo "fetch_assets: curl is missing (sudo apt install curl)" >&2; exit 1; }
 HAVE_PY=1
 python3 -c "import numpy, PIL" 2>/dev/null || { HAVE_PY=0; echo "note: python3-numpy / python3-pil missing: Moon + elevation conversion and the OSM region are skipped (sudo apt install python3-numpy python3-pil)"; }
-MONTHS=all; REGION=fredericton; BBOX=45.915,-66.705,46.005,-66.575; DO_REGION=1
+MONTHS=all; HD_MONTHS=7; DO_HD=1; REGION=fredericton; BBOX=""; DO_REGION=1
 for a in "$@"; do case "$a" in
   --months=*) MONTHS="${a#*=}" ;; --region=*) REGION="${a#*=}" ;;
+  --hd-months=*) HD_MONTHS="${a#*=}" ;; --no-hd) DO_HD=0 ;;
   --bbox=*) BBOX="${a#*=}" ;; --no-region) DO_REGION=0 ;;
-  -h|--help) sed -n '2,8p' "$0"; exit 0 ;;
+  -h|--help) sed -n '2,11p' "$0"; exit 0 ;;
   *) echo "fetch_assets: unknown option $a (see --help)" >&2; exit 2 ;; esac; done
 N=https://eoimages.gsfc.nasa.gov/images/imagerecords
 S=https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720     # NASA SVS CGI Moon Kit (svs.gsfc.nasa.gov/4720)
@@ -46,6 +50,15 @@ done
 get earth_night.jpg "$N/144000/144898/BlackMarble_2016_3km.jpg"
 get earth_clouds.jpg "$N/57000/57747/cloud_combined_2048.jpg"
 [ "$HAVE_PY" = 1 ] && get gebco_raw.png "$N/73000/73934/gebco_08_rev_elev_21600x10800.png"
+if [ "$DO_HD" = 1 ] && [ "$HAVE_PY" = 1 ]; then
+  mkdir -p "$A/src"
+  for m in $(seq 1 12); do
+    [ "$HD_MONTHS" != all ] && [ "$m" != "$HD_MONTHS" ] && continue
+    id=${IDS[$((m-1))]}; mm=$(printf %02d "$m"); base="$N/$((id/1000*1000))/$id"
+    [ -s "$A/earth_day_${mm}_hd.jpg" ] || get "src/earth_day_${mm}_21600.jpg" "$base/world.topo.bathy.2004$mm.3x21600x10800.jpg" "$base/world.2004$mm.3x21600x10800.jpg"
+  done
+  [ -s "$A/earth_clouds_hd.png" ] || get src/cloud_combined_8192.tif "$N/57000/57747/cloud_combined_8192.tif"
+fi
 # Moon: LROC colour (13 MB 4k TIF -> 3.3 MB 2k TIF -> 0.5 MB 2k JPG -> 1k JPG) and LOLA
 # heights (2 MB uint16 TIF -> 4 MB float TIF -> 0.1 MB 8-bit JPG). The JPGs need no Pillow.
 if [ ! -s "$A/moon_color.jpg" ]; then
@@ -82,6 +95,48 @@ def height16(im, size):
     a = np.asarray(Image.fromarray(a, "F").resize(size, Image.BILINEAR))
     return Image.fromarray((np.clip(a, 0, 1) * 65535).astype(np.uint16))
 conv("gebco_raw.png", "earth_height.png", lambda im: im.convert("L").resize((4096, 2048), Image.BILINEAR))
+# ---- HD Earth (16k day, 8k night / clouds, DEM normal map + land mask) ----
+import glob, re
+for src in sorted(glob.glob(os.path.join(A, "src", "earth_day_*_21600.jpg"))):
+    mm = re.search(r"earth_day_(\d\d)_", src).group(1)
+    conv(os.path.join("src", os.path.basename(src)), "earth_day_%s_hd.jpg" % mm, lambda im: im.convert("RGB").resize((16384, 8192), Image.LANCZOS))
+    d = os.path.join(A, "earth_day_%s_hd.jpg" % mm)
+    if os.path.exists(d):
+        os.remove(src)          # the 16k copy is what the game uses
+conv("earth_night.jpg", "earth_night_hd.jpg", lambda im: im.convert("RGB").resize((8192, 4096), Image.LANCZOS))
+conv(os.path.join("src", "cloud_combined_8192.tif"), "earth_clouds_hd.png", lambda im: im.convert("L").resize((8192, 4096), Image.LANCZOS))
+if os.path.exists(os.path.join(A, "earth_clouds_hd.png")) and os.path.exists(os.path.join(A, "src", "cloud_combined_8192.tif")):
+    os.remove(os.path.join(A, "src", "cloud_combined_8192.tif"))
+def bake_normal_mask():
+    n_path, m_path, g = os.path.join(A, "earth_normal.png"), os.path.join(A, "earth_mask.png"), os.path.join(A, "gebco_raw.png")
+    if not os.path.exists(g) or (os.path.exists(n_path) and os.path.exists(m_path)):
+        return
+    W, H = 8192, 4096
+    elev = np.asarray(Image.open(g).convert("L").resize((W, H), Image.BOX), dtype=np.float32) * (6400.0 / 255.0)   # metres
+    # land mask: above sea level, or not ocean-coloured in the day image (lowlands, ice shelves)
+    days = sorted(glob.glob(os.path.join(A, "earth_day_*_hd.jpg"))) or sorted(glob.glob(os.path.join(A, "earth_day_*.jpg")))
+    land = elev > 0.5
+    if days:
+        c = np.asarray(Image.open(days[0]).convert("RGB").resize((W, H), Image.BOX), dtype=np.float32) / 255.0
+        water = (c[..., 2] > np.maximum(c[..., 0], c[..., 1]) * 0.95 + 0.02) & (c.max(axis=2) < 0.55)
+        land |= ~water
+    m = Image.fromarray((land * 255).astype(np.uint8)).filter(__import__("PIL.ImageFilter", fromlist=["x"]).GaussianBlur(1.2))
+    m.save(m_path)
+    print("  -> earth_mask.png")
+    # normals in (east, north, up), relief exaggerated x6 so mountain ranges read from orbit
+    R, k = 6371000.0, 6.0
+    lat = (0.5 - (np.arange(H) + 0.5) / H) * np.pi
+    dx = (2 * np.pi * R / W) * np.maximum(np.cos(lat), 0.05)[:, None]
+    dy = np.pi * R / H
+    gx = (np.roll(elev, -1, axis=1) - np.roll(elev, 1, axis=1)) / (2 * dx)
+    gy = np.zeros_like(elev)
+    gy[1:-1] = (elev[:-2] - elev[2:]) / (2 * dy)          # row 0 = north
+    nx, ny, nz = -gx * k, -gy * k, np.ones_like(elev)
+    ln = np.sqrt(nx * nx + ny * ny + nz * nz)
+    rgb = np.stack([nx / ln, ny / ln, nz / ln], axis=2) * 0.5 + 0.5
+    Image.fromarray((np.clip(rgb, 0, 1) * 255 + 0.5).astype(np.uint8), "RGB").save(n_path)
+    print("  -> earth_normal.png")
+bake_normal_mask()
 conv("moon_color_src", "moon_color.jpg", lambda im: (lambda c: c.resize((min(c.width, 4096), min(c.width, 4096) // 2), Image.BILINEAR))(
     Image.fromarray((np.asarray(im, dtype=np.float32) / 257.0).astype(np.uint8)).convert("RGB") if im.mode.startswith("I;16") or im.mode == "RGB;16" else im.convert("RGB")))
 conv("moon_ldem_src", "moon_height.png", lambda im: height16(im, (1440, 720)))

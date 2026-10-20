@@ -41,6 +41,52 @@ static func asset_dir() -> String:
 	return base + "/" + ASSET_DIR
 
 
+## Built / converted caches (compressed textures, ...): ~/.local/share/filament-falcon/cache
+static func cache_dir() -> String:
+	return asset_dir().get_base_dir() + "/cache"
+
+
+const TEX_CACHE_VER := 1
+
+## A big texture (16k Blue Marble, 8k normal map, ...): JPEG/PNG decode + mipmaps + GPU block
+## compression (BC1 colour, BC4 grey, BC5 normals) happen ONCE; the result is cached as a
+## compressed Image resource in cache/tex/<name>.v<ver>.<mtime>.res and loads in a fraction of a
+## second next time. Safe to call from a worker thread. kind: "color" | "gray" | "normal".
+static func hd_image(name: String, kind: String) -> Image:
+	var p := asset_dir() + "/" + name
+	if not FileAccess.file_exists(p):
+		return null
+	var stem := name.get_basename()
+	var cp := "%s/tex/%s.v%d.%d.res" % [cache_dir(), stem, TEX_CACHE_VER, FileAccess.get_modified_time(p)]
+	if FileAccess.file_exists(cp):
+		var r: Resource = ResourceLoader.load(cp, "Image", ResourceLoader.CACHE_MODE_IGNORE)
+		if r is Image and not (r as Image).is_empty():
+			return r
+	var img := Image.load_from_file(p)
+	if img == null or img.is_empty():
+		return null
+	if img.get_width() > 16384:      # GPU texture limit
+		img.resize(16384, 8192, Image.INTERPOLATE_CUBIC)
+	var src := Image.COMPRESS_SOURCE_SRGB
+	match kind:
+		"gray":
+			img.convert(Image.FORMAT_R8)
+			src = Image.COMPRESS_SOURCE_GENERIC
+		"normal":
+			img.convert(Image.FORMAT_RGB8)
+			src = Image.COMPRESS_SOURCE_NORMAL
+		_:
+			img.convert(Image.FORMAT_RGB8)
+	img.generate_mipmaps(kind == "normal")
+	img.compress(Image.COMPRESS_S3TC, src)
+	DirAccess.make_dir_recursive_absolute(cp.get_base_dir())
+	for f in DirAccess.get_files_at(cp.get_base_dir()):   # drop stale versions of this texture
+		if f.begins_with(stem + ".v") and f != cp.get_file():
+			DirAccess.remove_absolute(cp.get_base_dir() + "/" + f)
+	ResourceSaver.save(img, cp, ResourceSaver.FLAG_COMPRESS)
+	return img
+
+
 ## Load an image from the asset cache as a mipmapped texture, or null when missing.
 static func tex(name: String) -> Texture2D:
 	var p := asset_dir() + "/" + name

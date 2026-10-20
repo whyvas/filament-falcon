@@ -1,5 +1,5 @@
 shader_type spatial;
-// Single-scattering (Rayleigh + Mie) atmosphere, ray-marched inside a shell around the
+// Single-scattering (Rayleigh + Mie + ozone absorption) atmosphere, ray-marched inside a shell around the
 // planet. Works from orbit (blue limb, sunsets on the terminator) and from the ground
 // (blue sky, red sunrise), and uses the depth buffer for aerial perspective on terrain.
 render_mode unshaded, blend_add, cull_front, depth_draw_never, depth_test_disabled, fog_disabled;
@@ -8,12 +8,7 @@ uniform sampler2D depth_tex : hint_depth_texture, filter_nearest;
 uniform vec3 sun_dir = vec3(0.0, 0.0, 1.0);
 uniform vec3 planet_center = vec3(0.0);   // world metres (real scale)
 uniform float space_scale = 1.0;          // scale applied to the planet mesh (scaled space)
-uniform float planet_r_km = 600.0;
-uniform float atmo_r_km = 690.0;
-uniform vec3 beta_r = vec3(5.8e-3, 13.5e-3, 33.1e-3);
-uniform float beta_m = 3.5e-3;
-uniform float h_r = 5.6;
-uniform float h_m = 1.1;
+#include "res://shaders/atmo_common.gdshaderinc"
 uniform float g_mie = 0.76;
 uniform float intensity = 22.0;
 uniform int steps = 16;
@@ -25,14 +20,7 @@ void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 
-vec2 ray_sphere(vec3 ro, vec3 rd, float r) {
-	float b = dot(ro, rd);
-	float c = dot(ro, ro) - r * r;
-	float h = b * b - c;
-	if (h < 0.0) return vec2(1e9, -1e9);
-	h = sqrt(h);
-	return vec2(-b - h, -b + h);
-}
+vec2 ray_sphere(vec3 ro, vec3 rd, float r) { return ray_sph(ro, rd, r); }
 
 void fragment() {
 	vec3 center = planet_center;
@@ -85,7 +73,7 @@ void fragment() {
 			lr += exp(-hq / h_r) * lseg;
 			lm += exp(-hq / h_m) * lseg;
 		}
-		vec3 tau = beta_r * (od_r + lr) + beta_m * 1.1 * (od_m + lm);
+		vec3 tau = (beta_r + beta_o) * (od_r + lr) + beta_m * 1.1 * (od_m + lm);
 		vec3 att = exp(-tau);
 		sum_r += dr * att;
 		sum_m += dm * att;
