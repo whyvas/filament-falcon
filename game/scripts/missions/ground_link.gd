@@ -35,6 +35,17 @@ func _ready() -> void:
 		push_warning("Ground crew: port %d busy" % port)
 
 
+func shutdown() -> void:
+	for p: Array in peers:
+		(p[0] as StreamPeerTCP).disconnect_from_host()
+	peers.clear()
+	server.stop()
+
+
+func _exit_tree() -> void:
+	shutdown()
+
+
 func running() -> bool:
 	return server.is_listening()
 

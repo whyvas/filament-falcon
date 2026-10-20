@@ -139,6 +139,8 @@ var test_mode := false
 
 
 func _ready() -> void:
+	# window close / Alt+F4 on ANY window goes through quit_game() (helpers stopped first)
+	get_tree().set_auto_accept_quit(false)
 	test_mode = Settings.is_test_run()
 	if Settings.is_eva_client():
 		external_clock = true   # the VR client mirrors the cockpit's world snapshots instead
@@ -176,6 +178,53 @@ func _build_universe() -> void:
 	moon.add_site(lunar_site_dir, 600.0)
 	bodies = [earth, moon]
 	sim.bodies = bodies
+
+
+# ======================================================================== quitting
+var _quitting := false
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		quit_game()
+
+
+## Alt+F4 as a key event: borderless / fullscreen windows often never get the WM close request.
+static func is_quit_key(ev: InputEvent) -> bool:
+	var k := ev as InputEventKey
+	return k != null and k.pressed and not k.echo and k.alt_pressed and (k.keycode == KEY_F4 or k.physical_keycode == KEY_F4)
+
+
+func _input(ev: InputEvent) -> void:
+	if is_quit_key(ev):
+		get_viewport().set_input_as_handled()
+		quit_game()
+
+
+## Every extra OS window (side views, console, commander, popups) quits the game on close / Alt+F4.
+func hook_window(w: Window) -> void:
+	w.close_requested.connect(quit_game)
+	w.window_input.connect(func(ev: InputEvent) -> void:
+		if is_quit_key(ev):
+			quit_game())
+
+
+## Clean exit: ground-crew web server, VR client + the WiVRn server we started, intercom helper,
+## LEDs off, then quit. Safe to call twice.
+func quit_game(code: int = 0) -> void:
+	if _quitting:
+		return
+	_quitting = true
+	print("Quitting: stopping helpers")
+	var gl := GroundLink.get_link(false)
+	if gl:
+		gl.shutdown()
+	if Eva.role == "server":
+		Eva.stop_client()
+	Ics.stop()
+	if LedLink:
+		LedLink.clear_all()
+	get_tree().quit(code)
 
 
 # ======================================================================== missions

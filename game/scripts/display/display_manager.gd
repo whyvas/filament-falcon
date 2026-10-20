@@ -411,7 +411,7 @@ func apply_layout() -> void:
 			w.title = "Filament Falcon - " + str(ROLE_NAMES.get(n, n.to_upper()))
 			w.borderless = true
 			w.unresizable = false
-			w.close_requested.connect(func() -> void: pass)
+			Game.hook_window(w)     # close / Alt+F4 on any window quits the whole game cleanly
 			get_parent().add_child.call_deferred(w)
 			w.add_child(cont[n])
 			cont[n].set_anchors_preset(Control.PRESET_FULL_RECT)

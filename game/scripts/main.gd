@@ -19,6 +19,9 @@ func _ready() -> void:
 	if Settings.cli.has("region-test"):
 		add_child(load("res://tests/region_test.gd").new())
 		return
+	if Settings.cli.has("quit-test"):
+		add_child(load("res://tests/quit_test.gd").new())
+		return
 	if Settings.cli.has("ui-fit"):
 		add_child(load("res://tests/ui_fit.gd").new())
 		return
@@ -57,7 +60,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		var k := ev as InputEventKey
 		if k.keycode == KEY_ESCAPE and k.shift_pressed:
-			get_tree().quit()
+			Game.quit_game()
 		elif k.keycode == KEY_END and k.shift_pressed:   # Shift+End: dev <-> cockpit layout
 			Settings.set_v("display", "mode", "cockpit" if display.mode == "dev" else "dev")
 			display.apply_layout()

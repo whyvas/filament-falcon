@@ -4,7 +4,7 @@
 Files go to `~/.local/share/filament-falcon/assets` (outside the repo). If the download fails or you're offline, the game uses the procedural planet.
 
 - **Earth:** NASA Blue Marble, all 12 months, 5400×2700 (pick the month in `settings.json` → `graphics.earth_month`). Also Black Marble night lights, cloud cover (drifting, casts shadows) and GEBCO elevation.
-- **Moon:** LROC colour plus a LOLA heightmap, converted with Pillow.
+- **Moon:** LROC colour plus a LOLA heightmap from the NASA SVS CGI Moon Kit (svs.gsfc.nasa.gov/4720), converted with Pillow. Each file has fallback URLs (4k TIF, 2k TIF, 2k JPG, 1k JPG; uint16, float, 8-bit heights); the script tries the next one on a 404 or timeout.
 - **Region:** `tools/build_region.py --name NAME --bbox S,W,N,E`. It pulls OpenStreetMap data (Overpass) and AWS terrain tiles, then writes chunk JSON to `assets/regions/NAME`. Choose it in game with `--region=NAME`, or point at any folder with `--region-dir=DIR`.
   - The default is Fredericton, NB, about 10×10 km.
   - In game: Sandbox → **FREDERICTON** (a descent from 4 km).

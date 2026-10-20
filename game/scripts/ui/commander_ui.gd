@@ -51,6 +51,18 @@ func _ready() -> void:
 	status.clip_text = true
 	status.custom_minimum_size.x = 200
 	top.add_child(status)
+	var quit := button("QUIT GAME", func() -> void: pass, 18, 40)
+	quit.pressed.connect(func() -> void:
+		if _now() - _quit_armed < 4.0:
+			Game.quit_game()
+		else:
+			_quit_armed = _now()
+			refresh())
+	top.add_child(quit)
+	live["quit"] = func() -> void:
+		var armed := _now() - _quit_armed < 4.0
+		quit.text = "CONFIRM QUIT?" if armed else "QUIT GAME"
+		quit.modulate = C_RED if armed else Color(1, 1, 1, 0.8)
 	live["status"] = func() -> void:
 		var m: Mission = Game.mission
 		var tm := int(Game.mission_time)
@@ -459,6 +471,7 @@ func _headset_rows(parent: Control, meters: bool) -> void:
 var sel_key := "launch"
 var _ms := {}            # widgets of the MISSIONS page
 var _switch_armed := -100.0
+var _quit_armed := -100.0
 
 
 func _build_missions(page: Control) -> void:
@@ -1143,7 +1156,7 @@ func _build_setup(page: Control) -> void:
 	b.add_child(fsb)
 	var info := label("", 20)
 	b.add_child(info)
-	b.add_child(button("QUIT GAME", func() -> void: get_tree().quit(), 22, 56))
+	b.add_child(button("QUIT GAME", func() -> void: Game.quit_game(), 22, 56))
 	var c := panel(h, "HEADSETS + PANELS", true, true, C_AMBER)
 	c.get_parent().size_flags_stretch_ratio = 1.1
 	c.add_child(label("Intercom headset per seat (matched by name + USB serial/port, so re-plugging keeps them). IDENTIFY beeps in that headset.", 17, C_DIM))
@@ -1196,6 +1209,7 @@ func _identify(role: String) -> void:
 	if scr < 0:
 		return
 	var w := Window.new()
+	Game.hook_window(w)
 	w.borderless = true
 	w.always_on_top = true
 	w.size = Vector2i(900, 300)
