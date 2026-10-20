@@ -54,6 +54,7 @@ var rig := Transform3D.IDENTITY
 var vel := Vector3.ZERO
 var head := Transform3D(Basis.IDENTITY, Vector3(0, 1.6, 0))      # rig-local
 var hands: Array[Transform3D] = [Transform3D(Basis.IDENTITY, Vector3(-0.3, 1.0, -0.3)), Transform3D(Basis.IDENTITY, Vector3(0.3, 1.0, -0.3))]
+var hand_fingers := [PackedFloat32Array(), PackedFloat32Array()]   # hand tracking: thumb..pinky curl (empty = none)
 var hand_curl: Array[Vector3] = [Vector3(-1, 0, 0), Vector3(-1, 0, 0)]   # (grip, trigger, thumb) 0..1; x<0 = no analog data
 var hand_pose: Array[String] = ["open", "open"]   # open | fist | point (avatar fingers)
 var grip_prev: Array[bool] = [false, false]
@@ -290,6 +291,9 @@ func step_sim(dt: float, inp: Dictionary) -> void:
 	if hc.size() == 2:
 		hand_curl[0] = hc[0]
 		hand_curl[1] = hc[1]
+	var hf: Array = inp.get("fingers", [])
+	if hf.size() == 2:
+		hand_fingers = [PackedFloat32Array(hf[0]), PackedFloat32Array(hf[1])]
 	var grip: Array = inp.get("grip", [false, false])
 	var use: Array = inp.get("use", [false, false])
 	var pnt: Array = inp.get("point", [false, false])
@@ -930,7 +934,7 @@ func to_net() -> Dictionary:
 	var ps := []
 	for p: Dictionary in props:
 		ps.append([p.get("id", ""), p.get("state", "")])
-	return {"rig": rig, "vel": vel, "head": head, "hands": [hands[0], hands[1]], "hp": [hand_pose[0], hand_pose[1]], "hc": [hand_curl[0], hand_curl[1]],
+	return {"rig": rig, "vel": vel, "head": head, "hands": [hands[0], hands[1]], "hp": [hand_pose[0], hand_pose[1]], "hc": [hand_curl[0], hand_curl[1]], "hf": hand_fingers,
 		"step": step, "prog": progress, "col": collected, "riding": riding, "lamp": lamp, "jet": jet_on,
 		"suit": [o2, batt, co2, suit_temp, heart, gas, tether_used, exertion], "taut": taut, "done": done,
 		"failed": failed, "score": score, "time": time_out, "items": its, "props": ps, "ground": on_ground, "perch": perch}
@@ -948,6 +952,8 @@ func from_net(d: Dictionary) -> void:
 	if hc.size() == 2:
 		hand_curl[0] = hc[0]
 		hand_curl[1] = hc[1]
+	var hf: Array = d.get("hf", [])
+	hand_fingers = [PackedFloat32Array(hf[0]), PackedFloat32Array(hf[1])] if hf.size() == 2 else [PackedFloat32Array(), PackedFloat32Array()]
 	var hp: Array = d.get("hp", [])
 	if hp.size() == 2:
 		hand_pose[0] = str(hp[0])
@@ -991,5 +997,5 @@ func from_net(d: Dictionary) -> void:
 
 ## Pose snapshot for the avatar (and its interpolation buffer).
 func pose() -> Dictionary:
-	return {"head": head_s(), "l": hand_s(0), "r": hand_s(1), "hp": [hand_pose[0], hand_pose[1]], "hc": [hand_curl[0], hand_curl[1]],
+	return {"head": head_s(), "l": hand_s(0), "r": hand_s(1), "hp": [hand_pose[0], hand_pose[1]], "hc": [hand_curl[0], hand_curl[1]], "hf": hand_fingers,
 		"up": body_up(), "vel": vel, "lamp": lamp, "jet": jet_on, "riding": riding, "ground": on_ground}

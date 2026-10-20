@@ -284,3 +284,22 @@ A server the game started is stopped when the VR client or game exits. A server 
 - **The hull is solid.** You bump off it gently (low-speed contact cancels your inward speed). The open-top cargo bay is the exception, so you can reach in. Handrails work as before.
 - **Gloves follow the Touch controllers:** the trigger curls the index finger, grip curls the other three, and resting your thumb on A/B/stick folds the thumb.
 - **VR clipping range** is near 3 cm / far 30 km, so your visor can touch the hull without clipping into it.
+
+## Hand tracking (put the controllers down)
+
+The client uses OpenXR hand tracking (`XR_EXT_hand_tracking`, which WiVRn forwards from the Quest)
+whenever a hand is optically tracked, and the Touch controller otherwise. It switches by itself, per hand.
+
+- **Pinch** (thumb + index) = grab (rocks, tools, the flag). **Fist** = grip (handrails, the ladder).
+  A fist with the index out = point.
+- The articulated suit gloves follow each tracked finger.
+- `~/.local/share/filament-falcon/eva_vr.log` says whether the runtime offers hand tracking
+  (`hand tracking (XR_EXT_hand_tracking): AVAILABLE`), and logs every switch (`left hand: HAND TRACKING …`).
+- On the Quest: Settings → Movement tracking → Hand and body tracking → on.
+
+## Smoothness
+
+- The headset runs at 90 Hz when offered (logged as `display refresh … physics tick … interpolated`).
+- The world (Moon, landing site, station) is advanced on one smooth local clock between the
+  cockpit's snapshots instead of snapping to each one. The smoke test checks it with the
+  headset client parked on the Moon (`EVA VR-client moon sync … worst client frame jump`).

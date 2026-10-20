@@ -221,13 +221,53 @@ func _check_eva_link() -> bool:
 	var steps_done := (Eva.sim.step - first_step) if Eva.sim else 0
 	if Eva.active:
 		Eva.abort("link test done")
+	var moon_ok := await _check_moon_sync() if connected else false
 	Eva.stop_client()
 	var hz := 0.0
 	for h in hz_samples.slice(1):
 		hz += h
 	hz /= maxf(hz_samples.size() - 1, 1)
-	var ok := launched and connected and not xr_reported and started and hz >= 60.0 and moved > 2.0 and max_jump < 0.25 and steps_done >= 2
+	var ok := launched and connected and not xr_reported and started and hz >= 60.0 and moved > 2.0 and max_jump < 0.25 and steps_done >= 2 and moon_ok
 	print("  EVA VR-client link (headless client, XR unavailable -> autopilot): connected=%s xr=%s stream %.0f Hz, avatar moved %.1f m, max frame jump %.3f m, steps %d: %s" % [connected, xr_reported, hz, moved, max_jump, steps_done, "ok" if ok else "FAIL"])
+	return ok
+
+
+## Moonwalk sync (the "rocks jitter in the headset" bug): parked on the Moon (which orbits at
+## ~540 m/s in game scale), the VR client must keep the landing site / its rocks steady
+## relative to the ship between world snapshots. The client reports its worst frame jump.
+func _check_moon_sync() -> bool:
+	Game.load_mission("lunar")
+	await _frames(3)
+	Game.auto_checklist()
+	_ticks(0.5)
+	Game.try_start()
+	_ticks(1.0)
+	var sim: ShipSim = Game.sim
+	var pad: Dictionary = Game.entities_of("lunar_pad")[0]
+	var moon: CelestialBody = Game.moon
+	var up: Vector3 = (pad["pos"] as BigVec).rel(moon.pos).normalized()
+	sim.gear_down = true
+	sim.gear_pos = 1.0
+	var p: BigVec = (pad["pos"] as BigVec).copy()
+	p.add(up * 3.5 + up.cross(Vector3.UP).normalized() * 20.0)
+	sim.pos.set_from(p)
+	sim.vel = moon.vel
+	_ticks(4.0)
+	var landed := EvaScenarios.on_moon(Game)
+	var started := landed and Eva.start("moonwalk", false, "vr")
+	var worst := 0.0
+	var t0 := Time.get_ticks_msec()
+	var n := 0
+	while started and Eva.active and Time.get_ticks_msec() - t0 < 6000:
+		Game.tick(minf(get_process_delta_time(), 0.05))
+		await _frames(1)
+		n += 1
+		if Time.get_ticks_msec() - t0 > 2500:      # after the client has settled on the stream
+			worst = maxf(worst, float(Eva.client_info.get("ent_jit", 99.0)))
+	if Eva.active:
+		Eva.abort("moon sync test done")
+	var ok := started and worst < 0.05
+	print("  EVA VR-client moon sync (landed=%s, lunar site vs ship, worst client frame jump %.3f m over %d frames): %s" % [landed, worst, n, "ok" if ok else "FAIL"])
 	return ok
 
 

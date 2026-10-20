@@ -475,7 +475,7 @@ func _net_tx() -> void:
 		var rel := (e["pos"] as BigVec).rel(s.pos)
 		if rel.length() < 5000.0:
 			var p: BigVec = e["pos"]
-			ents.append([e["id"], p.x(), p.y(), p.z(), e["basis"], e.get("visible", true)])
+			ents.append([e["id"], p.x(), p.y(), p.z(), e["basis"], e.get("visible", true), e["vel"]])
 	_seq += 1
 	var w := {"t": "w", "seq": _seq, "mid": Game.mission_id, "gt": Game.t, "px": s.pos.x(), "py": s.pos.y(), "pz": s.pos.z(),
 		"vel": s.vel, "basis": s.basis, "w": s.ang_vel, "sun": Game.sun_dir, "door": Game.cargo_door,

@@ -99,7 +99,7 @@ func _ready() -> void:
 		th_tip.position = Vector3(0, 0, -0.035)
 		th_root.add_child(th_tip)
 		th_tip.add_child(ProcGen.mesh_node(ProcGen.box(Vector3(0.018, 0.018, 0.03)), glove, Vector3(0, 0, -0.015)))
-		fingers[s] = {"f": fl, "thumb": [th_root, th_tip], "c": Vector3.ZERO}
+		fingers[s] = {"f": fl, "thumb": [th_root, th_tip], "c": Vector3.ZERO, "cf": PackedFloat32Array([0, 0, 0, 0, 0])}
 	# helmet lamps (EMU style, either side of the helmet)
 	for sx: float in [-1.0, 1.0]:
 		var lg := ProcGen.mesh_node(ProcGen.cyl(0.03, 0.03, 0.06, 10), ProcGen.glow_mat(Color(1.0, 0.95, 0.85), 4.0), Vector3.ZERO, Vector3(PI * 0.5, 0, 0))
@@ -248,14 +248,23 @@ func apply_pose(p: Dictionary, dt: float) -> void:
 			want = Vector3(0.1, 0.1, 0.0) if st == "open" else (Vector3(1, 0, 1) if st == "point" else Vector3(1, 1, 1))
 		var c: Vector3 = (f["c"] as Vector3).lerp(want, clampf(dt * 18.0, 0.0, 1.0))
 		f["c"] = c
+		# hand tracking: every finger follows its own tracked curl (thumb, index..pinky)
+		var hfs: Array = p.get("hf", [])
+		var tf: PackedFloat32Array = hfs[0 if s == "l" else 1] if hfs.size() == 2 else PackedFloat32Array()
+		var cf: PackedFloat32Array = f["cf"]
+		var k_s := clampf(dt * 25.0, 0.0, 1.0)
+		for k in 5:
+			var tgt := tf[k] if tf.size() == 5 else ([c.z, c.y, c.x, c.x, c.x][k] as float)
+			cf[k] = lerpf(cf[k], tgt, k_s) if tf.size() == 5 else tgt
+		f["cf"] = cf
 		var fl2: Array = f["f"]
 		for k in 4:
-			var amt := c.y if k == 0 else c.x
+			var amt := cf[k + 1]
 			(fl2[k][0] as Node3D).rotation.x = -(0.12 + amt * 1.2)
 			(fl2[k][1] as Node3D).rotation.x = -(0.1 + amt * 1.3)
 		var sgn := -1.0 if s == "r" else 1.0
-		(f["thumb"][0] as Node3D).rotation = Vector3(-c.z * 0.4, -sgn * (0.7 - c.z * 0.5), 0)
-		(f["thumb"][1] as Node3D).rotation.x = -(0.15 + c.z * 0.9)
+		(f["thumb"][0] as Node3D).rotation = Vector3(-cf[0] * 0.4, -sgn * (0.7 - cf[0] * 0.5), 0)
+		(f["thumb"][1] as Node3D).rotation.x = -(0.15 + cf[0] * 0.9)
 	# legs
 	var v: Vector3 = p.get("vel", Vector3.ZERO)
 	var on_ground := bool(p.get("ground", false))

@@ -93,6 +93,8 @@ func _setup_xr() -> void:
 		oxr.session_focussed.connect(func() -> void: _xlog("session FOCUSED (input + poses live)"))
 		oxr.session_visible.connect(func() -> void: _xlog("session visible only (system menu / proximity sensor: no input)"))
 		_xlog("near=%.2f far=%.0f reference_space=%s" % [XR_NEAR, XR_FAR, ProjectSettings.get_setting("xr/openxr/reference_space", "?")])
+		_xlog("hand tracking (XR_EXT_hand_tracking): %s · project setting %s" % ["AVAILABLE" if oxr.is_hand_tracking_supported() else "not offered by the runtime (WiVRn: enable hand tracking on the Quest)", ProjectSettings.get_setting("xr/openxr/extensions/hand_tracking", "?")])
+		oxr.session_begun.connect(_match_refresh.bind(oxr))
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)   # the runtime paces frames
 	Engine.max_fps = 0
 	get_viewport().use_xr = true
@@ -157,6 +159,20 @@ void fragment() {
 	xr_cam.add_child(vq)
 	# The runtime recenters on its own (Quest: hold Meta button). Do NOT call center_on_hmd
 	# from pose_recentered: that fed back into repeated recenters.
+
+
+## Run the headset at 90 Hz when offered (72 judders, 120 is costly) and tick physics at the
+## same rate with interpolation on, so nothing is ever stepped at 60 Hz under a 90 Hz view.
+## (The EVA sim itself steps in _process, once per rendered frame.)
+func _match_refresh(oxr: OpenXRInterface) -> void:
+	var rates: Array = oxr.get_available_display_refresh_rates()
+	var pick: float = 90.0 if rates.has(90.0) else (float(rates.max()) if not rates.is_empty() else oxr.display_refresh_rate)
+	if pick > 0.0 and rates.has(pick):
+		oxr.display_refresh_rate = pick
+	var hz := int(roundf(pick)) if pick > 0.0 else 90
+	Engine.physics_ticks_per_second = hz
+	get_tree().physics_interpolation = true
+	_xlog("display refresh %s Hz (offered %s) · physics tick %d Hz, interpolated" % [pick, str(rates), hz])
 
 
 func _setup_flat() -> void:
@@ -245,6 +261,7 @@ func _process(dt: float) -> void:
 	_t += dt
 	_net_rx()
 	_dead_reckon(dt)
+	_measure_jitter(dt)
 	if sim != null and not sim.done:
 		_world_inputs()
 		var inp := _xr_input(dt) if has_xr else flat.apply(dt, sim, bot.decide(dt, sim) if bot else flat.read_devices(get_window().has_focus() if not Settings.is_headless() else false))
@@ -318,11 +335,62 @@ func _edge(key: String, down: bool) -> bool:
 	return down and not was
 
 
+var _hand_mode := ["", ""]          # "controller" / "hand" / "none" per side (logged on change)
+var _pinch_on := [false, false]     # hysteresis so a grab never flickers
+var _fist_on := [false, false]
+var _fingers := [PackedFloat32Array(), PackedFloat32Array()]   # thumb, index, middle, ring, pinky curl 0..1
+
+
+func _set_hand_mode(i: int, m: String) -> void:
+	if _hand_mode[i] != m:
+		_hand_mode[i] = m
+		_xlog("%s hand: %s" % ["left" if i == 0 else "right", {"controller": "Touch controller", "hand": "HAND TRACKING (pinch = grab, fist = grip)", "none": "not tracked"}[m]])
+
+
+## Optical hand tracking (XR_EXT_hand_tracking) when it is live and NOT just emulated from a
+## held controller. Quest/WiVRn switch automatically when you put the controllers down.
+func _optical_hand(i: int) -> XRHandTracker:
+	var ht := XRServer.get_tracker("/user/hand_tracker/" + ("left" if i == 0 else "right")) as XRHandTracker
+	if ht and ht.has_tracking_data and ht.hand_tracking_source != XRHandTracker.HAND_TRACKING_SOURCE_CONTROLLER:
+		return ht
+	return null
+
+
+static func _bend(ht: XRHandTracker, a: int, b: int, c: int, d: int, full: float) -> float:
+	var d1 := ht.get_hand_joint_transform(b).origin - ht.get_hand_joint_transform(a).origin
+	var d2 := ht.get_hand_joint_transform(d).origin - ht.get_hand_joint_transform(c).origin
+	if d1.length_squared() < 1e-8 or d2.length_squared() < 1e-8:
+		return 0.0
+	return clampf(d1.angle_to(d2) / full, 0.0, 1.0)
+
+
+## Per-finger curl from the tracked skeleton (angle between the first and last bone of each
+## finger), so the articulated suit glove follows your real fingers.
+static func hand_curls(ht: XRHandTracker) -> PackedFloat32Array:
+	var J := XRHandTracker
+	return PackedFloat32Array([
+		_bend(ht, J.HAND_JOINT_THUMB_METACARPAL, J.HAND_JOINT_THUMB_PHALANX_PROXIMAL, J.HAND_JOINT_THUMB_PHALANX_DISTAL, J.HAND_JOINT_THUMB_TIP, PI * 0.45),
+		_bend(ht, J.HAND_JOINT_INDEX_FINGER_METACARPAL, J.HAND_JOINT_INDEX_FINGER_PHALANX_PROXIMAL, J.HAND_JOINT_INDEX_FINGER_PHALANX_DISTAL, J.HAND_JOINT_INDEX_FINGER_TIP, PI * 0.8),
+		_bend(ht, J.HAND_JOINT_MIDDLE_FINGER_METACARPAL, J.HAND_JOINT_MIDDLE_FINGER_PHALANX_PROXIMAL, J.HAND_JOINT_MIDDLE_FINGER_PHALANX_DISTAL, J.HAND_JOINT_MIDDLE_FINGER_TIP, PI * 0.8),
+		_bend(ht, J.HAND_JOINT_RING_FINGER_METACARPAL, J.HAND_JOINT_RING_FINGER_PHALANX_PROXIMAL, J.HAND_JOINT_RING_FINGER_PHALANX_DISTAL, J.HAND_JOINT_RING_FINGER_TIP, PI * 0.8),
+		_bend(ht, J.HAND_JOINT_PINKY_FINGER_METACARPAL, J.HAND_JOINT_PINKY_FINGER_PHALANX_PROXIMAL, J.HAND_JOINT_PINKY_FINGER_PHALANX_DISTAL, J.HAND_JOINT_PINKY_FINGER_TIP, PI * 0.8)])
+
+
+## Gesture state from curls + thumb-index gap, with hysteresis. Returns [pinch, fist, point].
+static func hand_gestures(curls: PackedFloat32Array, pinch_gap: float, was_pinch: bool, was_fist: bool) -> Array:
+	var pinch := pinch_gap < (0.035 if was_pinch else 0.02)
+	var rest := (curls[2] + curls[3] + curls[4]) / 3.0
+	var fist := rest > (0.45 if was_fist else 0.6)
+	var point := fist and curls[1] < 0.3
+	return [pinch and not fist, fist and not point, point]
+
+
 func _hand_xform(i: int) -> Array:
 	# [transform relative to the origin, grip, use, point, tracked]
 	var c := ctrl[i]
-	var tracked := c.get_has_tracking_data()
-	if not tracked:
+	var ht := _optical_hand(i)
+	var tracked := c.get_has_tracking_data() and ht == null
+	if not tracked and ht == null:
 		# fall back to any pose the runtime does report (aim/palm) instead of losing the hand
 		var t := XRServer.get_tracker(c.tracker) as XRPositionalTracker
 		if t:
@@ -333,21 +401,26 @@ func _hand_xform(i: int) -> Array:
 					_xlog("controller %d: grip_pose untracked, using %s" % [i, pn])
 					tracked = true
 					break
+	_fingers[i] = PackedFloat32Array()
 	if tracked:
+		_set_hand_mode(i, "controller")
 		var g := c.get_float("grip")
 		var tr := c.get_float("trigger")
 		var touch := c.is_button_pressed("trigger_touch")
 		return [c.transform, g > 0.6, tr > 0.6, g > 0.6 and not touch, true]
-	# hand tracking (controllers down): pinch = grab, index pinch held = use
-	var ht := XRServer.get_tracker("/user/hand_tracker/" + ("left" if i == 0 else "right")) as XRHandTracker
-	if ht and ht.has_tracking_data:
+	if ht:
+		# hands (controllers down): pinch = grab, fist = grip (handrails / tools), fist with the
+		# index out = point. Pinch held on a tool = use.
+		_set_hand_mode(i, "hand")
 		var palm := ht.get_hand_joint_transform(XRHandTracker.HAND_JOINT_PALM)
-		var thumb := ht.get_hand_joint_transform(XRHandTracker.HAND_JOINT_THUMB_TIP).origin
-		var index := ht.get_hand_joint_transform(XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP).origin
-		var middle := ht.get_hand_joint_transform(XRHandTracker.HAND_JOINT_MIDDLE_FINGER_TIP).origin
-		var fist := middle.distance_to(palm.origin) < 0.06
-		var pinch := thumb.distance_to(index) < 0.025
-		return [palm, fist or pinch, pinch and not fist, fist and index.distance_to(palm.origin) > 0.1, true]
+		var gap := ht.get_hand_joint_transform(XRHandTracker.HAND_JOINT_THUMB_TIP).origin.distance_to(ht.get_hand_joint_transform(XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP).origin)
+		var cu := hand_curls(ht)
+		_fingers[i] = cu
+		var gs := hand_gestures(cu, gap, _pinch_on[i], _fist_on[i])
+		_pinch_on[i] = gs[0]
+		_fist_on[i] = gs[1]
+		return [palm, gs[0] or gs[1], gs[0], gs[2], true]
+	_set_hand_mode(i, "none")
 	return [Transform3D(Basis.IDENTITY, Vector3(0.25 * (-1 if i == 0 else 1), 1.0, -0.3)), false, false, false, false]
 
 
@@ -370,7 +443,8 @@ func _xr_input(dt: float) -> Dictionary:
 	var R := _hand_xform(1)
 	var inp := {"head": head, "hands": [off * (L[0] as Transform3D), off * (R[0] as Transform3D)],
 		"grip": [L[1], R[1]], "use": [L[2], R[2]], "point": [L[3], R[3]],
-		"curl": [_curl(ctrl[0]), _curl(ctrl[1])]}
+		"curl": [_curl(ctrl[0]) if _fingers[0].is_empty() else Vector3(-1, 0, 0), _curl(ctrl[1]) if _fingers[1].is_empty() else Vector3(-1, 0, 0)],
+		"fingers": [_fingers[0], _fingers[1]]}
 	var lc := ctrl[0]
 	var rc := ctrl[1]
 	# left stick: jetpack / moon walk, relative to where you look; right stick Y: up / down
@@ -452,18 +526,69 @@ func _world_inputs() -> void:
 	sim.in_sun = not world.in_shadow
 
 
+## Smooth world clock. Snapshots arrive at the cockpit's frame rate (~75-87 Hz) with jitter,
+## the headset renders at 72-120 Hz. Snapping the ship / entities to each snapshot (and
+## leaving the entities frozen between them) made everything that moves with the Moon (it
+## orbits at ~540 m/s in game scale) jump by metres every frame: the "rock jitter". Now one
+## monotonic clock is slewed toward the snapshot time, the ship is extrapolated from the newest
+## snapshot to that clock, and entities on rails / surfaces are recomputed locally from it.
+var _snap := {}
+var _clock := 0.0
+
+
 func _dead_reckon(dt: float) -> void:
-	# between snapshots: keep the ship / planets moving smoothly at the headset frame rate
-	if _mid == "":
+	if _mid == "" or _snap.is_empty():
 		return
-	var s: ShipSim = Game.sim
-	Game.t += dt
+	var gt: float = _snap["gt"]
+	var target := gt + (_t - float(_snap["rx"]))
+	_clock += dt
+	if absf(target - _clock) > 0.25:
+		_clock = target
+	else:
+		_clock += (target - _clock) * minf(1.0, dt * 3.0)   # gentle slew, never a step
+	Game.t = _clock
 	for b in Game.bodies:
 		(b as CelestialBody).update(Game.t)
-	s.pos.add(s.vel * dt)
-	if s.ang_vel.length_squared() > 1e-12:
-		s.basis = (Basis(s.ang_vel.normalized(), s.ang_vel.length() * dt) * s.basis).orthonormalized()
+	var s: ShipSim = Game.sim
+	var h := _clock - gt
+	var v: Vector3 = _snap["vel"]
+	s.pos.set_xyz(float(_snap["px"]) + v.x * h, float(_snap["py"]) + v.y * h, float(_snap["pz"]) + v.z * h)
+	var w: Vector3 = _snap["w"]
+	s.basis = (Basis(w.normalized(), w.length() * h) * (_snap["basis"] as Basis)).orthonormalized() if w.length_squared() > 1e-12 else _snap["basis"]
 	s.refresh_frame()
+	for e: Dictionary in Game.entities:
+		match str(e["mode"]):
+			"surface", "rails", "field", "towed", "attached":
+				Game._place_entity(e)
+			_:
+				if e.has("_snap"):
+					var sn: Array = e["_snap"]
+					var ev: Vector3 = sn[3]
+					var eh := _clock - float(sn[4])
+					(e["pos"] as BigVec).set_xyz(float(sn[0]) + ev.x * eh, float(sn[1]) + ev.y * eh, float(sn[2]) + ev.z * eh)
+
+
+## Diagnostic sent to the cockpit (client info "ent_jit"): the worst frame-to-frame jump, over
+## the last second, of a nearby entity relative to the ship, beyond its smooth relative motion.
+var _jit_prev := {}
+var _jit_max := 0.0
+
+
+func _measure_jitter(dt: float) -> void:
+	if Game.sim == null or dt <= 0.0:
+		return
+	var sp: BigVec = Game.sim.pos
+	for e: Dictionary in Game.entities:
+		var r := (e["pos"] as BigVec).rel(sp)
+		if r.length() > 3000.0:
+			continue
+		var rv: Vector3 = (e.get("vel", Vector3.ZERO) as Vector3) - Game.sim.vel
+		var id := str(e["id"])
+		if _jit_prev.has(id):
+			var pr: Array = _jit_prev[id]
+			# compare against the relative velocity predicted from the previous frame
+			_jit_max = maxf(_jit_max, (r - ((pr[0] as Vector3) + (pr[1] as Vector3) * dt)).length())
+		_jit_prev[id] = [r, rv]
 
 
 func _apply_world(w: Dictionary) -> void:
@@ -482,6 +607,7 @@ func _apply_world(w: Dictionary) -> void:
 	s.vel = w["vel"]
 	s.basis = w["basis"]
 	s.ang_vel = w["w"]
+	_snap = {"gt": float(w["gt"]), "rx": _t, "px": float(w["px"]), "py": float(w["py"]), "pz": float(w["pz"]), "vel": w["vel"], "basis": w["basis"], "w": w["w"]}
 	s.thrust_now = float(w["thr"])
 	s.engine_on = bool(w["eng"])
 	s.density_now = float(w["dens"])
@@ -505,6 +631,10 @@ func _apply_world(w: Dictionary) -> void:
 			(e["pos"] as BigVec).set_xyz(float(en[1]), float(en[2]), float(en[3]))
 			e["basis"] = en[4]
 			e["visible"] = en[5]
+			if en.size() > 6:
+				e["vel"] = en[6]
+				e["_snap"] = [float(en[1]), float(en[2]), float(en[3]), en[6], float(w["gt"])]
+	_dead_reckon(0.0)     # place everything on the smooth clock right away (no snap)
 	_srv_ack = int(w["ack"])
 	_cfg = w.get("cfg", _cfg)
 	if sim != null:
@@ -546,7 +676,8 @@ func _net_tx(dt: float) -> void:
 	var d := {"t": "st" if sim != null else "hi", "cack": _cack, "ptt": _ptt}
 	if _info_t <= 0.0:
 		_info_t = 1.0
-		var info := {"xr": has_xr, "xr_error": xr_error, "fps": Engine.get_frames_per_second(), "bot": bot != null}
+		var info := {"xr": has_xr, "xr_error": xr_error, "fps": Engine.get_frames_per_second(), "bot": bot != null, "ent_jit": _jit_max, "hands": _hand_mode}
+		_jit_max = 0.0
 		info.merge(_system_info())
 		d["info"] = info
 	if sim != null:

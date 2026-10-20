@@ -57,4 +57,7 @@ openxr/enabled=false
 openxr/startup_alert=false
 openxr/reference_space=2
 openxr/default_action_map="res://openxr_action_map.tres"
+openxr/extensions/hand_tracking=true
+openxr/extensions/hand_tracking_unobstructed_data_source=true
+openxr/extensions/hand_tracking_controller_data_source=false
 shaders/enabled=true
