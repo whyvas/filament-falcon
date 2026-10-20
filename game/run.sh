@@ -51,6 +51,11 @@ if [ "$DO_FETCH" = 1 ] && [ ! -f "$ASSETS/.fetched" ] && [ ! -f "$ASSETS/.tried"
   mkdir -p "$ASSETS" && touch "$ASSETS/.tried"
   tools/fetch_assets.sh || true
 fi
+# OSM region: the New Brunswick .pbf is re-checked when older than 30 days (re-run fetch_assets)
+OSM_META="$(ls "${XDG_DATA_HOME:-$HOME/.local/share}"/filament-falcon/osm/*.meta.json 2>/dev/null | head -1)"
+if [ -n "$OSM_META" ] && [ -n "$(find "$OSM_META" -mtime +30 2>/dev/null)" ]; then
+  echo "note: the OSM map is over 30 days old; tools/fetch_assets.sh refreshes it (only if Geofabrik has a newer one)"
+fi
 # REAL ISS mission: refresh the ISS orbit (TLE, ~150 bytes) twice a day in the background;
 # the game falls back to the last file, then to built-in elements.
 TLE="$ASSETS/iss.tle"

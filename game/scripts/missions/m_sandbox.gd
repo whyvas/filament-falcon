@@ -80,7 +80,8 @@ func go_to(i: int) -> void:
 			# descent over downtown Fredericton NB and the Saint John River (OSM detail region,
 			# tools/fetch_assets.sh); 8 km west, 4 km up, gliding east
 			var e4 := earth()
-			var fd := Geo.game_dir(45.962, -66.643)
+			var rc := Geo.region_center()     # the selected city (--region=moncton, ...)
+			var fd := Geo.game_dir(rc.x, rc.y)
 			var east4 := CelestialBody.east_at(fd)
 			var d4 := (fd * cos(8000.0 / e4.radius) - east4 * sin(8000.0 / e4.radius)).normalized()
 			var r4 := e4.radius + e4.terrain_height(fd) + 4000.0

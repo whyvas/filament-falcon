@@ -543,9 +543,12 @@ godot --headless --path . --audio-driver Dummy -- --smoke-test           # every
                                                                           # + virtual panels (hot-plug, guarded 2-tap, held buttons, encoder),
                                                                           # + pod/seat state machine, + intercom end-to-end with the --mock helper
                                                                           # + EVA: cockpit without OpenXR, flat spacewalks (window, rescue, antenna)
-                                                                          #   and the VR client process (no runtime → autopilot) streaming the pose
+                                                                          #   and the VR client process (no runtime → autopilot) streaming the pose,
+                                                                          #   + the client parked on the Moon keeps the landing site steady (no jitter)
 godot --headless --path . --audio-driver Dummy -- --smoke-test --only=eva        # just the EVA part (--eva-only=window,rescue,antenna,sample)
 godot --headless --path . --xr-mode on -- --eva-client --eva-selftest            # the VR client starts cleanly with no OpenXR runtime
+XDG_DATA_HOME=/tmp/ff godot --headless --path . -- --asset-test               # every shader compiles + HD texture cache round-trip
+godot --headless --path . -- --region-test --region-dir=DIR                    # region chunks: sync build + threaded streaming
 python3 tools/test_falcon_ics.py                                         # intercom: DSP (band-pass, compressor), VOX, mixing/routing,
                                                                           # drift rings, device grouping (PulseAudio + PipeWire), replug matching,
                                                                           # the SPACEWALKER seat (WiVRn detection, suit radio, Quindar tones)

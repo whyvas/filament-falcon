@@ -4,10 +4,13 @@ extends Node3D
 ## runtime and streamed by distance: terrain with landuse colours, buildings (walls, gable /
 ## hipped / flat roofs, steeples, window atlas lit at night), instanced trees, water, roads
 ## with markings + bridges, railways. Sits on the game Earth at its real lat/lon (Geo), bent
-## to the planet's curvature. Missing region = no-op.
+## to the planet's curvature. Missing region = no-op. Chunks are parsed and meshed on worker
+## threads (WorkerThreadPool, up to MAX_TASKS at once, nearest first) and only attached to the
+## scene on the main thread, one per frame, so streaming never stalls a frame.
 
 const LOAD_R := 3500.0
 const DROP_R := 5200.0
+const MAX_TASKS := 3
 const LU_COL := [Color(0.27, 0.36, 0.17), Color(0.32, 0.45, 0.2), Color(0.52, 0.5, 0.3), Color(0.16, 0.26, 0.12),
 	Color(0.42, 0.42, 0.36), Color(0.46, 0.44, 0.42), Color(0.44, 0.42, 0.4), Color(0.12, 0.2, 0.26),
 	Color(0.24, 0.3, 0.2), Color(0.7, 0.65, 0.5), Color(0.3, 0.3, 0.3)]
@@ -24,6 +27,9 @@ var _queue: Array = []
 var _water: Node3D
 var mats := {}
 var active := false
+var _pending := {}      # key -> WorkerThreadPool task id
+var _done: Array = []   # [key, [node, grid]] finished by workers
+var _mx := Mutex.new()
 
 
 func _ready() -> void:
@@ -64,7 +70,10 @@ func height_at(d: Vector3) -> float:
 ## Terrain height (m above the region base) at local x/z, from loaded chunk grids.
 func ground(x: float, z: float) -> float:
 	var cs := float(man.get("chunk", 1000.0))
-	var g: Dictionary = grids.get("%d_%d" % [floori(x / cs), floori(z / cs)], {})
+	return _grid_h(grids.get("%d_%d" % [floori(x / cs), floori(z / cs)], {}), x, z, cs)
+
+
+static func _grid_h(g: Dictionary, x: float, z: float, cs: float) -> float:
 	if g.is_empty():
 		return 0.0
 	var n: int = g["n"]
@@ -115,10 +124,42 @@ func place(origin: BigVec) -> void:
 			(chunks[k] as Node).queue_free()
 			chunks.erase(k)
 			grids.erase(k)
-	if not _queue.is_empty():          # one chunk per frame keeps the frame time smooth
+	if not _queue.is_empty():
 		_queue.sort_custom(func(a: String, b: String) -> bool:
 			return Vector2(cam.x, cam.z).distance_to(_cc(a, cs)) < Vector2(cam.x, cam.z).distance_to(_cc(b, cs)))
-		_build_chunk(_queue.pop_front())
+	pump()
+
+
+## Start worker builds (nearest first) and attach at most one finished chunk per frame.
+func pump() -> void:
+	while not _queue.is_empty() and _pending.size() < MAX_TASKS:
+		var k: String = _queue.pop_front()
+		if chunks.has(k) or _pending.has(k):
+			continue
+		_pending[k] = WorkerThreadPool.add_task(func() -> void:
+			var r := _make_chunk(k)
+			_mx.lock()
+			_done.append([k, r])
+			_mx.unlock(), false, "region chunk " + k)
+	_mx.lock()
+	var item: Array = _done.pop_front() if not _done.is_empty() else []
+	_mx.unlock()
+	if item.is_empty():
+		return
+	var k2: String = item[0]
+	WorkerThreadPool.wait_for_task_completion(_pending[k2])
+	_pending.erase(k2)
+	_attach(k2, item[1])
+
+
+func busy() -> bool:
+	return not (_queue.is_empty() and _pending.is_empty())
+
+
+func _exit_tree() -> void:
+	for tid: int in _pending.values():
+		WorkerThreadPool.wait_for_task_completion(tid)
+	_pending.clear()
 
 
 func _cc(k: String, cs: float) -> Vector2:
@@ -193,23 +234,40 @@ func _build_water() -> void:
 			_add_mesh(_water, st, mats["water"])
 
 
+## Synchronous build (tests); streaming uses _make_chunk on worker threads + _attach.
 func _build_chunk(k: String) -> void:
-	var p := dir + "/c_%s.json" % k
-	if not FileAccess.file_exists(p):
-		chunks[k] = Node3D.new()
+	_attach(k, _make_chunk(k))
+
+
+func _attach(k: String, r: Array) -> void:
+	if chunks.has(k):
+		(r[0] as Node).queue_free()
 		return
-	var c: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(p))
+	chunks[k] = r[0]
+	add_child(r[0])
+	if not (r[1] as Dictionary).is_empty():
+		grids[k] = r[1]
+
+
+## Parse + mesh one chunk into an off-tree node. Thread-safe: touches no shared state except
+## the read-only manifest / materials. Returns [node, height grid].
+func _make_chunk(k: String) -> Array:
+	var p := dir + "/c_%s.json" % k
 	var node := Node3D.new()
 	node.name = "C_" + k
-	add_child(node)
-	chunks[k] = node
+	if not FileAccess.file_exists(p):
+		return [node, {}]
+	var c: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(p))
 	var n := int(c["n"])
 	var hs := PackedFloat32Array()
-	for v in c["h"]:
-		hs.append(float(v) * 0.1)
+	hs.resize(n * n)
+	var hl: Array = c["h"]
+	for i in hl.size():
+		hs[i] = float(hl[i]) * 0.1
 	var o := Vector2(float(c["o"][0]), float(c["o"][1]))
-	grids[k] = {"n": n, "o": o, "h": hs}
-	var gh := func(x: float, z: float) -> float: return ground(x, z)
+	var grid := {"n": n, "o": o, "h": hs}
+	var cs := float(man.get("chunk", 1000.0))
+	var gh := func(x: float, z: float) -> float: return _grid_h(grid, x, z, cs)
 	_terrain(node, c, n, o, hs)
 	_buildings(node, c.get("b", []), gh)
 	_roads(node, c.get("r", []), c.get("rl", []), gh)
@@ -219,14 +277,16 @@ func _build_chunk(k: String) -> void:
 	var any := false
 	for poly: Array in c.get("w", []):
 		any = true
-		_poly_fill(st, poly, func(x: float, z: float) -> float: return ground(x, z) + 0.2, 0.0)
+		_poly_fill(st, poly, func(x: float, z: float) -> float: return float(gh.call(x, z)) + 0.2, 0.0)
 	if any:
 		_add_mesh(node, st, mats["water"])
+	return [node, grid]
 
 
 func _terrain(node: Node3D, c: Dictionary, n: int, o: Vector2, hs: PackedFloat32Array) -> void:
 	var cs := float(man["chunk"])
-	var lus: Array = c.get("lu", [])
+	var lg: Array = c.get("lg", [])      # v2: per-vertex landuse class, precomputed by the builder
+	var lus: Array = c.get("lu", []) if lg.is_empty() else []
 	var polys: Array = []
 	for l: Array in lus:
 		var pp := PackedVector2Array()
@@ -239,7 +299,7 @@ func _terrain(node: Node3D, c: Dictionary, n: int, o: Vector2, hs: PackedFloat32
 		for i in n:
 			var x := o.x + i * cs / (n - 1)
 			var z := o.y + j * cs / (n - 1)
-			var cls := 0
+			var cls := int(lg[j * n + i]) if lg.size() == n * n else 0
 			for pl: Array in polys:
 				if Geometry2D.is_point_in_polygon(Vector2(x, z), pl[1]):
 					cls = pl[0]

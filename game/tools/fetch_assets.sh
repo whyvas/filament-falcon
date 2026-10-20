@@ -15,7 +15,7 @@ A="${XDG_DATA_HOME:-$HOME/.local/share}/filament-falcon/assets"
 mkdir -p "$A" || { echo "fetch_assets: cannot create $A" >&2; exit 1; }
 command -v curl >/dev/null 2>&1 || { echo "fetch_assets: curl is missing (sudo apt install curl)" >&2; exit 1; }
 HAVE_PY=1
-python3 -c "import numpy, PIL" 2>/dev/null || { HAVE_PY=0; echo "note: python3-numpy / python3-pil missing: Moon + elevation conversion and the OSM region are skipped (sudo apt install python3-numpy python3-pil)"; }
+python3 -c "import numpy, PIL" 2>/dev/null || { HAVE_PY=0; echo "note: python3-numpy / python3-pil missing: Moon + elevation conversion, HD Earth and the OSM region are skipped (sudo apt install python3-numpy python3-pil python3-osmium osmium-tool)"; }
 MONTHS=all; HD_MONTHS=7; DO_HD=1; REGION=fredericton; BBOX=""; DO_REGION=1
 for a in "$@"; do case "$a" in
   --months=*) MONTHS="${a#*=}" ;; --region=*) REGION="${a#*=}" ;;
@@ -40,7 +40,7 @@ get() {  # dest url [fallback urls...]: first URL that works wins (all public do
   done
   echo "  ! $dest: no source worked (re-run later)"; FAIL=1; return 1
 }
-echo "Fetching Earth/Moon textures into $A (~60 MB, first run only)..."
+echo "Fetching Earth/Moon textures into $A (~60 MB + ~80 MB HD, first run only)..."
 IDS=(73580 73605 73630 73655 73701 73726 74092 74117 74142 74167 74192 74218)
 for m in $(seq 1 12); do
   [ "$MONTHS" != all ] && [ "$m" != "$MONTHS" ] && continue
@@ -142,9 +142,12 @@ conv("moon_color_src", "moon_color.jpg", lambda im: (lambda c: c.resize((min(c.w
 conv("moon_ldem_src", "moon_height.png", lambda im: height16(im, (1440, 720)))
 P
 fi
-if [ "$DO_REGION" = 1 ] && [ "$HAVE_PY" = 1 ] && [ ! -f "$A/regions/$REGION/manifest.json" ]; then
-  echo "Building OSM detail region '$REGION' ($BBOX; Overpass + terrain tiles, a few minutes)..."
-  python3 tools/build_region.py --name "$REGION" --bbox "$BBOX" --out "$A/regions/$REGION" || { echo "  ! region build failed"; FAIL=1; }
+if [ "$DO_REGION" = 1 ] && [ "$HAVE_PY" = 1 ]; then
+  # OSM city from the Geofabrik New Brunswick .pbf (~65 MB once, re-checked after 30 days;
+  # cached in ~/.local/share/filament-falcon/osm). Up-to-date regions are not rebuilt.
+  python3 -c "import osmium" 2>/dev/null || echo "  note: pyosmium missing, using the slower Overpass API (sudo apt install python3-osmium osmium-tool)"
+  echo "OSM detail region '$REGION'..."
+  python3 tools/build_region.py --region "$REGION" ${BBOX:+--bbox "$BBOX"} || { echo "  ! region build failed"; FAIL=1; }
 fi
 [ "$FAIL" = 0 ] && touch "$A/.fetched"
 du -sh "$A" 2>/dev/null

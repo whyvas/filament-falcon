@@ -41,6 +41,17 @@ static func asset_dir() -> String:
 	return base + "/" + ASSET_DIR
 
 
+## Centre (lat, lon) of the selected OSM region (--region=NAME / --region-dir), else Fredericton.
+static func region_center() -> Vector2:
+	var name_ := str(Settings.cli.get("region", "fredericton"))
+	var mf := str(Settings.cli.get("region-dir", asset_dir() + "/regions/" + name_)) + "/manifest.json"
+	if FileAccess.file_exists(mf):
+		var m: Variant = JSON.parse_string(FileAccess.get_file_as_string(mf))
+		if typeof(m) == TYPE_DICTIONARY and (m as Dictionary).has("lat0"):
+			return Vector2(float(m["lat0"]), float(m["lon0"]))
+	return Vector2(45.962, -66.643)
+
+
 ## Built / converted caches (compressed textures, ...): ~/.local/share/filament-falcon/cache
 static func cache_dir() -> String:
 	return asset_dir().get_base_dir() + "/cache"
