@@ -314,6 +314,9 @@ func step(dt: float) -> void:
 		max_g = maxf(max_g, g_load)
 	var acc := grav + accel_proper
 	if clamped:
+		# The anchor was set from the station's pose at the END of the last step; carry it
+		# along this step (7.7 km/s at real size = ~64 m per tick otherwise).
+		anchor_pos.add(anchor_vel * dt)
 		vel = anchor_vel
 		pos.set_from(anchor_pos)
 		ang_vel = Vector3.ZERO
