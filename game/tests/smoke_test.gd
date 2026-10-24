@@ -108,6 +108,60 @@ func _check_ui() -> bool:
 	ok = (await _check_ics()) and ok
 	ok = (await _check_eva()) and ok
 	ok = (await _check_ground()) and ok
+	ok = (await _check_slew()) and ok
+	return ok
+
+
+## REFUEL + debug slew while paused (ship move, free cam, resume with zeroed velocity) in orbit,
+## at the station, around the Moon and over Fredericton.
+func _check_slew() -> bool:
+	var ok := true
+	for dest: String in ["STATION", "MOON ORBIT", "FREDERICTON", "LAUNCH PAD"]:
+		Game.load_mission("sandbox")
+		await _frames(2)
+		Game.auto_checklist()
+		_ticks(0.3)
+		Game.try_start()
+		Game.mission.call("go_to_name", dest)
+		_ticks(0.5)
+		var sim: ShipSim = Game.sim
+		sim.fuel = 100.0
+		sim.mono = 10.0
+		Game.o2 = 40.0
+		Game.refuel(0.25)
+		var part := absf(sim.fuel - (100.0 + sim.fuel_max * 0.25)) < 1.0 and absf(Game.o2 - 65.0) < 0.5
+		Game.refuel(1.0)
+		var full: bool = sim.fuel == sim.fuel_max and sim.mono == sim.mono_max and Game.o2 == 100.0 and Game.commander_log.back().contains("REFUEL FULL")
+		Game.start_pause()
+		var paused := Game.state == Game.State.PAUSED
+		var p0 := sim.pos.copy()
+		var b0: Basis = sim.basis
+		var sl: DebugSlew = Game.slew
+		sl.start(Game, "ship")
+		sl.speed_i = 3                                  # 100 m/s
+		sl.rot_i = 2                                    # 20 deg/s
+		for i in 60:
+			sl.apply(Game, Vector3(0, 0, 1), Vector3(0, 1, 0), 1.0 / 60.0)
+		var d := sim.pos.rel(p0)
+		var ang := rad_to_deg((b0.z).angle_to(sim.basis.z))
+		var ship_ok := absf(d.length() - 100.0) < 1.0 and absf(ang - 20.0) < 0.5
+		sl.set_mode(Game, "cam")
+		var p1 := sim.pos.copy()
+		for i in 30:
+			sl.apply(Game, Vector3(1, 0, 0), Vector3.ZERO, 1.0 / 60.0)
+		await _frames(2)                                # render path with the free camera
+		var cam_ok := sim.pos.rel(p1).length() < 0.001 and absf(sl.view_pos(Game).rel(p1).length() - 50.0) < 0.5
+		sl.set_mode(Game, "ship")
+		sl.apply(Game, Vector3(0, 1, 0), Vector3.ZERO, 0.1)
+		sl.zero_vel = true
+		sim.vel = sim.vel + Vector3(50, 0, 0)
+		Game.start_pause()                               # resume: slew off, velocity matched to the body
+		var vrel := (sim.vel - sim.dominant.vel).length()
+		var res_ok := Game.state == Game.State.ACTIVE and not sl.active and vrel < 0.01
+		var good: bool = part and full and paused and ship_ok and cam_ok and res_ok
+		print("  refuel + debug slew [%s]: refuel +25%%=%s full=%s, ship moved %.1f m / turned %.1f°, free cam=%s, resume v_rel=%.2f m/s: %s" % [
+			dest, part, full, d.length(), ang, cam_ok, vrel, "ok" if good else "FAIL"])
+		ok = ok and good
 	return ok
 
 
@@ -488,6 +542,14 @@ func _check_ics() -> bool:
 		await _frames(1)
 	var keyed := Ics.keyed("ops")
 	Ics.touch_ptt["ops"] = false
+	# IDENTIFY a station: the chime must come out of THAT station's output (meter)
+	Ics.identify_seat("pilot")
+	var ident_lvl := -90.0
+	t0 = Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 3000 and ident_lvl < -30.0:
+		ident_lvl = maxf(ident_lvl, float(Ics.seat("pilot").get("out_level", -90.0)))
+		await _frames(1)
+	keyed = keyed and ident_lvl > -30.0
 	Settings.set_v("ics", "ops_mode", "vox", false)
 	Ics.stop()
 	Settings.cfg.set_value("ics", "enabled", was_set)

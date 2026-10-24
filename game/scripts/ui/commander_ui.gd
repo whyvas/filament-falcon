@@ -226,6 +226,7 @@ func _build_panel(page: Control) -> void:
 		var vp := VirtualPanel.make(id)
 		vp.show_title = false
 		pp.add_child(vp)
+	_build_service(h)
 	var side := panel(h, "INTERCOM + SENSES", true, true, C_AMBER)
 	var ac := HoldPad.new()
 	ac.text = "ALL-CALL / PA"
@@ -249,6 +250,84 @@ func _build_panel(page: Control) -> void:
 			else "Falcon Command is NOT plugged in: use these on-screen panels (mouse). MOTION key, CREW POS and STOP are hardwired to the actuators and only exist on the real panel.")
 		head.add_theme_color_override("font_color", C_GREEN if conn else C_AMBER)
 		pos.text = "POD: %s\nSEATS: %s\nTravel time %.0f s · UP sense: %s" % [Game.pod.pod_text(), Game.pod.seats_text(), Game.pod.travel_s, "fitted" if Game.pod.has_up_sense() else "not seen"]
+
+
+## PANEL column: REFUEL (any time) + DEBUG SLEW (while paused): move the ship or a free camera.
+func _build_service(h: Control) -> void:
+	var sv := panel(h, "SHIP SERVICE + DEBUG", true, true, C_AMBER)
+	var rr := hbox(sv, 6)
+	for rf: Array in [["REFUEL FULL", 1.0], ["REFUEL +25%", 0.25]]:
+		var frac: float = rf[1]
+		var rb := button(str(rf[0]), func() -> void:
+			Game.refuel(frac)
+			Sfx.click(), 17, 46)
+		rb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		rr.add_child(rb)
+	sv.add_child(label("fuel + RCS + O2 + power", 14, C_DIM))
+	sv.add_child(label("DEBUG SLEW (pause first · Ctrl+F)", 17, C_EDGE))
+	var mr := hbox(sv, 4)
+	for md: Array in [["SHIP", "ship"], ["FREE CAM", "cam"], ["OFF", ""]]:
+		var m: String = md[1]
+		var mb := button(str(md[0]), func() -> void:
+			if m == "":
+				Game.slew.stop(Game)
+			elif Game.slew.active:
+				Game.slew.set_mode(Game, m)
+			else:
+				Game.slew.start(Game, m), 15, 40)
+		mb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		mr.add_child(mb)
+		live["slew_mode_" + m] = func() -> void:
+			mb.disabled = Game.state != Game.State.PAUSED and m != ""
+			mb.modulate = C_GREEN if (Game.slew.active and Game.slew.mode == m) or (m == "" and not Game.slew.active) else Color.WHITE
+	var vr := button("", func() -> void: Game.slew.zero_vel = not Game.slew.zero_vel, 14, 38)
+	sv.add_child(vr)
+	var sr := hbox(sv, 4)
+	for sd: Array in [["SPD -", 0, -1], ["SPD +", 0, 1], ["TURN -", 1, -1], ["TURN +", 1, 1]]:
+		var which: int = sd[1]
+		var d: int = sd[2]
+		var b := button(str(sd[0]), func() -> void:
+			if which == 0:
+				Game.slew.step_speed(d)
+			else:
+				Game.slew.step_rot(d), 14, 38)
+		b.custom_minimum_size.x = 50
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		sr.add_child(b)
+	var st := label("", 14, C_GREEN)
+	sv.add_child(st)
+	# hold-to-move pads: translate (left grid) and rotate (right grid)
+	var pads := grid(sv, 6, 3)
+	var defs := [["UP", "t", Vector3.UP], ["FWD", "t", Vector3(0, 0, 1)], ["DOWN", "t", Vector3.DOWN],
+		["PIT▲", "r", Vector3(1, 0, 0)], ["YAW◀", "r", Vector3(0, -1, 0)], ["ROL◀", "r", Vector3(0, 0, -1)],
+		["LEFT", "t", Vector3.LEFT], ["BACK", "t", Vector3(0, 0, -1)], ["RIGHT", "t", Vector3.RIGHT],
+		["PIT▼", "r", Vector3(-1, 0, 0)], ["YAW▶", "r", Vector3(0, 1, 0)], ["ROL▶", "r", Vector3(0, 0, 1)]]
+	for pd: Array in defs:
+		var hp := HoldPad.new()
+		hp.text = str(pd[0])
+		hp.font_size = 13
+		hp.color = C_PILOT if pd[1] == "t" else C_OPS
+		hp.custom_minimum_size = Vector2(44, 40)
+		hp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var kind: String = pd[1]
+		var dv: Vector3 = pd[2]
+		hp.held.connect(func(dn: bool) -> void:
+			if kind == "t":
+				Game.slew.btn_trans += dv if dn else -dv
+			else:
+				Game.slew.btn_rot += dv if dn else -dv)
+		pads.add_child(hp)
+	var lg := label("", 13, C_DIM)
+	lg.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sv.add_child(lg)
+	live["slew"] = func() -> void:
+		if current != "PANEL":
+			return
+		vr.text = "ON RESUME: velocity " + ("ZEROED (park/hover)" if Game.slew.zero_vel else "KEPT")
+		st.text = Game.slew.status_text() if Game.slew.active else ("SLEW OFF · %s m/s · %s°/s" % [DebugSlew._num(Game.slew.speed()), DebugSlew._num(Game.slew.rot_speed())]) + \
+			("" if Game.state == Game.State.PAUSED else "  (pause to use)")
+		var tail := Game.commander_log.slice(maxi(0, Game.commander_log.size() - 4))
+		lg.text = "keys: WASD QE move · arrows ZX turn · +/- speed · [ ] turn speed · Tab ship/cam · V velocity · Esc off\nsticks: Pilot = turn, Ops = move\n" + "\n".join(tail)
 
 
 # ======================================================================== ICS (intercom)
@@ -332,7 +411,7 @@ func _station_card(parent: Control, s: String) -> void:
 	var rb := button("▶", func() -> void: Ics.cycle_headset(s, 1), 18, 40)
 	rb.custom_minimum_size.x = 44
 	hr.add_child(rb)
-	hr.add_child(button("IDENTIFY", func() -> void: Ics.identify(str(Settings.get_v("ics", s + "_headset"))), 15, 40))
+	hr.add_child(button("IDENTIFY", func() -> void: Ics.identify_seat(s), 15, 40))   # through this station's AUDIO OUT
 	live["hs_card_" + s] = func() -> void:
 		var id := str(Settings.get_v("ics", s + "_headset"))
 		hv.text = Ics.device_label(id)
@@ -347,6 +426,22 @@ func _station_card(parent: Control, s: String) -> void:
 	var lm := level_meter(s)
 	lm.custom_minimum_size = Vector2(200, 26)
 	c.add_child(lm)
+	# output: what the helper is writing to this station's AUDIO OUT + the stream state
+	var orow := hbox(c, 6)
+	var om := LevelMeter.new()
+	om.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	om.custom_minimum_size = Vector2(120, 14)
+	om.getter = func() -> Array:
+		var st := Ics.seat(s)
+		return [float(st.get("out_level", -90.0)), str(st.get("out_state", "")) == "playing", -99.0]
+	orow.add_child(om)
+	var ol := label("", 14, C_DIM, false)
+	ol.custom_minimum_size.x = 120
+	orow.add_child(ol)
+	live["icsout_" + s] = func() -> void:
+		var stt := str(Ics.seat(s).get("out_state", ""))
+		ol.text = {"playing": "▶ OUT playing", "error": "OUT ERROR", "opening": "OUT opening…", "none": "OUT none", "mock": "OUT (mock)"}.get(stt, "OUT ?")
+		ol.add_theme_color_override("font_color", C_GREEN if stt == "playing" else (C_RED if stt == "error" else C_AMBER))
 	# mode + mute
 	var mr := hbox(c, 6)
 	for m: String in ["vox", "ptt"]:
@@ -904,6 +999,7 @@ func _build_controls(page: Control) -> void:
 	page.add_child(v)
 	var dev := label("", 22)
 	v.add_child(dev)
+	v.add_child(label("DEBUG SLEW (mission PAUSED, Ctrl+F or PANEL page): W/S fwd/back · A/D left/right · Q/E down/up · ↑↓ pitch · ←→ yaw · Z/X roll · +/− speed 0.1–10000 m/s · [ ] turn 1–90°/s · Tab ship/free cam · V keep/zero velocity · Esc off · Pause resume. Sticks: Pilot turns, Ops moves.", 16, C_DIM))
 	var sc := ScrollContainer.new()
 	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	v.add_child(sc)

@@ -144,8 +144,19 @@ All views render at native 1920x1080 (the console also works in portrait, 1080x1
 - **CONTROLS**: live test of every switch, axis and button, devices, LED test, input-map template export.
 - **PANEL**: the two Falcon Command panels (CMD_A, CMD_B) on screen: operable with the mouse while the board is
   unplugged, a live mirror when it is plugged in. Also a big ALL-CALL / PA pad and SENSE TEST switches (pretend
-  the crew-position contacts close, to try the pod display and callouts without the hardware).
-- **ICS**: the intercom: headset per seat (◀ ▶, IDENTIFY, RESCAN), level meters, VOX/PTT, VOX level / attack /
+  the crew-position contacts close, to try the pod display and callouts without the hardware). **SHIP SERVICE +
+  DEBUG**: REFUEL FULL / +25 % (main propellant, an attached booster, RCS, cabin O2 + suit O2, reactor power;
+  logged as a Commander action) and the **debug slew** (below).
+- **Debug slew / free camera** (mission PAUSED; PANEL page buttons or **Ctrl+F**): **SHIP** moves and turns the
+  Falcon itself and RESUME continues from there, velocity **ZEROED** (matched to the nearest body: parks / hovers)
+  or **KEPT** (V or the button). **FREE CAM** flies the camera only (the ship stays; the camera snaps back on resume).
+  Speeds 0.1 / 1 / 10 / 100 / 1000 / 10000 m/s and 1 / 5 / 20 / 90 °/s, shown on the PANEL page. Keys while it is
+  on (the slew owns the keyboard): W/S fwd/back, A/D left/right, Q/E down/up, ↑↓ pitch, ←→ yaw, Z/X roll, +/− (or
+  keypad) speed, [ ] turn speed, Tab ship/cam, V velocity, Esc off, Pause/F9 resume. The kids' sticks work too
+  (Pilot stick turns, Ops stick moves), and so do the hold pads on the PANEL page. Works anywhere: orbit, station,
+  Moon, the Fredericton region (no collision: slew down to the ground yourself).
+- **ICS**: the intercom: headset per seat (◀ ▶, IDENTIFY through that station's AUDIO OUT, RESCAN), mic level
+  meters, OUT meter + stream state per station, VOX/PTT, VOX level / attack /
   hang, mic gain, intercom and game volume, sidetone per seat; radio effect, static, squelch tail, click + roger,
   room speakers, callout volume, ALL-CALL duck.
 - **SETUP**: screen roles, layout mode, quality, FPS cap, vsync, fullscreen, LED link, window geometry, QUIT;
@@ -368,7 +379,7 @@ Keyboard fallback (every action has one):
 | Gear / view | G / V | Nav target | M | Eject (covered) | F11 |
 | Assist OFF/STAB/PRO/HOLD | 1–4 | Mode RCS / ARM / SCANNER | Z / X / C | Intercom talk (hold) | ` |
 | Assist knob ◀ ▶ | − / = | Jump arm / engage | [ / ] | ALL-CALL (hold) | ' |
-| Push to talk (hold) | \ | Push to talk (hold) | / | | |
+| Push to talk (hold) | \ | Push to talk (hold) | / | Debug slew on/off (paused) | Ctrl+F |
 
 ## 5. LED panel (serial) and udev
 

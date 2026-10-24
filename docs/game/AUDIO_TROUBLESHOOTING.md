@@ -16,3 +16,12 @@ The intercom runs at a fixed 48 kHz with 10 ms blocks and about 30 ms of buffer 
 - The log shows what each station opened and its levels every 10 s: `grep -E "INPUT|OUTPUT|levels|MUTED|capture" ~/.local/share/filament-falcon/ics.log | tail -n 30`
 - A source that's muted or suspended in the system mixer is woken up and unmuted automatically (logged).
 - Still silent? Paste `pactl list short sources` (while the game is running) and the grep above.
+
+## A station hears nothing (AUDIO OUT)
+
+- Each ICS station card has an **OUT meter** + state under the mic meter: `▶ OUT playing` (green) means the helper is writing to that device right now; the bar is the level it sends (game audio, intercom, beeps). `OUT ERROR` (red) = the stream to that device keeps failing (the log has the reason).
+- **IDENTIFY** on a station card plays a chime + "Pilot station" (espeak-ng) through **that station's AUDIO OUT stream**, whatever the mic is. The SETUP page's headset IDENTIFY still beeps the headset itself.
+- AUDIO OUT picks are saved as node name **plus USB port** (`…analog-stereo@port=3.3.4`). Identical headsets (the two Logitechs) get node names that only differ by a `.2` counter, and that counter follows plug/boot order, so a name-only pick could point at the other headset after a reboot. Picks from before this change are plain names: **re-pick AUDIO OUT once per station** to store the port.
+- When a card exposes several outputs (analog + digital/iec958), the analog one is used for "Headset". Mono-only devices get a mono stream, everything else a stereo stream with the voice in both ears.
+- A muted or suspended sink is woken up and unmuted (logged); a sink at < 5 % volume is logged as a warning.
+- Log: `grep -E "route|OUTPUT|outputs|IDENTIFY|sink was" ~/.local/share/filament-falcon/ics.log | tail -n 40`. Every 10 s `outputs:` shows per station the peak dB sent, the stream state and the sink name.

@@ -126,6 +126,8 @@ var cabin_dim := 0.0           # 0 normal .. 1 night-light cabin (bedtime): dims
 var force_eva := ""            # MISSIONS page EVA entry: weave this spacewalk into its host mission
 var last_result := {}          # {id, title, score, stars, ok}: the Captain's Log saves it with the voice log
 var stage_flash := 0.0
+var slew := DebugSlew.new()   # debug slew / free camera while PAUSED (Commander > MISSION CONTROL, Ctrl+F)
+var commander_log: Array[String] = []   # Commander actions (refuel, slew, ...): [mm:ss] text
 
 # ---- scoring & messages
 var score_items: Array = []
@@ -499,6 +501,7 @@ func _process(dt: float) -> void:
 func tick(dt: float) -> void:
 	dt = minf(dt, 0.1)
 	_handle_commander()
+	slew.poll(self, dt)
 	_update_pod(dt)
 	_update_checklist()
 	_update_systems(dt)
@@ -623,6 +626,7 @@ func start_pause() -> void:
 			state = State.PAUSED
 			Voice.say("Mission paused")
 		State.PAUSED:
+			slew.stop(self)          # the ship resumes from wherever it was slewed to
 			state = State.ACTIVE
 			Voice.say("Mission resumed")
 		State.COMPLETE, State.FAILED:
@@ -1093,6 +1097,38 @@ func _on_jump_arrive() -> void:
 
 
 # ======================================================================== completion
+## Commander actions (refuel, debug slew, ...): printed, kept for the PANEL page, emitted.
+func log_commander(text: String) -> void:
+	var line := "[%02d:%02d] %s" % [int(mission_time) / 60, int(mission_time) % 60, text]
+	commander_log.append(line)
+	if commander_log.size() > 30:
+		commander_log.pop_front()
+	print("[COMMANDER] ", line)
+	game_event.emit("commander", {"text": text})
+
+
+## REFUEL (Commander PANEL): frac 1.0 = FULL, 0.25 = +25 % of capacity. Tops up main propellant
+## (and an attached booster), RCS monopropellant, cabin O2 (+ the spacewalker's suit) and power.
+func refuel(frac: float) -> void:
+	var full := frac >= 0.999
+	var top := func(v: float, mx: float) -> float: return mx if full else minf(mx, v + mx * frac)
+	var before := [sim.fuel, sim.mono, o2]
+	sim.fuel = top.call(sim.fuel, sim.fuel_max)
+	sim.mono = top.call(sim.mono, sim.mono_max)
+	if sim.booster_attached:
+		sim.booster_fuel = top.call(sim.booster_fuel, sim.booster_fuel_max)
+	o2 = top.call(o2, 100.0)
+	if Eva.sim != null:
+		Eva.sim.o2 = top.call(Eva.sim.o2, 100.0)
+	reactor_out = maxf(reactor_out, 100.0 if full else minf(100.0, reactor_out + 25.0))   # power: reactor at full output now
+	if full:
+		jump_charge = 100.0 if InputHub.on("jump_arm") else jump_charge
+	_set_warning("fuel", "")
+	log_commander("REFUEL %s: fuel %.0f→%.0f kg, RCS %.0f→%.0f kg, O2 %.0f→%.0f %%, power %.0f %%" % [
+		"FULL" if full else "+25%", before[0], sim.fuel, before[1], sim.mono, before[2], o2, reactor_out])
+	Voice.say("Refuelled" if full else "Fuel top up", 1)
+
+
 func add_score(label: String, pts: int) -> void:
 	score_items.append([label, pts])
 

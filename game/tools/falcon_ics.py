@@ -489,9 +489,9 @@ class Ring:
                 f = self.fill()
             m = n
             if f > self.target + n // 4 and f >= n + 1:
-                m = n + 1
+                m = n + (2 if f > self.target + n and f >= n + 2 else 1)
             elif f < self.target - n // 4 and f >= n - 1:
-                m = n - 1
+                m = n - (2 if f < self.target - n // 2 else 1)
             seg = self._take(m)
         if m != n:
             self.adjust += 1
@@ -529,6 +529,8 @@ def parse_pactl_list(text):
             cur["spec"] = line[21:].strip()
         elif line.startswith("Mute:"):
             cur["mute"] = line[5:].strip()
+        elif line.startswith("State:"):
+            cur["state"] = line[6:].strip()
         elif line.startswith("Properties:"):
             in_props = True
         elif in_props:
@@ -578,10 +580,8 @@ def headsets_from(sinks, sources):
                                   "serial": p.get("device.serial", ""), "path": bus_path(p),
                                   "vendor": p.get("device.vendor.name", ""), "sink": "", "source": "",
                                   "label": ""})
-            if kind == "sink" and not h["sink"]:
-                h["sink"] = it["name"]
-            if kind == "source" and not h["source"]:
-                h["source"] = it["name"]
+            if not h[kind] or (_node_rank(it["name"]) < _node_rank(h[kind])):
+                h[kind] = it["name"]
     out = []
     for h in hs.values():
         port = re.search(r"usb-[\d:.\-]+", h["path"] or "")
@@ -601,6 +601,32 @@ def headsets_from(sinks, sources):
     return out
 
 
+def _node_rank(name):
+    """Lower = the node to use when one USB card exposes several (analog before digital/pro)."""
+    n = name.lower()
+    return 2 if ("iec958" in n or "hdmi" in n or "pro-" in n) else (0 if "analog" in n or "mono" in n else 1)
+
+
+def spec_channels(spec):
+    m = re.search(r"(\d+)ch", spec or "")
+    return int(m.group(1)) if m else 2
+
+
+def split_choice(choice):
+    """Saved pick "node.name@port=3.3.4" -> ("node.name", "3.3.4"). Old saves have no port."""
+    if "@port=" in (choice or ""):
+        a, b = choice.split("@port=", 1)
+        return a, b
+    return choice or "", ""
+
+
+def _family(name):
+    """Node name without the duplicate counter PipeWire/Pulse add to identical cards
+    ("...-00.2.analog-stereo" / "...analog-stereo.2") -> compare two identical headsets."""
+    n = re.sub(r"\.\d+(?=\.|$)", "", name)
+    return n
+
+
 def plain_list(items):
     """Every real source/sink (no monitors, none of ours) as {name, desc, spec}: the per-station
     INPUT / OUTPUT pickers. Matched by node NAME (stable across boots), not by index."""
@@ -612,11 +638,13 @@ def plain_list(items):
         bp = p.get("device.bus_path") or p.get("device.bus-path") or ""
         m = re.search(r"usb-\d+:([\d.]+):", bp)   # "...-usb-0:3.3.4:1.0" -> "3.3.4"
         port = m.group(1) if m else ""
-        out.append({"name": it["name"], "desc": it["description"] or it["name"], "spec": it.get("spec", ""), "port": port})
+        out.append({"name": it["name"], "desc": it["description"] or it["name"], "spec": it.get("spec", ""), "port": port,
+                    "key": it["name"] + ("@port=" + port if port else ""), "ch": spec_channels(it.get("spec", "")),
+                    "mute": it.get("mute", ""), "state": it.get("state", "")})
     return out
 
 
-def resolve(choice, lst, default_name, used=()):
+def resolve(choice, lst, default_name, used=(), strict=False):
     """choice: "" (follow the seat's headset), "none", "default", or a node name. Returns a
     device name, "" (nothing) or None (= use the headset). Falls back from name to description."""
     if choice in ("", None):
@@ -625,6 +653,19 @@ def resolve(choice, lst, default_name, used=()):
         return ""
     if choice == "default":
         return default_name
+    choice, port = split_choice(choice)
+    if port:
+        # Identical USB headsets get node names that only differ by a ".2" counter, assigned in
+        # enumeration order, so after a reboot/replug the NAME can point at the other headset.
+        # The USB port is what the Commander picked: match it first.
+        at = [d for d in lst if d.get("port") == port and d["name"] not in used]
+        for pick in ([d for d in at if d["name"] == choice], [d for d in at if _family(d["name"]) == _family(choice)],
+                     sorted(at, key=lambda d: _node_rank(d["name"]))):
+            if pick:
+                return pick[0]["name"]
+        if strict:
+            return ""          # first pass: the exact USB port only
+        lst = [d for d in lst if d["name"] not in used]   # never another station's device (its twin)
     names = [d["name"] for d in lst]
     if choice in names:
         return choice
@@ -784,34 +825,61 @@ class Capture(threading.Thread):
 class Playback(threading.Thread):
     """Ring -> pacat. The sink's clock paces the blocking write; the ring absorbs drift."""
 
-    def __init__(self, device, ring, name, latency_ms=30):
+    def __init__(self, device, ring, name, latency_ms=30, channels=1):
         super().__init__(daemon=True, name="play-" + name)
         self.device, self.ring, self.latency_ms = device, ring, latency_ms
+        self.channels = channels
         self.proc = None
         self.stop = False
         self.name_ = name
+        self.state = "opening"
+        self.err = ""
+        self.restarts = 0
+        self.last_write = 0.0
+
+    def stream_state(self):
+        if self.state == "error":
+            return "error"
+        return "playing" if time.monotonic() - self.last_write < 0.5 else self.state
 
     def run(self):
         while not self.stop:
-            cmd = ["pacat", "--playback", "--raw", "--format=s16le", f"--rate={RATE}", "--channels=1",
+            cmd = ["pacat", "--playback", "--raw", "--format=s16le", f"--rate={RATE}", f"--channels={self.channels}",
                    f"--latency-msec={self.latency_ms}", f"--device={self.device}", "--client-name=falcon-ics",
                    "--stream-name=ICS " + self.name_]
+            if self.channels == 2:
+                cmd.append("--channel-map=front-left,front-right")
             try:
-                self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
-            except OSError:
+                self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+            except OSError as e:
+                self.state, self.err = "error", str(e)
+                log(f"{self.name_}: OUTPUT stream failed to start: {e}")
                 return
+            self.state = "opening"
             try:
                 while not self.stop:
                     x = self.ring.read(BLOCK)
                     if x is None:
                         x = np.zeros(BLOCK)
                         time.sleep(BLOCK / RATE * 0.5)
-                    self.proc.stdin.write((np.clip(x, -1, 1) * 32767).astype("<i2").tobytes())
+                    pcm = (np.clip(x, -1, 1) * 32767).astype("<i2")
+                    if self.channels == 2:
+                        pcm = np.repeat(pcm, 2)          # same voice in both ears
+                    self.proc.stdin.write(pcm.tobytes())
                     self.proc.stdin.flush()
+                    self.last_write = time.monotonic()
             except (BrokenPipeError, OSError, ValueError):
                 pass
             self.kill()
             if not self.stop:
+                try:
+                    self.err = (self.proc.stderr.read() or b"").decode(errors="replace").strip()[-200:]
+                except (OSError, ValueError):
+                    self.err = ""
+                self.state = "error"
+                self.restarts += 1
+                if self.restarts <= 3 or self.restarts % 30 == 0:
+                    log(f"{self.name_}: OUTPUT stream to {self.device} closed (restart {self.restarts}): {self.err or 'no message'}")
                 time.sleep(1.0)
 
     def kill(self):
@@ -821,6 +889,35 @@ class Playback(threading.Thread):
     def close(self):
         self.stop = True
         self.kill()
+
+
+SEAT_TITLES = {"pilot": "Pilot", "ops": "Ops", "commander": "Commander", "eva": "Spacewalker"}
+_SAY_CACHE = {}
+
+
+def say_samples(text):
+    """Speech for IDENTIFY via espeak-ng/espeak (if installed) -> float mono at RATE, or None."""
+    if text in _SAY_CACHE:
+        return _SAY_CACHE[text]
+    exe = shutil.which("espeak-ng") or shutil.which("espeak")
+    out = None
+    if exe:
+        import io
+        import wave
+        try:
+            wav = subprocess.run([exe, "--stdout", "-s", "150", text], capture_output=True, timeout=5).stdout
+            with wave.open(io.BytesIO(wav)) as w:
+                sr, nch = w.getframerate(), w.getnchannels()
+                x = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").astype(np.float64) / 32768.0
+            if nch > 1:
+                x = x.reshape(-1, nch).mean(axis=1)
+            if len(x):
+                x = np.interp(np.arange(int(len(x) * RATE / sr)) * sr / RATE, np.arange(len(x)), x)
+                out = x * (0.5 / max(1e-6, float(np.max(np.abs(x)))))
+        except (OSError, subprocess.TimeoutExpired, wave.Error, EOFError, ValueError):
+            out = None
+    _SAY_CACHE[text] = out
+    return out
 
 
 def play_once(sink, samples):
@@ -882,6 +979,7 @@ class Helper:
         self.late = 0
         self.default_sink = ""
         self.rec = None              # Captain's Log recording: [path, [blocks], max_blocks]
+        self.out_pk, self.out_max = {}, {}   # per-seat output peak (meter) / peak since the last log line
 
     # ---------------------------------------------------------------- setup
     def setup_audio(self):
@@ -955,15 +1053,26 @@ class Helper:
         if not hasattr(self, "routes"):
             self.routes = {}
         used_in, used_out = set(), set()
-        for s in SEATS:   # explicit picks first, so a headset never takes a device another seat chose
-            for kind, used in (("in", used_in), ("out", used_out)):
+        picked = {}
+        for s in SEATS:   # explicit picks first (resolved by USB port), so a headset never takes a device another seat chose
+            for kind, used, lst, dflt in (("in", used_in, getattr(self, "inputs", []), dsrc),
+                                          ("out", used_out, getattr(self, "outputs", []), dsink)):
                 v = str(self.cfg.get(f"{s}_{kind}", ""))
                 if v not in ("", "none", "default"):
-                    used.add(v)
+                    picked[(s, kind)] = resolve(v, lst, dflt, used, strict=True)
+                    if picked[(s, kind)]:
+                        used.add(picked[(s, kind)])
+        for s in SEATS:   # 2nd pass: picks whose USB port is empty fall back by name, never onto a taken device
+            for kind, used, lst, dflt in (("in", used_in, getattr(self, "inputs", []), dsrc),
+                                          ("out", used_out, getattr(self, "outputs", []), dsink)):
+                if picked.get((s, kind)) == "":
+                    picked[(s, kind)] = resolve(str(self.cfg.get(f"{s}_{kind}", "")), lst, dflt, used)
+                    if picked[(s, kind)]:
+                        used.add(picked[(s, kind)])
         for s in SEATS:
             hs = new.get(s) or {}
-            src = resolve(str(self.cfg.get(f"{s}_in", "")), getattr(self, "inputs", []), dsrc, used_in)
-            snk = resolve(str(self.cfg.get(f"{s}_out", "")), getattr(self, "outputs", []), dsink, used_out)
+            src = picked[(s, "in")] if (s, "in") in picked else resolve(str(self.cfg.get(f"{s}_in", "")), getattr(self, "inputs", []), dsrc, used_in)
+            snk = picked[(s, "out")] if (s, "out") in picked else resolve(str(self.cfg.get(f"{s}_out", "")), getattr(self, "outputs", []), dsink, used_out)
             if src is None:
                 src = hs.get("source", "")
                 src = "" if src in used_in else src
@@ -975,7 +1084,12 @@ class Helper:
             if snk and snk != dsink:
                 used_out.add(snk)
             route = (src, snk)
-            if self.routes.get(s) != route or (any(route) and not self.args.mock and s not in self.caps and s not in self.plays):
+            if self.routes.get(s) != route:
+                log(f"{s}: route  in={src or '-'}  out={snk or '-'}  (picked in={self.cfg.get(s + '_in', '') or 'headset'}"
+                    f" out={self.cfg.get(s + '_out', '') or 'headset'}; default sink {dsink or '?'})")
+            pl = self.plays.get(s)
+            dead = (snk and (pl is None or not pl.is_alive())) or (src and (s not in self.caps or not self.caps[s].is_alive()))
+            if self.routes.get(s) != route or (any(route) and not self.args.mock and dead):
                 self._attach(s, {"source": route[0], "sink": route[1], "label": hs.get("label") or (route[0] or route[1] or "none")} if any(route) else None)
                 self.routes[s] = route
         self.assign = new
@@ -1008,9 +1122,19 @@ class Helper:
             self.caps[seat] = Capture(dev["source"], self.in_rings[seat], seat)
             self.caps[seat].start()
         if dev.get("sink"):
-            log(f"{seat}: OUTPUT {dev['sink']}")
+            o = next((d for d in getattr(self, "outputs", []) if d["name"] == dev["sink"]), {})
+            ch = 1 if int(o.get("ch", 2) or 2) == 1 else 2       # mono-fallback profile: 1; stereo / surround: L+R
+            if not dev["sink"].startswith("@"):
+                run(["pactl", "suspend-sink", dev["sink"], "0"])
+                if "yes" in run(["pactl", "get-sink-mute", dev["sink"]])[1]:
+                    run(["pactl", "set-sink-mute", dev["sink"], "0"])
+                    log(f"{seat}: sink was MUTED in the system mixer; unmuted it")
+                vol = re.findall(r"(\d+)%", run(["pactl", "get-sink-volume", dev["sink"]])[1])
+                if vol and max(int(v) for v in vol) < 5:
+                    log(f"{seat}: WARNING sink volume is {max(int(v) for v in vol)}% in the system mixer")
+            log(f"{seat}: OUTPUT {dev['sink']}  native [{o.get('spec', '?')}] state {o.get('state', '?')} -> s16le 48000 Hz {ch}ch")
             self.out_rings[seat] = Ring()
-            self.plays[seat] = Playback(dev["sink"], self.out_rings[seat], seat)
+            self.plays[seat] = Playback(dev["sink"], self.out_rings[seat], seat, channels=ch)
             self.plays[seat].start()
         log(f"{seat}: {dev['label']}")
 
@@ -1041,12 +1165,10 @@ class Helper:
                     if s in self.engine.ch:
                         self.engine.ch[s].muted = bool(v)
                 self.engine.allcall = bool(msg.get("allcall", False))
+        elif cmd == "ident" and msg.get("seat") in SEATS:
+            self.ident_seat(msg["seat"])
         elif cmd == "ident":
-            dev = None
-            if msg.get("seat") in SEATS:
-                dev = self.assign.get(msg["seat"])
-            else:
-                dev = next((d for d in self.devs if d["id"] == msg.get("device")), None)
+            dev = next((d for d in self.devs if d["id"] == msg.get("device")), None)
             if dev and not self.args.mock:
                 play_once(dev["sink"], self.engine.snd.ident())
             self.send({"type": "ident", "device": dev["id"] if dev else ""})
@@ -1059,6 +1181,28 @@ class Helper:
             self.finish_record()
         elif cmd == "quit":
             self.running = False
+
+    def ident_seat(self, seat):
+        """IDENTIFY a station: chime + "<Seat> station" mixed into that seat's own output, so it
+        plays through exactly the AUDIO OUT stream the station hears (not the mic's headset)."""
+        sink = (getattr(self, "routes", {}).get(seat) or ("", ""))[1]
+        with self.lock:
+            self.engine.play(seat, self.engine.snd.ident())
+        log(f"{seat}: IDENTIFY -> {sink or '(no output device)'}  stream {self.out_state(seat)}")
+        self.send({"type": "ident", "seat": seat, "sink": sink, "state": self.out_state(seat)})
+
+        def speak():
+            v = say_samples(SEAT_TITLES.get(seat, seat) + " station")
+            if v is not None:
+                with self.lock:
+                    self.engine.play(seat, np.concatenate([np.zeros(int(RATE * 0.75)), v]))
+        threading.Thread(target=speak, daemon=True).start()
+
+    def out_state(self, seat):
+        if self.args.mock:
+            return "mock"
+        pl = self.plays.get(seat)
+        return pl.stream_state() if pl else "none"
 
     def finish_record(self):
         with self.lock:
@@ -1127,6 +1271,9 @@ class Helper:
         if stop:
             self.finish_record()
         for s, y in outs.items():
+            pk = float(np.max(np.abs(y))) if len(y) else 0.0
+            self.out_pk[s] = max(pk, self.out_pk.get(s, 0.0) * 0.93)       # ~150 ms fall
+            self.out_max[s] = max(pk, self.out_max.get(s, 0.0))
             if s in self.out_rings:
                 self.out_rings[s].write(y)
 
@@ -1136,6 +1283,9 @@ class Helper:
             d = self.assign.get(s)
             st[s]["device"] = d["label"] if d else ""
             st[s]["connected"] = d is not None
+            st[s]["out_level"] = round(db(self.out_pk.get(s, 0.0)), 1)
+            st[s]["out_state"] = self.out_state(s)
+            st[s]["out_sink"] = (getattr(self, "routes", {}).get(s) or ("", ""))[1]
         xr = sum(r.underruns for r in self.in_rings.values()) + sum(r.underruns for r in self.out_rings.values())
         return {"type": "status", "ok": self.ok, "msg": self.msg, "server": self.server, "seats": st,
                 "allcall": self.engine.allcall, "xruns": xr, "late": self.late, "mock": bool(self.args.mock),
@@ -1190,6 +1340,9 @@ class Helper:
                         st = self.engine.status()
                         log("levels: " + "  ".join(f"{s}={st[s].get('level', -90):.0f}dB{'(open)' if st[s].get('open') else ''}"
                                                    f"[{(getattr(self, 'routes', {}).get(s) or ('', ''))[0] or '-'}]" for s in SEATS))
+                        log("outputs: " + "  ".join(f"{s}={db(self.out_max.get(s, 0.0)):.0f}dB {self.out_state(s)}"
+                                                    f"[{(getattr(self, 'routes', {}).get(s) or ('', ''))[1] or '-'}]" for s in SEATS))
+                        self.out_max = {}
                     if not self.parent_alive():
                         log("game exited; stopping")
                         break

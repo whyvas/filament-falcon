@@ -582,7 +582,7 @@ func _process(_dt: float) -> void:
 		else:
 			cam.set_frustum(f[1], f[2], near_now, FAR)
 		# Hide the Falcon's own hull from the cockpit eye point
-		cam.cull_mask = 0xFFFFF if Game.view_mode == 1 else (0xFFFFF & ~WorldView.SHIP_LAYER)
+		cam.cull_mask = 0xFFFFF if (Game.view_mode == 1 or (Game.slew.active and Game.slew.mode == "cam")) else (0xFFFFF & ~WorldView.SHIP_LAYER)
 
 
 ## Screenshot / demo helper (dev mode only): show one view full-window, or "" for the tiles.

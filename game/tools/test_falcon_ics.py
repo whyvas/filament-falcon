@@ -407,6 +407,47 @@ class Devices(unittest.TestCase):
         d3 = self.devs(PA_SINKS.replace("usb-0:2:1.0", "usb-0:9:1.0"), PA_SOURCES.replace("usb-0:2:1.0", "usb-0:9:1.0"))
         self.assertIn("Logitech", ics.match_assignments(d3, saved)["commander"]["product"])
 
+    def test_output_pick_follows_usb_port_not_node_name(self):
+        outs = ics.plain_list(ics.parse_pactl_list(PA_SINKS))
+        port3 = next(o for o in outs if o["port"] == "3")
+        self.assertTrue(port3["key"].endswith("@port=3"))
+        self.assertEqual(ics.resolve(port3["key"], outs, "dflt"), port3["name"])
+        # replug/reboot: the ".2" counter swaps between the identical sticks -> still the port-3 one
+        sinks = PA_SINKS.replace("analog-stereo.2", "TMP").replace(
+            "USB_Audio_Device-00.analog-stereo\n", "USB_Audio_Device-00.analog-stereo.2\n").replace("TMP", "analog-stereo")
+        outs2 = ics.plain_list(ics.parse_pactl_list(sinks))
+        got = ics.resolve(port3["key"], outs2, "dflt")
+        self.assertEqual(next(o for o in outs2 if o["name"] == got)["port"], "3")
+        self.assertNotEqual(got, port3["name"])
+        # its port is empty and the twin is another station's pick: nothing, never the twin
+        outs3 = [o for o in outs2 if o["port"] != "3"]
+        self.assertEqual(ics.resolve(port3["key"], outs3, "dflt", strict=True), "")
+        self.assertEqual(ics.resolve(port3["key"], outs3, "dflt", used={outs3[-1]["name"]} | {o["name"] for o in outs3}), "")
+        # old saves (plain names) and the specials still work
+        self.assertEqual(ics.resolve(port3["name"], outs, "dflt"), port3["name"])
+        self.assertEqual(ics.resolve("default", outs, "dflt"), "dflt")
+        self.assertIsNone(ics.resolve("", outs, "dflt"))
+
+    def test_headset_uses_the_analog_sink_and_channels(self):
+        extra = PA_SINKS.replace("Sink #4", """Sink #9
+	Name: alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.iec958-stereo
+	Description: USB Audio Device Digital Stereo
+	Sample Specification: s16le 2ch 48000Hz
+	Properties:
+		alsa.card = "4"
+		device.bus_path = "pci-0000:0e:00.3-usb-0:3:1.0"
+		device.bus = "usb"
+		device.serial = "C-Media_Electronics_Inc._USB_Audio_Device"
+		device.product.name = "USB Audio Device"
+Sink #4""")
+        d = self.devs(extra, PA_SOURCES)
+        cm = next(x for x in d if x["path"].endswith("0:3:1.0"))
+        self.assertIn("analog-stereo", cm["sink"])
+        self.assertEqual(ics.spec_channels("s16le 1ch 48000Hz"), 1)
+        self.assertEqual(ics.spec_channels("float32le 2ch 48000Hz"), 2)
+        pw = ics.parse_pactl_list(PW_SINKS)
+        self.assertEqual(pw[0]["state"], "SUSPENDED")
+
     def test_missing_headset_is_none(self):
         d = self.devs(PW_SINKS, PW_SOURCES)
         m = ics.match_assignments(d, {"pilot": "Logitech USB Headset|x|pci-1"})
@@ -460,6 +501,22 @@ class Protocol(unittest.TestCase):
             self.assertEqual(seen["devices"]["assign"]["pilot"], "Mock Headset 2|MOCK2|pci-0000:00:14.0-usb-0:2:1.0")
             self.assertTrue(seen.get("open"), "PTT did not key the ops channel")
             self.assertTrue(seen["status"]["ok"])
+            # IDENTIFY a station: the chime is mixed into THAT station's output only
+            game.sendto(b'{"cmd":"ident","seat":"commander"}', ("127.0.0.1", hport))
+            got_ident, loud = None, -90.0
+            t0 = time.time()
+            while time.time() - t0 < 4 and not (got_ident and loud > -30):
+                try:
+                    msg = json.loads(game.recv(65536).decode())
+                except socket.timeout:
+                    continue
+                if msg["type"] == "ident":
+                    got_ident = msg
+                if msg["type"] == "status" and got_ident:
+                    loud = max(loud, msg["seats"]["commander"]["out_level"])
+                    self.assertIn("out_state", msg["seats"]["pilot"])
+            self.assertEqual((got_ident or {}).get("seat"), "commander")
+            self.assertGreater(loud, -30, "identify chime did not reach the commander output")
             game.sendto(b'{"cmd":"quit"}', ("127.0.0.1", hport))
             p.wait(timeout=5)
         finally:

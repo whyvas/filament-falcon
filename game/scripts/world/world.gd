@@ -401,7 +401,7 @@ func _process(dt: float) -> void:
 	_t += dt
 	var g := Game
 	var sim: ShipSim = g.sim
-	var origin: BigVec = sim.pos
+	var origin: BigVec = g.slew.view_pos(g)   # the ship, or the debug free camera
 	_sync_entities()
 	# Sun + eclipse test against the planet and moon
 	var sd: Vector3 = g.sun_dir.normalized()
@@ -484,13 +484,16 @@ func _process(dt: float) -> void:
 			fx_nodes.erase(f)
 	# Ship + camera rig
 	ship.basis = sim.basis
+	ship.position = sim.pos.rel(origin)
 	ship.visible = true
 	ship.animate(g, dt)
 	var shake := Vector3(randf_range(-1, 1), randf_range(-1, 1), 0.0) * g.camera_shake * 0.04
 	shake += Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * clampf(sim.dyn_pressure / 40000.0, 0.0, 0.03)
 	if sim.thrust_now > 0.0 and sim.booster_attached:
 		shake += Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * 0.02
-	if g.view_mode == 0:
+	if g.slew.active and g.slew.mode == "cam":
+		rig_xform = Transform3D(g.slew.cam_basis, Vector3.ZERO)
+	elif g.view_mode == 0:
 		rig_xform = Transform3D(sim.basis, sim.basis * (EYE + shake))
 	else:
 		rig_xform = chase_xform(sim, 34.0 if not sim.booster_attached else 75.0)

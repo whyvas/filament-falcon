@@ -190,6 +190,40 @@ func identify(device_id: String) -> void:
 	Sfx.click()
 
 
+## IDENTIFY a station: chime + "<seat> station" through that station's AUDIO OUT stream.
+func identify_seat(s: String) -> void:
+	_send({"cmd": "ident", "seat": s})
+	Sfx.click()
+
+
+## Saved value for a picker entry: node name + "@port=<usb port>" (identical headsets' node names
+## swap their ".2" counter between boots; the port does not). Old saves are plain names.
+static func io_value(dv: Dictionary) -> String:
+	return str(dv.get("key", dv.get("name", "")))
+
+
+func _io_find(kind: String, value: String) -> Dictionary:
+	var lst: Array = inputs if kind == "in" else outputs
+	for dv: Dictionary in lst:
+		if io_value(dv) == value:
+			return dv
+	var nm := value.get_slice("@port=", 0)
+	for dv: Dictionary in lst:
+		if str(dv["name"]) == nm:
+			return dv
+	return {}
+
+
+func _io_taken(s: String, kind: String, dv: Dictionary) -> bool:
+	for o in SEATS:
+		if o == s:
+			continue
+		var v := str(Settings.get_v("ics", "%s_%s" % [o, kind]))
+		if v != "" and (v == io_value(dv) or v == str(dv["name"])):
+			return true
+	return false
+
+
 func rescan() -> void:
 	_send({"cmd": "rescan"})
 
@@ -223,15 +257,11 @@ func cycle_io(s: String, kind: String, d: int) -> void:
 	var lst: Array = inputs if kind == "in" else outputs
 	var opts: Array = ["", "none", "default"]
 	for dv: Dictionary in lst:
-		var nm := str(dv["name"])
-		var taken := false
-		for o in SEATS:
-			if o != s and str(Settings.get_v("ics", "%s_%s" % [o, kind])) == nm:
-				taken = true
-		if not taken:
-			opts.append(nm)
+		if not _io_taken(s, kind, dv):
+			opts.append(io_value(dv))
 	var cur := str(Settings.get_v("ics", "%s_%s" % [s, kind]))
-	var i := opts.find(cur)
+	var cd := _io_find(kind, cur)
+	var i := opts.find(io_value(cd) if not cd.is_empty() else cur)
 	if i < 0:
 		i = 0
 	set_cfg("%s_%s" % [s, kind], opts[posmod(i + d, opts.size())])   # saved + sent live
@@ -248,27 +278,24 @@ func io_options(s: String, kind: String) -> Array:
 	var cur := str(Settings.get_v("ics", "%s_%s" % [s, kind]))
 	var have_cur := cur in ["", "none", "default"]
 	for dv: Dictionary in lst:
-		var nm := str(dv["name"])
-		var taken := false
-		for o in SEATS:
-			if o != s and str(Settings.get_v("ics", "%s_%s" % [o, kind])) == nm:
-				taken = true
-		if taken:
+		if _io_taken(s, kind, dv):
 			continue
-		out.append([nm, friendly(nm, kind)])
-		have_cur = have_cur or nm == cur
+		var val := io_value(dv)
+		if val == cur or str(dv["name"]) == cur:
+			val = cur          # keep the saved value selected (old saves: plain node name)
+		out.append([val, friendly(val, kind)])
+		have_cur = have_cur or val == cur
 	if not have_cur:
 		out.append([cur, friendly(cur, kind) + "  (not plugged in)"])
 	return out
 
 
 ## "Blue Snowball", "Logi USB Headset (port 3.3.4)": description + USB port when two match.
-func friendly(nm: String, kind: String) -> String:
+func friendly(value: String, kind: String) -> String:
 	var lst: Array = inputs if kind == "in" else outputs
-	var desc := ""
-	for dv: Dictionary in lst:
-		if str(dv["name"]) == nm:
-			desc = str(dv["desc"])
+	var fd := _io_find(kind, value)
+	var nm := str(fd.get("name", value.get_slice("@port=", 0)))
+	var desc := str(fd.get("desc", ""))
 	if desc == "":
 		desc = nm.get_slice(".", 1).trim_prefix("usb-").replace("_", " ") if nm.count(".") >= 1 else nm
 		return desc
@@ -288,10 +315,8 @@ func io_label(s: String, kind: String) -> String:
 	var opened: Array = routes.get(s, ["", ""])
 	var now := str(opened[0 if kind == "in" else 1]) if opened.size() == 2 else ""
 	var pretty := func(nm: String) -> String:
-		for dv: Dictionary in (inputs if kind == "in" else outputs):
-			if str(dv["name"]) == nm:
-				return str(dv["desc"])
-		return nm
+		var fd := _io_find(kind, nm)
+		return str(fd["desc"]) if not fd.is_empty() else nm.get_slice("@port=", 0)
 	match cur:
 		"":
 			return "Headset" + ("  → " + pretty.call(now) if now != "" else "  (none)")
@@ -299,7 +324,7 @@ func io_label(s: String, kind: String) -> String:
 			return "None"
 		"default":
 			return "System default" + ("  → " + pretty.call(now) if now != "" else "")
-	return pretty.call(cur) + ("" if now == cur else "  (not found)")
+	return pretty.call(cur) + ("" if now == cur.get_slice("@port=", 0) or (now != "" and now == str(_io_find(kind, cur).get("name", ""))) else "  (not found)")
 
 
 func device_label(id: String) -> String:
