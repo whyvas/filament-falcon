@@ -38,13 +38,17 @@ const MISSION_SCRIPTS := {
 	"bedtime": "res://scripts/missions/m_bedtime.gd",
 }
 
-# ---- universe (1:10.6 scale, real surface gravity)
+# ---- universe (real size: 6371 km Earth, real Moon at 384,400 km; see docs/game/REAL_EARTH.md)
 const G0 := 9.80665
-const EARTH_R := 600000.0
-const MOON_R := 200000.0
-const MOON_ORBIT := 12000000.0
-const STATION_ALT := 120000.0
-const FIELD_ALT := 1500000.0
+const EARTH_R := 6371000.0
+const EARTH_GM := 3.986004418e14
+const MOON_R := 1737400.0
+const MOON_GM := 4.9048695e12
+const MOON_ORBIT := 384400000.0
+const STATION_ALT := 410000.0
+const FIELD_ALT := 2000000.0
+const RUNWAY_GEO := Vector2(28.615, -80.695)   # KSC Shuttle Landing Facility (lat, lon)
+const SITE_ELEV := 3.0                         # pad / runway ground, m above sea level
 const PHYS_DT := 1.0 / 120.0
 
 var earth := CelestialBody.new()
@@ -61,7 +65,7 @@ var sun_dir := Vector3(0.6, 0.35, -0.7).normalized()   # direction TOWARD the su
 
 # fixed sites
 var pad_dir := Vector3(1, 0, 0)
-var runway_dir := Vector3(cos(deg_to_rad(-40.0)), 0, -sin(deg_to_rad(-40.0)))
+var runway_dir := Vector3(1, 0, 0)    # set in _build_universe (real KSC SLF via Geo)
 var lunar_site_dir := Vector3(-1, 0, 0)
 
 # entities (station, booster, satellite, pod, crystals, ...)
@@ -157,26 +161,29 @@ func _build_universe() -> void:
 	earth.id = "earth"
 	earth.display_name = "EARTH"
 	earth.radius = EARTH_R
-	earth.gm = G0 * EARTH_R * EARTH_R
+	earth.gm = EARTH_GM
 	earth.has_atmo = true
 	earth.rho0 = 1.225
-	earth.scale_h = 5600.0
-	earth.atmo_top = 70000.0
+	earth.scale_h = 7000.0
+	earth.atmo_top = 100000.0
 	earth.terrain_amp = 70.0
+	earth.terrain = EarthTerrain.new(earth)
 	earth.color = Color(0.3, 0.5, 1.0)
 	moon.id = "moon"
 	moon.display_name = "MOON"
 	moon.radius = MOON_R
-	moon.gm = 1.62 * MOON_R * MOON_R
+	moon.gm = MOON_GM
 	moon.parent = earth
 	moon.orbit_r = MOON_ORBIT
 	moon.orbit_phase = deg_to_rad(-25.0)
 	moon.soi = MOON_ORBIT * pow(moon.gm / earth.gm, 0.4)
 	moon.terrain_amp = 45.0
+	moon.relief_amp = 900.0      # broad real-scale highlands / basins under the crater detail
 	moon.cratered = true
 	moon.color = Color(0.7, 0.7, 0.68)
-	earth.add_site(pad_dir, 1500.0)
-	earth.add_site(runway_dir, 4500.0)
+	runway_dir = Geo.game_dir(RUNWAY_GEO.x, RUNWAY_GEO.y).normalized()
+	earth.add_site(pad_dir, 1500.0, SITE_ELEV)
+	earth.add_site(runway_dir, 4500.0, SITE_ELEV)
 	moon.add_site(lunar_site_dir, 600.0)
 	bodies = [earth, moon]
 	sim.bodies = bodies
@@ -547,6 +554,9 @@ func _step_physics(dt: float) -> void:
 			Voice.say("Time warp off: " + reason)
 	var sim_dt := dt * warp
 	var max_h := PHYS_DT if warp <= 1.0 else (0.05 if warp <= 10.0 else 0.25)
+	if warp > 100.0 and sim.dominant:   # real-size orbits: ~2000 steps per local orbital period
+		var r := maxf(sim.altitude + sim.dominant.radius, sim.dominant.radius)
+		max_h = clampf(TAU * sqrt(r * r * r / sim.dominant.gm) / 2000.0, 0.25, 5.0)
 	var n := clampi(ceili(sim_dt / max_h), 1, 400)
 	var h := sim_dt / n
 	for i in n:
@@ -562,7 +572,7 @@ func _step_physics(dt: float) -> void:
 
 
 func set_warp(w: float) -> void:
-	warp = clampf(w, 1.0, 1.0 if Eva.active else 1000.0)
+	warp = clampf(w, 1.0, 1.0 if Eva.active else 10000.0)
 	game_event.emit("warp", {"warp": warp})
 
 

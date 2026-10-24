@@ -19,8 +19,16 @@ Caches (all under ~/.local/share/filament-falcon/):
     assets/regions/<name>/               chunk JSON + manifest.json (build_key: inputs + BUILD_VER;
                                          an up-to-date region is not rebuilt)
 Chunks are built in parallel (--jobs, default = CPU count). Output per chunk: terrain grid
-(heights + per-vertex landuse class), buildings, trees, water, roads, rails, all in local
-metres (x = east, z = south, y = up). The game (scripts/geo/region_view.gd) turns chunks into
+(heights + per-vertex landuse class + water-surface level), buildings, trees, roads, rails,
+all in local metres (x = east, z = south, y = up), plus dem.bin: the whole region's ground /
+water-surface heights (int16, 0.5 m) for the game's physics.
+
+Water (BUILD_VER 3): multipolygon lakes/riverbanks keep their inner rings (islands), river
+centre-lines (waterway=river/canal) are rasterised with their width, and the sea is wherever
+the DEM is at or below 0 m. Every water grid vertex gets a water level (lakes: one flat level
+from the shore DEM; rivers: the local shore level, so they can slope), its ground is carved
+1.5 m under it and the land next to it lifted just above it, so the game's flat water surface
+always shows and never floods the banks. The game (scripts/geo/region_view.gd) turns chunks into
 meshes on worker threads and streams them by distance.
 """
 import argparse, gzip, json, math, os, shutil, subprocess, sys, time, urllib.error, urllib.request, urllib.parse, io, hashlib
@@ -28,7 +36,7 @@ from email.utils import formatdate, parsedate_to_datetime
 
 import numpy as np
 
-BUILD_VER = 2          # bump when the chunk format / feature rules change (forces rebuilds)
+BUILD_VER = 3          # bump when the chunk format / feature rules change (forces rebuilds)
 DATA = os.path.join(os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")), "filament-falcon")
 PBF_URL = "https://download.geofabrik.de/north-america/canada/new-brunswick-latest.osm.pbf"
 MAX_AGE_DAYS = 30
@@ -62,7 +70,8 @@ def fetch_overpass(bbox):
 (way["building"]({s},{w},{n},{e}); relation["building"]({s},{w},{n},{e});
  way["highway"]({s},{w},{n},{e}); way["railway"="rail"]({s},{w},{n},{e});
  way["natural"~"water|wood|scrub|wetland|beach|sand"]({s},{w},{n},{e}); relation["natural"="water"]({s},{w},{n},{e});
- way["waterway"~"riverbank|river|stream|canal"]({s},{w},{n},{e});
+ way["waterway"~"riverbank|river|stream|canal"]({s},{w},{n},{e}); relation["waterway"="riverbank"]({s},{w},{n},{e});
+ relation["natural"~"wood|scrub|wetland"]({s},{w},{n},{e}); relation["leisure"="park"]({s},{w},{n},{e});
  way["landuse"]({s},{w},{n},{e}); relation["landuse"]({s},{w},{n},{e});
  way["leisure"~"park|pitch|golf_course|recreation_ground"]({s},{w},{n},{e}); way["amenity"="parking"]({s},{w},{n},{e});
  node["natural"="tree"]({s},{w},{n},{e}););
@@ -128,14 +137,16 @@ class Dem:
         x = (lons + 180.0) / 360.0 * n
         y = (1.0 - np.arcsinh(np.tan(np.radians(lats))) / np.pi) / 2.0 * n
         tx, ty = np.floor(x).astype(int), np.floor(y).astype(int)
-        out = np.zeros(lats.shape)
+        out = np.full(lats.shape, 0.5)      # missing tile: just above sea level (never "sea")
         for key in set(zip(tx.ravel().tolist(), ty.ravel().tolist())):
             t = self.tiles.get(key)
             if t is None:
                 continue
             m = (tx == key[0]) & (ty == key[1])
-            px, py = (x[m] - key[0]) * 255.0, (y[m] - key[1]) * 255.0
-            i, j = np.minimum(px.astype(int), 254), np.minimum(py.astype(int), 254)
+            # pixel centres sit at (i + 0.5) / 256 of the tile
+            px = np.clip((x[m] - key[0]) * 256.0 - 0.5, 0.0, 254.999)
+            py = np.clip((y[m] - key[1]) * 256.0 - 0.5, 0.0, 254.999)
+            i, j = px.astype(int), py.astype(int)
             fx, fy = px - i, py - j
             out[m] = t[j, i] * (1 - fx) * (1 - fy) + t[j, i + 1] * fx * (1 - fy) + t[j + 1, i] * (1 - fx) * fy + t[j + 1, i + 1] * fx * fy
         return out
@@ -145,11 +156,13 @@ class Dem:
 
 
 class FlatDem:
+    """--flat-dem (tests): a gentle 10 m plain (above sea level, so it isn't all sea)."""
     def height(self, lat, lon):
-        return 0.0
+        return float(self.heights(np.array([lat]), np.array([lon]))[0])
 
     def heights(self, lats, lons):
-        return np.zeros(np.asarray(lats).shape)
+        lats, lons = np.asarray(lats, dtype=np.float64), np.asarray(lons, dtype=np.float64)
+        return 10.0 + 4.0 * np.sin(lons * 900.0) * np.cos(lats * 700.0)
 
 
 
@@ -222,7 +235,7 @@ def _keep_line(t):
 
 def read_pbf(pbf, bbox):
     """Features inside bbox (with a margin) from a .pbf, in the same element format as Overpass
-    `out geom` (+ type "area" with assembled outer rings for (multi)polygons)."""
+    `out geom` (+ type "area": rings = [[outer, [inner, ...]], ...] for (multi)polygons)."""
     try:
         import osmium
     except ImportError:
@@ -272,7 +285,8 @@ def read_pbf(pbf, bbox):
             for ring in o.outer_rings():
                 r = [[nd.lat, nd.lon] for nd in ring if nd.location.valid()]
                 if len(r) >= 4 and any(inb(p[0], p[1]) for p in r):
-                    rings.append(r)
+                    holes = [[[nd.lat, nd.lon] for nd in ir if nd.location.valid()] for ir in o.inner_rings(ring)]
+                    rings.append([r, [h for h in holes if len(h) >= 4]])
             if rings:
                 out.append({"type": "area", "id": o.orig_id(), "tags": tags, "rings": rings})
 
@@ -402,7 +416,11 @@ def building(el, poly, cdist):
     return out
 
 
-def scatter(poly, density, seed, cap=4000):
+def in_shape(pt, outer, inners):
+    return inside(pt, outer) and not any(inside(pt, h) for h in inners)
+
+
+def scatter(poly, density, seed, cap=4000, holes=()):
     xs = [p[0] for p in poly]
     zs = [p[1] for p in poly]
     a = abs(area(poly))
@@ -412,9 +430,52 @@ def scatter(poly, density, seed, cap=4000):
         x = min(xs) + rnd(seed, 2 * k) * (max(xs) - min(xs))
         z = min(zs) + rnd(seed, 2 * k + 1) * (max(zs) - min(zs))
         k += 1
-        if inside((x, z), poly):
+        if in_shape((x, z), poly, holes):
             pts.append((x, z))
     return pts
+
+
+def grid_in_shape(xs, zs, outer, inners):
+    m = grid_points_in_poly(xs, zs, outer)
+    for h in inners:
+        m &= ~grid_points_in_poly(xs, zs, h)
+    return m
+
+
+def seg_dist(xs, zs, line):
+    """Distance from grid points to a polyline."""
+    d = np.full(xs.shape, np.inf)
+    for (ax, az), (bx, bz) in zip(line[:-1], line[1:]):
+        vx, vz = bx - ax, bz - az
+        l2 = vx * vx + vz * vz or 1e-9
+        t = np.clip(((xs - ax) * vx + (zs - az) * vz) / l2, 0.0, 1.0)
+        d = np.minimum(d, np.hypot(xs - ax - t * vx, zs - az - t * vz))
+    return d
+
+
+def densify(ring, step, closed=True):
+    pts = list(ring) + ([ring[0]] if closed else [])
+    out = []
+    for (ax, az), (bx, bz) in zip(pts[:-1], pts[1:]):
+        n = max(1, int(math.hypot(bx - ax, bz - az) / step))
+        for k in range(n):
+            out.append((ax + (bx - ax) * k / n, az + (bz - az) * k / n))
+    if not closed:
+        out.append(pts[-1])
+    return np.asarray(out, dtype=np.float64)
+
+
+def shore_levels(pj, dem, ring, closed, lake):
+    """Water level along a shore: the 25th percentile of the DEM over ~400 m of shore (a single
+    level for a lake), so DEM bumps / bank trees don't lift the water."""
+    pts = densify(ring, 30.0, closed)
+    lat, lon = pj.ll(pts[:, 0], pts[:, 1])
+    hs = dem.heights(lat, lon)
+    if lake or len(hs) < 27:
+        return pts, np.full(len(hs), float(np.percentile(hs, 25)))
+    pad = np.concatenate([hs[-13:], hs, hs[:13]]) if closed else np.pad(hs, 13, mode="edge")
+    win = np.lib.stride_tricks.sliding_window_view(pad, 27)
+    return pts, np.percentile(win, 25, axis=1)
 
 
 def grid_points_in_poly(xs, zs, poly):
@@ -437,30 +498,89 @@ def _build_chunk(job):
     """Terrain heights + per-vertex landuse for one chunk, written as c_<ix>_<iz>.json."""
     ix, iz = job
     pj, dem, cs, gn, out = _G["pj"], _G["dem"], _G["cs"], _G["gn"], _G["out"]
-    xs = ix * cs + np.arange(gn) * cs / (gn - 1)
-    zs = iz * cs + np.arange(gn) * cs / (gn - 1)
+    st = cs / (gn - 1)
+    # one extra vertex all round: shore lifting looks at neighbours, and shared chunk edges must
+    # come out identical on both sides
+    xs = ix * cs + np.arange(-1, gn + 1) * st
+    zs = iz * cs + np.arange(-1, gn + 1) * st
     X, Z = np.meshgrid(xs, zs)
     lat, lon = pj.ll(X, Z)
     h = dem.heights(lat, lon)
     lg = np.zeros(X.shape, dtype=np.int16)
-    x0, x1, z0, z1 = ix * cs, (ix + 1) * cs, iz * cs, (iz + 1) * cs
-    for cls, bb, poly in _G["lu"]:     # every landuse polygon touching the chunk (not just its centroid's)
-        if bb[0] > x1 or bb[2] < x0 or bb[1] > z1 or bb[3] < z0:
+    x0, x1, z0, z1 = xs[0], xs[-1], zs[0], zs[-1]
+
+    def touches(bb, m=0.0):
+        return not (bb[0] > x1 + m or bb[2] < x0 - m or bb[1] > z1 + m or bb[3] < z0 - m)
+
+    for cls, bb, poly, holes in _G["lu"]:     # every landuse polygon touching the chunk
+        if touches(bb):
+            lg[grid_in_shape(X, Z, poly, holes)] = cls
+    # ---- water: level per vertex (NaN = dry)
+    wl = np.full(X.shape, np.nan)
+    for wsh in _G["water"]:
+        if not touches(wsh["bb"]):
             continue
-        lg[grid_points_in_poly(X, Z, poly)] = cls
+        m = grid_in_shape(X, Z, wsh["o"], wsh["i"])
+        if not m.any():
+            continue
+        sp, sl = wsh["sp"], wsh["sl"]
+        if wsh["lake"]:
+            lv = np.full(int(m.sum()), sl[0])
+        else:                 # river: level of the nearest shore point
+            near = (sp[:, 0] > x0 - 2000) & (sp[:, 0] < x1 + 2000) & (sp[:, 1] > z0 - 2000) & (sp[:, 1] < z1 + 2000)
+            spn, sln = (sp[near], sl[near]) if near.any() else (sp, sl)
+            d2 = (X[m][:, None] - spn[None, :, 0]) ** 2 + (Z[m][:, None] - spn[None, :, 1]) ** 2
+            lv = sln[np.argmin(d2, axis=1)]
+        wl[m] = np.fmin(wl[m], lv)
+    for ln in _G["rivers"]:     # centre-lines: a band of their width
+        if not touches(ln["bb"], ln["w"]):
+            continue
+        m = seg_dist(X, Z, ln["p"]) < ln["w"] * 0.5
+        if not m.any():
+            continue
+        d2 = (X[m][:, None] - ln["sp"][None, :, 0]) ** 2 + (Z[m][:, None] - ln["sp"][None, :, 1]) ** 2
+        wl[m] = np.fmin(wl[m], ln["sl"][np.argmin(d2, axis=1)])
+    sea = np.isnan(wl) & (h <= 0.0)
+    wl[sea] = 0.0
+    wet = ~np.isnan(wl)
+    if wet.any():
+        lg[wet] = 7
+        h[wet] = np.minimum(h[wet], wl[wet] - 1.5)           # carve the bed under the surface
+        # dry vertices next to water: just above its level (no flooded banks / islands)
+        nb = np.full(X.shape, -np.inf)
+        wlz = np.where(wet, wl, -np.inf)
+        nb[1:, :] = np.maximum(nb[1:, :], wlz[:-1, :])
+        nb[:-1, :] = np.maximum(nb[:-1, :], wlz[1:, :])
+        nb[:, 1:] = np.maximum(nb[:, 1:], wlz[:, :-1])
+        nb[:, :-1] = np.maximum(nb[:, :-1], wlz[:, 1:])
+        shore = ~wet & np.isfinite(nb)
+        h[shore] = np.maximum(h[shore], nb[shore] + 0.3)
+    h, lg, wl = h[1:-1, 1:-1], lg[1:-1, 1:-1], wl[1:-1, 1:-1]
     k = f"{ix}_{iz}"
     c = dict(_G["chunks"].get(k, {"b": [], "t": [], "w": [], "r": [], "rl": []}))
     c.pop("lu", None)
     c["o"] = [ix * cs, iz * cs]
     c["n"] = gn
+    # no trees standing in water
+    if c.get("t"):
+        def dry(t):
+            i = int(round((t[0] - ix * cs) / st))
+            j = int(round((t[1] - iz * cs) / st))
+            return not (0 <= i < gn and 0 <= j < gn) or lg[j, i] != 7
+        c["t"] = [t for t in c["t"] if dry(t)]
     c["h"] = h.ravel().tolist()      # metres (rebased to the region base in finish())
     c["lg"] = lg.ravel().tolist()
+    c["wl"] = wl.ravel().tolist() if np.isfinite(wl).any() else None
     return k, c
 
 
 def _write_chunk(args):
     k, c, base = args
     c["h"] = [int(round((v - base) * 10)) for v in c["h"]]   # decimetres above base
+    if c.get("wl") is not None:     # water surface, decimetres above base (-32768 = dry)
+        c["wl"] = [-32768 if v != v else int(round((v - base) * 10)) for v in c["wl"]]
+    else:
+        c.pop("wl", None)
     json.dump(c, open(os.path.join(_G["out"], f"c_{k}.json"), "w"), separators=(",", ":"))
     return k
 
@@ -538,7 +658,9 @@ def main():
             json.dump(data, f, separators=(",", ":"))
         os.replace(ex_path + ".part", ex_path)
     t_osm = time.time()
-    dem = FlatDem() if a.flat_dem else Dem(bbox, a.dem_dir or os.path.join(DATA, "dem", "terrarium", "13"))
+    # DEM tiles for the bbox + a margin (river shores just outside, edge blending)
+    mg = 0.01
+    dem = FlatDem() if a.flat_dem else Dem([s - mg, w - mg, n + mg, e + mg], a.dem_dir or os.path.join(DATA, "dem", "terrarium", "13"))
     x0, z0 = pj.xz(n, w)
     x1, z1 = pj.xz(s, e)
     cs = a.chunk
@@ -553,7 +675,7 @@ def main():
     def geom(el):
         return [pj.xz(p["lat"], p["lon"]) for p in el.get("geometry", []) if p]
 
-    big_water, lu_polys = [], []
+    lu_polys, water_shapes, rivers = [], [], []
     counts = {"buildings": 0, "trees": 0, "water": 0, "roads": 0, "rails": 0, "landuse": 0}
     for el in data.get("elements", []):
         t = el.get("tags", {})
@@ -563,17 +685,30 @@ def main():
                 chunk_of(x, z)["t"].append([round(x, 1), round(z, 1), 1 if t.get("leaf_type") == "needleleaved" else 0])
                 counts["trees"] += 1
             continue
+        # shapes: [(outer, [inner, ...]), ...] (open rings, local metres)
         if el["type"] == "area":
-            polys = [[pj.xz(p[0], p[1]) for p in r] for r in el["rings"]]
-            polys = [p if p[0] == p[-1] else p + [p[0]] for p in polys]
+            shapes = []
+            for r in el["rings"]:
+                if r and isinstance(r[0][0], list):     # [outer, [inners]]
+                    outer, inners = r[0], r[1]
+                else:                                   # old extract: outer ring only
+                    outer, inners = r, []
+                shapes.append(([pj.xz(p[0], p[1]) for p in outer], [[pj.xz(p[0], p[1]) for p in h] for h in inners]))
         elif el["type"] == "relation":
-            outers = [[pj.xz(p["lat"], p["lon"]) for p in m.get("geometry", []) if p]
-                      for m in el.get("members", []) if m.get("role") in ("outer", "") and m.get("type") == "way"]
-            polys = stitch(outers)
+            def mem(role):
+                return [[pj.xz(p["lat"], p["lon"]) for p in m.get("geometry", []) if p]
+                        for m in el.get("members", []) if m.get("role") in role and m.get("type") == "way"]
+            outers = stitch(mem(("outer", "")))
+            inners = stitch(mem(("inner",)))
+            shapes = [(o, [h for h in inners if inside(h[0], o)]) for o in outers]
         else:
             g = geom(el)
-            polys = [g] if len(g) >= 4 and g[0] == g[-1] and not _keep_line(t) else []
-        polys = [p[:-1] for p in polys if len(p) >= 4]
+            shapes = [(g, [])] if len(g) >= 4 and g[0] == g[-1] and not _keep_line(t) else []
+
+        def opened(r):
+            return r[:-1] if len(r) > 1 and r[0] == r[-1] else r
+        shapes = [(opened(o), [opened(h) for h in hs if len(h) >= 4]) for o, hs in shapes if len(o) >= 4]
+        polys = [o for o, _ in shapes]
         if "building" in t:
             for p in polys:
                 cx = sum(q[0] for q in p) / len(p)
@@ -583,25 +718,25 @@ def main():
             continue
         water = t.get("natural") == "water" or t.get("waterway") == "riverbank" or t.get("landuse") in ("reservoir", "basin")
         lu = LANDUSE.get(t.get("landuse") or t.get("natural") or t.get("leisure") or ("parking" if t.get("amenity") == "parking" else ""), 0)
-        if water and polys:
-            for p in polys:
-                pr = [[round(x, 1), round(z, 1)] for x, z in p]
-                if abs(area(p)) > cs * cs * 0.25:
-                    big_water.append(pr)      # river / lakes: one shared file, always drawn
-                else:
-                    chunk_of(sum(q[0] for q in p) / len(p), sum(q[1] for q in p) / len(p))["w"].append(pr)
+        if water and shapes:
+            river = t.get("waterway") == "riverbank" or t.get("water") in ("river", "canal", "stream", "oxbow")
+            for o, hs in shapes:
+                xs = [q[0] for q in o]
+                zs = [q[1] for q in o]
+                sp, sl = shore_levels(pj, dem, o, True, not river)
+                water_shapes.append({"o": o, "i": hs, "bb": (min(xs), min(zs), max(xs), max(zs)), "lake": not river, "sp": sp, "sl": sl})
                 counts["water"] += 1
             continue
-        if lu and polys:
-            for p in polys:
+        if lu and shapes:
+            for p, hs in shapes:
                 xs = [q[0] for q in p]
                 zs = [q[1] for q in p]
-                lu_polys.append((lu, (min(xs), min(zs), max(xs), max(zs)), p))
+                lu_polys.append((lu, (min(xs), min(zs), max(xs), max(zs)), p, hs))
                 counts["landuse"] += 1
                 if lu == 3 or (lu == 1 and t.get("leisure") == "park"):
                     dens = 1 / 70.0 if lu == 3 else 1 / 500.0
                     con = {"needleleaved": 1.0, "broadleaved": 0.0}.get(t.get("leaf_type"), 0.55 if lu == 3 else 0.2)
-                    for k, (x, z) in enumerate(scatter(p, dens, el["id"])):
+                    for k, (x, z) in enumerate(scatter(p, dens, el["id"], holes=hs)):
                         chunk_of(x, z)["t"].append([round(x, 1), round(z, 1), 1 if rnd(el["id"], 9000 + k) < con else 0])
                         counts["trees"] += 1
             continue
@@ -623,8 +758,16 @@ def main():
                     rec["br"] = int(num(t.get("layer"), 1) or 1)
                 counts["roads"] += 1
             else:
-                if t.get("waterway") == "river":
-                    continue        # rivers come from their area polygons
+                if t.get("waterway") in ("river", "canal"):
+                    # a band of water along the centre-line (where there's no riverbank
+                    # polygon, this is the only water; under one it changes nothing)
+                    wd = num(t.get("width")) or (25.0 if t.get("waterway") == "river" else 10.0)
+                    sp, sl = shore_levels(pj, dem, line, False, False)
+                    xs = [q[0] for q in line]
+                    zs = [q[1] for q in line]
+                    rivers.append({"p": line, "w": max(wd, 8.0), "sp": sp, "sl": sl, "bb": (min(xs), min(zs), max(xs), max(zs))})
+                    counts["water"] += 1
+                    continue
                 key, rec = "r", {"w": 3.0, "c": "stream"}
             cur, ck = [], None
             for i in range(len(line) - 1):
@@ -645,7 +788,7 @@ def main():
     ix0, ix1 = math.floor(x0 / cs), math.floor(x1 / cs)
     iz0, iz1 = math.floor(z0 / cs), math.floor(z1 / cs)
     gn = int(cs / a.grid) + 1
-    _G.update(pj=pj, dem=dem, cs=cs, gn=gn, out=out, chunks=chunks, lu=lu_polys)
+    _G.update(pj=pj, dem=dem, cs=cs, gn=gn, out=out, chunks=chunks, lu=lu_polys, water=water_shapes, rivers=rivers)
     jobs = [(ix, iz) for ix in range(ix0, ix1 + 1) for iz in range(iz0, iz1 + 1)]
     import multiprocessing as mp
     nj = max(1, min(a.jobs, len(jobs)))
@@ -655,6 +798,20 @@ def main():
     else:
         built = [_build_chunk(j) for j in jobs]
     base = float(min(min(c["h"]) for _, c in built)) if built else 0.0
+    # region-wide ground / water-surface heights for the game's physics (thread-safe lookups)
+    st = cs / (gn - 1)
+    nx = (ix1 - ix0 + 1) * (gn - 1) + 1
+    nz = (iz1 - iz0 + 1) * (gn - 1) + 1
+    grid = np.zeros((nz, nx), dtype=np.float64)
+    for k, c in built:
+        cx, cz = (int(v) for v in k.split("_"))
+        hh = np.asarray(c["h"], dtype=np.float64).reshape(gn, gn)
+        if c.get("wl") is not None:
+            ww = np.asarray(c["wl"], dtype=np.float64).reshape(gn, gn)
+            hh = np.where(np.isnan(ww), hh, np.fmax(hh, ww))
+        oz, ox = (cz - iz0) * (gn - 1), (cx - ix0) * (gn - 1)
+        grid[oz:oz + gn, ox:ox + gn] = hh
+    np.clip(np.round(grid * 2.0), -32768, 32767).astype("<i2").tofile(os.path.join(out, "dem.bin"))
     for f in os.listdir(out):                 # stale chunks from an older build
         if f.startswith("c_") and f.endswith(".json"):
             os.remove(os.path.join(out, f))
@@ -663,8 +820,11 @@ def main():
             names = pool.map(_write_chunk, [(k, c, base) for k, c in built])
     else:
         names = [_write_chunk((k, c, base)) for k, c in built]
-    json.dump(big_water, open(os.path.join(out, "water.json"), "w"), separators=(",", ":"))
+    wf = os.path.join(out, "water.json")
+    if os.path.exists(wf):
+        os.remove(wf)                          # BUILD_VER < 3 water polygons (now per-chunk levels)
     man = {"name": name, "bbox": bbox, "lat0": lat0, "lon0": lon0, "chunk": cs, "base_elev": base,
+           "dem": {"file": "dem.bin", "o": [ix0 * cs, iz0 * cs], "step": st, "nx": nx, "nz": nz, "unit": 0.5, "abs": True},
            "extent": [x0, z0, x1, z1], "chunks": names, "counts": counts, "version": BUILD_VER, "build_key": bkey,
            "source": src_id[0]}
     json.dump(man, open(mf, "w"), indent=1)

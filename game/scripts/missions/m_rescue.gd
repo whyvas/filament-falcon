@@ -19,7 +19,7 @@ func setup() -> void:
 		{"text": "CARGO DOORS open and ARM out", "role": "OPS"},
 		{"text": "Catch the spacewalker with the arm!", "role": "OPS"},
 	]
-	set_circular_orbit(earth(), 150000.0, deg_to_rad(80.0))
+	set_circular_orbit(earth(), 380000.0, deg_to_rad(80.0))
 	sim.basis = ship_basis(sim.vel, sim.pos.rel(earth().pos))
 	sim.ang_vel = Vector3(0.02, 0.035, 0.0) * (1.5 if game.difficulty() == "hard" else 1.0)
 	game.nav_targets = [{"name": "EARTH", "body": earth()}]

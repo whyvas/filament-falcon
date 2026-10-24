@@ -150,11 +150,15 @@ All views render at native 1920x1080 (the console also works in portrait, 1080x1
 - **Debug slew / free camera** (mission PAUSED; PANEL page buttons or **Ctrl+F**): **SHIP** moves and turns the
   Falcon itself and RESUME continues from there, velocity **ZEROED** (matched to the nearest body: parks / hovers)
   or **KEPT** (V or the button). **FREE CAM** flies the camera only (the ship stays; the camera snaps back on resume).
-  Speeds 0.1 / 1 / 10 / 100 / 1000 / 10000 m/s and 1 / 5 / 20 / 90 °/s, shown on the PANEL page. Keys while it is
+  Speeds 0.1 / 1 / 10 / 100 / 1000 / 10000 / 100000 / 1000000 m/s (up to 1,000 km/s: cross the real-size Earth or fly to the Moon) and 1 / 5 / 20 / 90 °/s, shown on the PANEL page. Keys while it is
   on (the slew owns the keyboard): W/S fwd/back, A/D left/right, Q/E down/up, ↑↓ pitch, ←→ yaw, Z/X roll, +/− (or
   keypad) speed, [ ] turn speed, Tab ship/cam, V velocity, Esc off, Pause/F9 resume. The kids' sticks work too
   (Pilot stick turns, Ops stick moves), and so do the hold pads on the PANEL page. Works anywhere: orbit, station,
-  Moon, the Fredericton region (no collision: slew down to the ground yourself).
+  Moon, any detail region (no collision: slew down to the ground yourself).
+- **AREAS**: the real-size Earth's area manager. Pick a preset, LAT / LON + radius, or drag a box on the map, see
+  the download sizes, then QUEUE DOWNLOAD + GENERATE (DEM, Sentinel-2 imagery, the Geofabrik extract, the 3D OSM
+  build). Jobs run in the background on this PC; the list shows progress and disk use, with CANCEL / REBUILD /
+  DELETE. Same thing from a terminal: `python3 tools/area_manager.py`. See [REAL_EARTH.md](REAL_EARTH.md).
 - **ICS**: the intercom: headset per seat (◀ ▶, IDENTIFY through that station's AUDIO OUT, RESCAN), mic level
   meters, OUT meter + stream state per station, VOX/PTT, VOX level / attack /
   hang, mic gain, intercom and game volume, sidetone per seat; radio effect, static, squelch tail, click + roger,
@@ -560,6 +564,7 @@ godot --headless --path . --audio-driver Dummy -- --smoke-test --only=eva       
 godot --headless --path . --xr-mode on -- --eva-client --eva-selftest            # the VR client starts cleanly with no OpenXR runtime
 XDG_DATA_HOME=/tmp/ff godot --headless --path . -- --asset-test               # every shader compiles + HD texture cache round-trip
 godot --headless --path . -- --region-test --region-dir=DIR                    # region chunks: sync build + threaded streaming
+python3 tools/area_manager.py estimate fredericton --offline                   # area manager (no downloads)
 python3 tools/test_falcon_ics.py                                         # intercom: DSP (band-pass, compressor), VOX, mixing/routing,
                                                                           # drift rings, device grouping (PulseAudio + PipeWire), replug matching,
                                                                           # the SPACEWALKER seat (WiVRn detection, suit radio, Quindar tones)

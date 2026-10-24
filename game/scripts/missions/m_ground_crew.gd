@@ -23,7 +23,7 @@ func setup() -> void:
 		{"text": "SCANNER PING: send a photo to Mission Control", "role": "OPS"},
 		{"text": "Mission Control: press PHOTO RECEIVED", "role": "MC"},
 	]
-	set_circular_orbit(earth(), 150000.0, deg_to_rad(100.0))
+	set_circular_orbit(earth(), 350000.0, deg_to_rad(100.0))
 	sim.basis = ship_basis(sim.vel, sim.pos.rel(earth().pos))
 	game.nav_targets = [{"name": "EARTH", "body": earth()}, {"name": "MOON", "body": moon()}]
 	link = GroundLink.get_link()

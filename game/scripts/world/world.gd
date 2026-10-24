@@ -15,7 +15,12 @@ var cloud_mat: ShaderMaterial
 var atmo_mat: ShaderMaterial
 var moon_node: Node3D
 var moon_mat: ShaderMaterial
-var patches: Array = []        # [{node, body, center}]
+var earth_lod: PlanetLOD
+var moon_lod: PlanetLOD
+var moon_scale := 1.0
+var _pack_tex := {}            # area pack id -> Texture2D (Sentinel-2 imagery)
+var _pack_loading := {}
+var _pack_tasks: Array[int] = []
 var ent_nodes := {}            # entity id -> Node3D
 var tunnel: MeshInstance3D
 var tunnel_mat: ShaderMaterial
@@ -45,10 +50,8 @@ func _ready() -> void:
 	_build_environment()
 	_build_bodies()
 	_apply_nasa_textures()
-	_build_patches()
-	region = RegionView.new()
-	region.name = "Region"
-	add_child(region)
+	_scan_regions()
+	_set_region(_fixed_region_dir())
 	ship = ShipModel.new()
 	ship.name = "Falcon"
 	add_child(ship)
@@ -149,11 +152,12 @@ func _build_bodies() -> void:
 	add_child(earth_node)
 	var seg := _quality_segments()
 	var air := {"planet_r_km": e.radius / 1000.0, "atmo_r_km": e.radius / 1000.0 + 90.0}
-	earth_mat = ProcGen.shader_mat("res://shaders/planet.gdshader", {"site_a": Game.pad_dir, "site_b": Game.runway_dir}.merged(air))
-	var surf := ProcGen.mesh_node(ProcGen.sphere(e.radius - 20.0, seg, seg / 2), earth_mat)
-	surf.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	surf.extra_cull_margin = 16384.0
-	earth_node.add_child(surf)
+	earth_mat = ProcGen.shader_mat("res://shaders/planet.gdshader", {"site_a": Game.pad_dir, "site_b": Game.runway_dir, "lod": true}.merged(air))
+	# Real-size ground: cube-sphere quadtree LOD (same heights as the physics), camera-relative
+	earth_lod = PlanetLOD.new()
+	earth_lod.name = "EarthLOD"
+	add_child(earth_lod)
+	earth_lod.setup(e, earth_mat, earth_sample, 15 if Settings.quality_index() >= 1 else 14)
 	cloud_mat = ProcGen.shader_mat("res://shaders/clouds.gdshader", {"site_a": Game.pad_dir, "site_b": Game.runway_dir}.merged(air))
 	var cl := ProcGen.mesh_node(ProcGen.sphere(e.radius + 4500.0, seg, seg / 2), cloud_mat)
 	cl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -171,11 +175,23 @@ func _build_bodies() -> void:
 	moon_node = Node3D.new()
 	moon_node.name = "Moon"
 	add_child(moon_node)
-	moon_mat = ProcGen.shader_mat("res://shaders/moon.gdshader", {"site_dir": Game.lunar_site_dir})
-	var ms := ProcGen.mesh_node(ProcGen.sphere(m.radius - 20.0, seg * 2, seg), moon_mat)
-	ms.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	ms.extra_cull_margin = 16384.0
-	moon_node.add_child(ms)
+	moon_mat = ProcGen.shader_mat("res://shaders/moon.gdshader", {"site_dir": Game.lunar_site_dir, "lod": true})
+	moon_lod = PlanetLOD.new()
+	moon_lod.name = "MoonLOD"
+	add_child(moon_lod)
+	moon_lod.setup(m, moon_mat, func(d: Vector3) -> Vector3: return Vector3(m.natural_height(d, true), 0.0, 0.0), 13)
+
+
+## Height / water / area-pack coverage for the Earth LOD chunks (worker threads): the detail
+## region when one covers the point, else the real-Earth terrain (packs, global DEM).
+static func earth_sample(d: Vector3) -> Vector3:
+	var e: CelestialBody = Game.earth
+	var r := Vector3(e.natural_height(d, true), 0.0, 0.0) if e.terrain == null else e.terrain.sample(d)
+	if e.render_hook.is_valid():
+		var rh: float = e.render_hook.call(d)
+		if not is_nan(rh):
+			r.x = rh
+	return r
 
 
 ## NASA textures from the asset cache (tools/fetch_assets.sh); the procedural shaders stay as
@@ -236,25 +252,6 @@ func _apply_hd(out: Dictionary) -> void:
 		earth_mat.set_shader_parameter(k, t)
 	earth_mat.set_shader_parameter("use_normal", out.has("normal_tex") and out.has("mask_tex"))
 	print("Earth: HD textures %s (%d ms, cache %s/tex)" % [str(names), int(out.get("_ms", 0)), Geo.cache_dir()])
-
-
-func _build_patches() -> void:
-	var n: int = [96, 160, 224, 256][Settings.quality_index()]
-	var earth_mat_t := ProcGen.shader_mat("res://shaders/terrain.gdshader", {"lunar": false, "tint_a": Color(0.16, 0.24, 0.08), "tint_b": Color(0.32, 0.3, 0.18)})
-	var moon_mat_t := ProcGen.shader_mat("res://shaders/terrain.gdshader", {"lunar": true})
-	_add_patch(Game.earth, Game.pad_dir, 16000.0, n, earth_mat_t)
-	_add_patch(Game.earth, Game.runway_dir, 30000.0, n, earth_mat_t)
-	_add_patch(Game.moon, Game.lunar_site_dir, 22000.0, n, moon_mat_t)
-
-
-func _add_patch(body: CelestialBody, center: Vector3, half: float, n: int, mat: Material) -> void:
-	var mi := ProcGen.mesh_node(ProcGen.terrain_patch(body, center, half, n), mat)
-	var up := center.normalized()
-	var east := CelestialBody.east_at(up)
-	mi.basis = Basis(east, up, east.cross(up))
-	mi.extra_cull_margin = 2000.0
-	add_child(mi)
-	patches.append({"node": mi, "body": body, "center": up})
 
 
 func apply_quality() -> void:
@@ -388,10 +385,16 @@ func _spawn_explosion(p: BigVec, radius: float, c: Color) -> void:
 
 
 # ------------------------------------------------------------------ per frame
+## Scaled-space factor for a body: 1 while everything up to its horizon (+20 km of mountains)
+## fits inside the far plane, so near the ground nothing is scaled and terrain, pads, buildings
+## and the ship share one true-size space; further out the body shrinks about the camera.
+func scaled_factor(d: float, radius: float) -> float:
+	var need := sqrt(maxf(d * d - radius * radius, 0.0)) + 20000.0
+	return minf(1.0, FAR_SAFE / maxf(need, 1.0))
+
+
 func _place_scaled(node: Node3D, rel: Vector3, radius: float) -> float:
-	var d := rel.length()
-	var need := sqrt(maxf(d * d - radius * radius, 0.0)) + radius * 0.3
-	var s := minf(1.0, FAR_SAFE / maxf(need, 1.0))
+	var s := scaled_factor(rel.length(), radius)
 	node.position = rel * s
 	node.scale = Vector3.ONE * s
 	return s
@@ -418,7 +421,8 @@ func _process(dt: float) -> void:
 	var ep := g.earth.pos.rel(origin)
 	earth_scale = _place_scaled(earth_node, ep, g.earth.radius)
 	var mp := g.moon.pos.rel(origin)
-	_place_scaled(moon_node, mp, g.moon.radius)
+	moon_scale = _place_scaled(moon_node, mp, g.moon.radius)
+	_update_lod(g, origin)
 	atmo_node.position = rig_xform.origin
 	atmo_mat.set_shader_parameter("planet_center", ep)
 	atmo_mat.set_shader_parameter("space_scale", earth_scale)
@@ -450,19 +454,11 @@ func _process(dt: float) -> void:
 	var exp_target := lerpf(0.92, 0.78, day_factor) + night * 0.35
 	exp_target *= 1.0 - 0.35 * g.cabin_dim     # bedtime: a darker, calmer view
 	env.tonemap_exposure = lerpf(env.tonemap_exposure, exp_target, clampf(dt * 1.5, 0.0, 1.0)) if dt < 0.5 else exp_target
+	_region_tick += 1
+	if _region_tick % 60 == 0 and _fixed_region_dir() == "":
+		_pick_region(origin)
 	if region:
 		region.place(origin)
-	# Terrain patches: visible only when near
-	for p in patches:
-		var body2: CelestialBody = p["body"]
-		var center: Vector3 = p["center"]
-		var bc := body2.pos.copy()
-		bc.add_xyz(center.x * body2.radius, center.y * body2.radius, center.z * body2.radius)
-		var rel := bc.rel(origin)
-		var node: Node3D = p["node"]
-		node.position = rel
-		# Earth patches sit under the cloud deck: from high up the planet shader takes over
-		node.visible = rel.length() < 400000.0 and (body2 != g.earth or sim.altitude < 60000.0)
 	# Entities
 	for e in g.entities:
 		var n: Node3D = ent_nodes.get(e["id"])
@@ -472,7 +468,10 @@ func _process(dt: float) -> void:
 		n.position = rel2
 		n.basis = e["basis"]
 		var far := 250000.0 if e["kind"] in ["pad", "runway", "lunar_pad"] else (60000.0 if e["kind"] != "field" else 500000.0)
-		n.visible = bool(e.get("visible", true)) and rel2.length() < far
+		var vis := bool(e.get("visible", true)) and rel2.length() < far
+		if e["mode"] == "surface":   # only while its planet is drawn true-size (not in scaled space)
+			vis = vis and (earth_scale if e["body"] == g.earth else moon_scale) > 0.999
+		n.visible = vis
 		_animate_entity(e, n, dt)
 	# FX
 	for f in fx_nodes.duplicate():
@@ -504,6 +503,155 @@ func _process(dt: float) -> void:
 		tunnel.basis = sim.basis * Basis(Vector3.RIGHT, PI * 0.5)
 		tunnel_mat.set_shader_parameter("intensity", sin(clampf(g.jump_phase, 0.0, 1.0) * PI) * 1.5 + g.jump_phase * 0.3)
 		tunnel_mat.set_shader_parameter("time", _t)
+
+
+# ------------------------------------------------------------------ real-size LOD terrain
+func _update_lod(g: Node, origin: BigVec) -> void:
+	var e: CelestialBody = g.earth
+	var m: CelestialBody = g.moon
+	var eb := e.pos.rel_d(origin)
+	earth_lod.update(eb, earth_scale)
+	moon_lod.update(m.pos.rel_d(origin), moon_scale)
+	# camera (floating origin) in planet space: km for the air maths, mod 4096 m for wave phase
+	earth_mat.set_shader_parameter("cam_planet_km", Vector3(-eb[0], -eb[1], -eb[2]) * 0.001)
+	earth_mat.set_shader_parameter("wave_shift", Vector3(fposmod(-eb[0], 4096.0), fposmod(-eb[1], 4096.0), fposmod(-eb[2], 4096.0)))
+	earth_mat.set_shader_parameter("lod_scale", earth_scale)
+	if e.terrain != null and not e.terrain.packs.is_empty() and Engine.get_process_frames() % 30 == 0:
+		_update_pack_textures(Vector3(-eb[0], -eb[1], -eb[2]).normalized())
+
+
+## Up to 4 area packs nearest the camera get their Sentinel-2 imagery on the planet shader.
+func _update_pack_textures(cdir: Vector3) -> void:
+	var gfg := Geo.game_from_geo().inverse()
+	var gd := gfg * cdir
+	var lat := rad_to_deg(asin(clampf(gd.y, -1.0, 1.0)))
+	var lon := rad_to_deg(atan2(gd.x, -gd.z))
+	var pl: Array = Game.earth.terrain.packs.duplicate()
+	pl.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return Vector2((float(a["s"]) + float(a["n"])) * 0.5 - lat, (float(a["w"]) + float(a["e"])) * 0.5 - lon).length() \
+			< Vector2((float(b["s"]) + float(b["n"])) * 0.5 - lat, (float(b["w"]) + float(b["e"])) * 0.5 - lon).length())
+	var n := 0
+	for pk: Dictionary in pl:
+		if n >= 4:
+			break
+		var id: String = pk["id"]
+		if not _pack_tex.has(id):
+			_load_pack_tex(id, str(pk["img"]))
+			continue
+		earth_mat.set_shader_parameter("pack_box%d" % n, Vector4(pk["s"], pk["w"], pk["n"], pk["e"]))
+		earth_mat.set_shader_parameter("pack_tex%d" % n, _pack_tex[id])
+		n += 1
+	earth_mat.set_shader_parameter("pack_count", n)
+
+
+func _load_pack_tex(id: String, path: String) -> void:
+	if _pack_loading.has(id) or not FileAccess.file_exists(path):
+		return
+	_pack_loading[id] = true
+	var wr: WeakRef = weakref(self)
+	_pack_tasks.append(WorkerThreadPool.add_task(func() -> void:
+		var img := Image.load_from_file(path)
+		if img == null or img.is_empty():
+			return
+		img.generate_mipmaps()
+		img.compress(Image.COMPRESS_S3TC, Image.COMPRESS_SOURCE_SRGB)
+		(func() -> void:
+			var w: Object = wr.get_ref()
+			if w:
+				w.call("_pack_tex_ready", id, img)).call_deferred(), false, "area pack imagery"))
+
+
+func _exit_tree() -> void:
+	for t: int in _pack_tasks:
+		WorkerThreadPool.wait_for_task_completion(t)
+	_pack_tasks.clear()
+
+
+func _pack_tex_ready(id: String, img: Image) -> void:
+	_pack_tex[id] = ImageTexture.create_from_image(img)
+	_pack_loading.erase(id)
+
+
+## Area packs / regions changed on disk (area manager job finished): re-read and re-mesh.
+func reload_terrain() -> void:
+	if Game.earth.terrain != null:
+		Game.earth.terrain.reload_packs()
+	_pack_tex.clear()
+	_scan_regions()
+	if region and not DirAccess.dir_exists_absolute(region.dir):
+		_set_region("")
+	earth_lod.rebuild()
+
+
+# ------------------------------------------------------------------ detail regions
+var _regions: Array = []        # [{dir, s, w, n, e}] built regions (assets/regions/*/manifest.json)
+var _region_tick := 0
+
+
+## --region=NAME / --region-dir=DIR pin one region (tests, the Fredericton missions); otherwise
+## the built region under (or nearest within 30 km of) the camera is loaded automatically.
+func _fixed_region_dir() -> String:
+	if Settings.cli.has("region-dir"):
+		return str(Settings.cli["region-dir"])
+	if Settings.cli.has("region"):
+		return Geo.asset_dir() + "/regions/" + str(Settings.cli["region"])
+	return ""
+
+
+func _scan_regions() -> void:
+	_regions.clear()
+	var base := Geo.asset_dir() + "/regions"
+	if not DirAccess.dir_exists_absolute(base):
+		return
+	for id in DirAccess.get_directories_at(base):
+		var mf := base + "/" + id + "/manifest.json"
+		if not FileAccess.file_exists(mf):
+			continue
+		var m: Variant = JSON.parse_string(FileAccess.get_file_as_string(mf))
+		if typeof(m) != TYPE_DICTIONARY or not (m as Dictionary).has("bbox"):
+			continue
+		var bb: Array = m["bbox"]
+		_regions.append({"dir": base + "/" + id, "s": float(bb[0]), "w": float(bb[1]), "n": float(bb[2]), "e": float(bb[3])})
+
+
+func _set_region(d0: String) -> void:
+	var d := d0 if d0 != "" else Geo.asset_dir() + "/regions/fredericton"
+	if region and region.dir == d:
+		return
+	if region:
+		region.queue_free()
+		remove_child(region)
+		region = null
+	region = RegionView.new()
+	region.name = "Region"
+	region.dir = d
+	add_child(region)       # a missing / old region is a no-op node
+	if earth_lod:
+		earth_lod.rebuild()
+
+
+func _pick_region(origin: BigVec) -> void:
+	if _regions.is_empty():
+		return
+	var rel := Game.earth.pos.rel_d(origin)
+	var cd := Vector3(-rel[0], -rel[1], -rel[2])
+	var alt := cd.length() - Game.earth.radius
+	if alt > 60000.0:
+		return
+	var gd := Geo.game_from_geo().inverse() * cd.normalized()
+	var lat := rad_to_deg(asin(clampf(gd.y, -1.0, 1.0)))
+	var lon := rad_to_deg(atan2(gd.x, -gd.z))
+	var best := ""
+	var best_d := 30.0
+	for r: Dictionary in _regions:
+		var dlat := maxf(maxf(float(r["s"]) - lat, lat - float(r["n"])), 0.0) * 110.54
+		var dlon := maxf(maxf(float(r["w"]) - lon, lon - float(r["e"])), 0.0) * 111.32 * cos(deg_to_rad(lat))
+		var dk := Vector2(dlat, dlon).length()
+		if dk < best_d:
+			best_d = dk
+			best = r["dir"]
+	if best != "" and (region == null or region.dir != best):
+		_set_region(best)
 
 
 func _animate_entity(e: Dictionary, n: Node3D, dt: float) -> void:

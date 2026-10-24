@@ -23,7 +23,7 @@ func setup() -> void:
 		{"text": "Press the big RECORD button", "role": "BOTH"},
 		{"text": "Tell the log about our mission, then press STOP", "role": "BOTH"},
 	]
-	set_circular_orbit(earth(), 150000.0, deg_to_rad(-30.0))
+	set_circular_orbit(earth(), 350000.0, deg_to_rad(-30.0))
 	sim.basis = ship_basis(sim.vel, sim.pos.rel(earth().pos))
 	game.nav_targets = [{"name": "EARTH", "body": earth()}]
 	_card_record()

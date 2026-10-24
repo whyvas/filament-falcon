@@ -12,6 +12,7 @@ uniform sampler2D color_tex : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D height_tex : filter_linear_mipmap, repeat_enable;
 uniform float height_scale = 0.012;   // LOLA range (~20 km) relative to the 200 km game Moon, exaggerated
 uniform vec3 site_dir = vec3(1.0, 0.0, 0.0);   // lunar landing patch: no displacement there
+uniform bool lod = false;   // real-size LOD chunks (planet_lod.gd): dir + height in CUSTOM0, mesh normals
 vec2 moon_uv(vec3 d) {
 	float lon = atan(d.x, -d.z);
 	return vec2(lon / 6.2831853 + 0.5, 0.5 - asin(clamp(d.y, -1.0, 1.0)) / 3.1415927);
@@ -21,12 +22,17 @@ varying vec3 obj_dir;
 varying vec3 world_n;
 
 void vertex() {
+	if (lod) {
+		obj_dir = CUSTOM0.xyz;
+		world_n = NORMAL;
+	} else {
 	obj_dir = normalize(VERTEX);
 	world_n = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 	if (use_tex) {   // displacement from LOLA (the sphere is dense enough at high quality)
 		float h = textureLod(height_tex, moon_uv(obj_dir), 0.0).r;
 		float keep = smoothstep(0.12, 0.3, acos(clamp(dot(obj_dir, normalize(site_dir)), -1.0, 1.0)));
 		VERTEX += NORMAL * (h - 0.5) * height_scale * length(VERTEX) * keep - NORMAL * 0.004 * length(VERTEX) * keep;
+	}
 	}
 }
 
@@ -66,7 +72,18 @@ void fragment() {
 		float hy = textureLod(height_tex, moon_uv(normalize(d + e2 * s)), 0.0).r;
 		vec3 nobj = normalize(d - (e1 * (hx - h0) + e2 * (hy - h0)) * height_scale / s * 6.0);
 		vec3 nw = normalize((MODEL_MATRIX * vec4(nobj, 0.0)).xyz);
+		if (lod) {   // geometry carries the relief; the LOLA normal only adds far-away detail
+			float far_k = smoothstep(0.0005, 0.004, length(fwidth(d)));
+			nw = normalize(n + (nobj - d) * far_k);
+		}
 		lit = max(dot(nw, L), 0.0) * (1.0 + cr * 0.15);
+	}
+	if (lod) {   // close to the ground: regolith mottling + small craterlets (100 m .. 5 m)
+		float fw = length(fwidth(d));
+		float nk = 1.0 - smoothstep(2e-6, 4e-5, fw);
+		float nk2 = 1.0 - smoothstep(2e-7, 4e-6, fw);
+		float cl = craters(d, 9000.0) * nk + craters(d, 60000.0) * 0.5 * nk2;
+		base *= 1.0 + (fbm(d * 30000.0, 3) - 0.5) * 0.35 * nk + (fbm(d * 400000.0, 3) - 0.5) * 0.25 * nk2 + cl * 0.18;
 	}
 	ALBEDO = base * max(lit, 0.0) * 1.9;
 }

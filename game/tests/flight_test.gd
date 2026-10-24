@@ -199,7 +199,7 @@ func _fly_launch() -> void:
 					press("ops_trigger", 1.0)        # STAGE!
 			3:
 				Game.nav_vector = "GUIDANCE"
-				throttle(1.0 if float(el["ap_alt"]) < 89500.0 else 0.0)
+				throttle(0.0 if float(el["ap_alt"]) >= 198500.0 and float(el["pe_alt"]) > -295000.0 else 1.0)
 			4:
 				throttle(0.0)
 				Game.nav_vector = "PROGRADE"

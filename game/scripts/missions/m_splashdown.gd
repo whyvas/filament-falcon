@@ -31,6 +31,11 @@ func setup() -> void:
 	set_card("COMING HOME", "Shields on, hold on tight!")
 
 
+## Real-size Earth: come down in the Atlantic ~75 km east of Cape Canaveral, not on land.
+func entry_target() -> Vector3:
+	return Geo.game_dir(28.45, -79.85).normalized()
+
+
 func update(dt: float) -> void:
 	blackout = sim.heat_flux > 60000.0
 	guidance["blackout"] = blackout

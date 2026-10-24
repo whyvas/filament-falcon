@@ -29,7 +29,7 @@ func setup() -> void:
 		{"text": "Copy the pattern on the card!", "role": "BOTH"},
 		{"text": "Fly to the SIGNAL SOURCE (NAV TARGET)", "role": "PILOT"},
 	]
-	set_circular_orbit(earth(), 160000.0, deg_to_rad(200.0))
+	set_circular_orbit(earth(), 420000.0, deg_to_rad(200.0))
 	sim.basis = ship_basis(sim.vel, sim.pos.rel(earth().pos))
 	var p: BigVec = sim.pos.copy()
 	p.add(sim.vel.normalized() * 2500.0 + sim.basis.y * 300.0)

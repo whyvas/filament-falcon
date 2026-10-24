@@ -1,8 +1,7 @@
 class_name CelestialBody
 extends RefCounted
 ## A gravitating body (point mass) on simple circular rails around its parent.
-## The game world is a 1:10.6 scaled solar system (like Kerbal Space Program) with real
-## surface gravity, so the physics is genuine Newtonian mechanics but a launch takes minutes.
+## Real size: Earth R = 6371 km, Moon R = 1737 km at 384,400 km (Newtonian point masses).
 
 var id := ""
 var display_name := ""
@@ -27,7 +26,12 @@ var terrain_amp := 0.0
 var terrain_noise := FastNoiseLite.new()
 var crater_noise := FastNoiseLite.new()
 var cratered := false
-var sites: Array = []          # [{dir: Vector3, flat_r: float}]
+var relief_amp := 0.0          # broad low-frequency relief (Moon highlands / basins), m
+var relief_noise := FastNoiseLite.new()
+var sites: Array = []          # [{dir: Vector3, flat_r: float, h: float}]
+## Real-Earth heights (global DEM + land mask + downloaded area packs), see EarthTerrain.
+## null = procedural noise terrain (the Moon, or Earth with no assets installed).
+var terrain: EarthTerrain = null
 
 
 func _init() -> void:
@@ -41,6 +45,11 @@ func _init() -> void:
 	crater_noise.cellular_distance_function = FastNoiseLite.DISTANCE_EUCLIDEAN
 	crater_noise.frequency = 0.0012
 	crater_noise.seed = 11
+	relief_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	relief_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+	relief_noise.fractal_octaves = 6
+	relief_noise.frequency = 1.0 / 90000.0
+	relief_noise.seed = 3
 
 
 func update(t: float) -> void:
@@ -67,6 +76,7 @@ func density(alt: float) -> float:
 
 ## Terrain height (m above `radius`) for a unit direction from the body centre.
 var height_hook: Callable   # a loaded detail region (RegionView.height_at): NAN = outside it
+var render_hook: Callable   # same, for the planet LOD mesh (sits just under the region's own mesh)
 
 
 func terrain_height(dir: Vector3) -> float:
@@ -74,7 +84,15 @@ func terrain_height(dir: Vector3) -> float:
 		var rh: float = height_hook.call(dir)
 		if not is_nan(rh):
 			return rh
-	if terrain_amp <= 0.0:
+	if terrain != null:
+		return terrain.height(dir)
+	return natural_height(dir, true)
+
+
+## Procedural terrain: noise hills (+ craters, + broad relief), flattened around the sites.
+## Thread-safe (the LOD terrain meshes call it from worker threads).
+func natural_height(dir: Vector3, flatten: bool) -> float:
+	if terrain_amp <= 0.0 and relief_amp <= 0.0:
 		return 0.0
 	var p := dir * radius
 	var h := (terrain_noise.get_noise_3dv(p) * 0.5 + 0.5) * terrain_amp
@@ -84,17 +102,31 @@ func terrain_height(dir: Vector3) -> float:
 		var rim := exp(-pow((c - 0.45) / 0.08, 2.0))
 		h += (-bowl * bowl * 0.8 + rim * 0.3) * terrain_amp
 		h = maxf(h, 0.0)
-	var flat := terrain_amp * 0.25
+	if relief_amp > 0.0:
+		h += relief_noise.get_noise_3dv(p) * relief_amp
+	if flatten:
+		h = flatten_sites(dir, h)
+	return h
+
+
+## Blend a height toward each site's flat pad height (flat inside flat_r, natural beyond 4x).
+func flatten_sites(dir: Vector3, h: float) -> float:
 	for s in sites:
 		var sd: Vector3 = s["dir"]
 		var flat_r: float = s["flat_r"]
 		var d := sd.angle_to(dir) * radius
-		h = lerpf(flat, h, smoothstep(flat_r, flat_r * 4.0, d))
+		if d < flat_r * 4.0:
+			h = lerpf(float(s["h"]), h, smoothstep(flat_r, flat_r * 4.0, d))
 	return h
 
 
-func add_site(dir: Vector3, flat_r: float) -> void:
-	sites.append({"dir": dir.normalized(), "flat_r": flat_r})
+## A flat site (launch pad, runway, landing pad). height NAN = the natural height there.
+func add_site(dir: Vector3, flat_r: float, height: float = NAN) -> void:
+	var d := dir.normalized()
+	var h := height
+	if is_nan(h):
+		h = natural_height(d, false) if relief_amp > 0.0 else terrain_amp * 0.25
+	sites.append({"dir": d, "flat_r": flat_r, "h": h})
 
 
 func clear_sites() -> void:

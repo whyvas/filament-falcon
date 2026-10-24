@@ -9,7 +9,7 @@ extends RefCounted
 ## Keys: W/S fwd/back, A/D left/right, Q/E down/up · arrows pitch/yaw, Z/X roll ·
 ## +/- slew speed · [ ] turn speed · Tab ship/cam · V keep/zero velocity · Esc off · Pause resume.
 
-const SPEEDS := [0.1, 1.0, 10.0, 100.0, 1000.0, 10000.0]   # m/s
+const SPEEDS := [0.1, 1.0, 10.0, 100.0, 1000.0, 10000.0, 100000.0, 1000000.0]   # m/s (1000 km/s: Earth -> Moon in ~6 min)
 const ROT_SPEEDS := [1.0, 5.0, 20.0, 90.0]                 # deg/s
 
 var active := false

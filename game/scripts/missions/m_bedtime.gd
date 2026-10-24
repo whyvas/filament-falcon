@@ -27,7 +27,7 @@ func setup() -> void:
 		{"text": "Wave good night to the Earth", "role": "ALL", "say": "Let's wave good night to the Earth."},
 		{"text": "Close your eyes and drift...", "role": "ALL", "say": "Now close your eyes, and float."},
 	]
-	set_circular_orbit(earth(), 170000.0, deg_to_rad(150.0))
+	set_circular_orbit(earth(), 400000.0, deg_to_rad(150.0))
 	var up := sim.pos.rel(earth().pos).normalized()
 	game.sun_dir = (-up * 0.95 + sim.vel.normalized() * 0.3).normalized()    # night side, sunrise far ahead
 	var to_moon := moon().pos.rel(sim.pos).normalized()

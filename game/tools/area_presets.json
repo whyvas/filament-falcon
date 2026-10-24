@@ -1,0 +1,128 @@
+{
+ "fredericton": {
+  "name": "Fredericton NB",
+  "bbox": [
+   45.915,
+   -66.705,
+   46.005,
+   -66.575
+  ]
+ },
+ "moncton": {
+  "name": "Moncton NB",
+  "bbox": [
+   46.045,
+   -64.865,
+   46.135,
+   -64.735
+  ]
+ },
+ "saint-john": {
+  "name": "Saint John NB",
+  "bbox": [
+   45.225,
+   -66.125,
+   45.315,
+   -65.995
+  ]
+ },
+ "dieppe": {
+  "name": "Dieppe NB",
+  "bbox": [
+   46.055,
+   -64.775,
+   46.12,
+   -64.665
+  ]
+ },
+ "bathurst": {
+  "name": "Bathurst NB",
+  "bbox": [
+   47.585,
+   -65.715,
+   47.655,
+   -65.595
+  ]
+ },
+ "miramichi": {
+  "name": "Miramichi NB",
+  "bbox": [
+   46.985,
+   -65.635,
+   47.055,
+   -65.505
+  ]
+ },
+ "edmundston": {
+  "name": "Edmundston NB",
+  "bbox": [
+   47.335,
+   -68.385,
+   47.405,
+   -68.265
+  ]
+ },
+ "sackville": {
+  "name": "Sackville NB",
+  "bbox": [
+   45.875,
+   -64.405,
+   45.925,
+   -64.335
+  ]
+ },
+ "campbellton": {
+  "name": "Campbellton NB",
+  "bbox": [
+   47.975,
+   -66.725,
+   48.025,
+   -66.625
+  ]
+ },
+ "oromocto": {
+  "name": "Oromocto NB",
+  "bbox": [
+   45.81,
+   -66.52,
+   45.87,
+   -66.42
+  ]
+ },
+ "ksc": {
+  "name": "Kennedy Space Center FL",
+  "bbox": [
+   28.4,
+   -80.78,
+   28.66,
+   -80.52
+  ]
+ },
+ "halifax": {
+  "name": "Halifax NS",
+  "bbox": [
+   44.6,
+   -63.68,
+   44.7,
+   -63.52
+  ]
+ },
+ "cocoa-beach": {
+  "name": "Cocoa Beach FL",
+  "bbox": [
+   28.28,
+   -80.66,
+   28.4,
+   -80.58
+  ]
+ },
+ "fundy": {
+  "name": "Bay of Fundy (Fundy NP)",
+  "bbox": [
+   45.55,
+   -65.1,
+   45.65,
+   -64.9
+  ]
+ }
+}

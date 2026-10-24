@@ -38,11 +38,11 @@ var booster_fuel_max := 46000.0
 
 # --- propulsion
 var main_thrust := 280000.0
-var main_isp_vac := 345.0
-var main_isp_sl := 300.0
+var main_isp_vac := 1040.0      # real-size Earth: ~12 km/s total delta-v (a "hot" future engine)
+var main_isp_sl := 900.0
 var booster_thrust := 1150000.0
-var booster_isp_vac := 305.0
-var booster_isp_sl := 275.0
+var booster_isp_vac := 610.0
+var booster_isp_sl := 540.0
 var rcs_force := 4500.0
 var rcs_isp := 230.0
 var rw_torque := 60000.0
@@ -61,7 +61,7 @@ var gear_pos := 0.0
 var airbrake := false
 var flaps := 0.5                      # 0 up, 0.5 half, 1 down (3-position switch)
 var shield_on := false
-var heat_mult := 4.0
+var heat_mult := 1.0
 var clamped := false
 var anchor_pos := BigVec.new()
 var anchor_vel := Vector3.ZERO
@@ -396,7 +396,7 @@ func _contacts(rel: PackedFloat64Array, I: Vector3, dt: float) -> Array:
 	contact_points = 0
 	hull_hit = 0.0
 	gear_hit = 0.0
-	if clamped or altitude - dominant.terrain_amp * 2.0 > 60.0:
+	if clamped or agl > 80.0:
 		_contact_prev.clear()
 		landed = clamped
 		return [f_total, t_total]

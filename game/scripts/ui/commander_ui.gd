@@ -16,13 +16,16 @@ extends FalconPanel
 ##   EVA              spacewalks: pick one, START / ABORT, VR client (Quest 3 via WiVRn) or the
 ##                    on-screen spacewalk (keyboard / mouse / gamepad), comfort settings,
 ##                    suit telemetry and the task list.
+##   AREAS            real-Earth area manager: pick a preset, lat/lon + radius or a box on the
+##                    map, see download sizes, queue DEM / imagery / OSM / 3D-build jobs (run on
+##                    this PC by tools/area_manager.py), progress, cancel, delete, cache use.
 ##   SETUP            which screen is which (4 roles), headsets, virtual panels, layout
 ##                    mode, quality, FPS cap, vsync.
 ## Top bar: board status (PILOT / OPS / CMD: plugged in or VIRTUAL), crew position (pod and
 ## seats, from the read-only senses) and intercom state.
 ## On a 3-screen rig this whole UI is a tab on the kids' console (Escape toggles it).
 
-const PAGES := ["MISSIONS", "MISSION CONTROL", "BRIEFING", "TRAINING", "CONTROLS", "PANEL", "ICS", "EVA", "SETUP"]
+const PAGES := ["MISSIONS", "MISSION CONTROL", "BRIEFING", "TRAINING", "CONTROLS", "PANEL", "ICS", "EVA", "AREAS", "SETUP"]
 const SEAT_COL := {"pilot": FalconPanel.C_PILOT, "ops": FalconPanel.C_OPS, "commander": FalconPanel.C_AMBER, "eva": Color(1.0, 0.85, 0.4)}
 const C_EVA := Color(1.0, 0.85, 0.4)
 
@@ -76,7 +79,7 @@ func _ready() -> void:
 	root.add_child(holder)
 	for p in PAGES:
 		var b := button(p, func() -> void: show_page(p), 22, 60)
-		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART   # 9 tabs: long names wrap on 1280 px screens
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART   # 10 tabs: long names wrap on 1280 px screens
 		b.custom_minimum_size.x = 90
 		b.toggle_mode = true
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -101,6 +104,7 @@ func _ready() -> void:
 	_build_panel(pages["PANEL"])
 	_build_ics(pages["ICS"])
 	_build_eva(pages["EVA"])
+	_build_areas(pages["AREAS"])
 	_build_setup(pages["SETUP"])
 	show_page("MISSIONS")
 
@@ -837,7 +841,7 @@ func _build_control(page: Control) -> void:
 	mid.add_child(telem)
 	var wr := hbox(mid, 6)
 	wr.add_child(label("WARP", 20, C_DIM, false))
-	for w: int in [1, 4, 10, 100, 1000]:
+	for w: int in [1, 4, 10, 100, 1000, 10000]:
 		var b := button("x%d" % w, func() -> void: Game.set_warp(float(w)), 20, 50)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		wr.add_child(b)
@@ -999,7 +1003,7 @@ func _build_controls(page: Control) -> void:
 	page.add_child(v)
 	var dev := label("", 22)
 	v.add_child(dev)
-	v.add_child(label("DEBUG SLEW (mission PAUSED, Ctrl+F or PANEL page): W/S fwd/back · A/D left/right · Q/E down/up · ↑↓ pitch · ←→ yaw · Z/X roll · +/− speed 0.1–10000 m/s · [ ] turn 1–90°/s · Tab ship/free cam · V keep/zero velocity · Esc off · Pause resume. Sticks: Pilot turns, Ops moves.", 16, C_DIM))
+	v.add_child(label("DEBUG SLEW (mission PAUSED, Ctrl+F or PANEL page): W/S fwd/back · A/D left/right · Q/E down/up · ↑↓ pitch · ←→ yaw · Z/X roll · +/− speed 0.1 m/s–1000 km/s · [ ] turn 1–90°/s · Tab ship/free cam · V keep/zero velocity · Esc off · Pause resume. Sticks: Pilot turns, Ops moves.", 16, C_DIM))
 	var sc := ScrollContainer.new()
 	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	v.add_child(sc)
@@ -1154,6 +1158,246 @@ func _build_eva(page: Control) -> void:
 
 
 # ======================================================================== SETUP
+# ======================================================================== AREAS (real Earth)
+const AREA_TOOL := "res://tools/area_manager.py"
+var _ar := {}            # widgets + state of the AREAS page
+var _ar_tasks: Array[int] = []
+
+
+static func _area_cli(args: Array) -> Array:
+	return ["python3", [ProjectSettings.globalize_path(AREA_TOOL)] + args]
+
+
+## Run the area tool without blocking the UI (a worker thread); cb gets the parsed JSON (or {}).
+func _area_async(args: Array, cb: Callable) -> void:
+	var c := _area_cli(args)
+	for t: int in _ar_tasks.duplicate():
+		if WorkerThreadPool.is_task_completed(t):
+			WorkerThreadPool.wait_for_task_completion(t)     # releases the finished task
+			_ar_tasks.erase(t)
+	_ar_tasks.append(WorkerThreadPool.add_task(func() -> void:
+		var out: Array = []
+		OS.execute(str(c[0]), c[1], out, true)
+		var txt := "".join(out)
+		var js: Variant = JSON.parse_string(txt.substr(txt.find("{"))) if txt.find("{") >= 0 else null
+		cb.call_deferred(js if typeof(js) == TYPE_DICTIONARY else {}), false, "area tool"))
+
+
+func _exit_tree() -> void:
+	for t: int in _ar_tasks:
+		WorkerThreadPool.wait_for_task_completion(t)
+	_ar_tasks.clear()
+
+
+func _area_bbox() -> Array:
+	return _ar.get("bbox", [])
+
+
+func _set_area_bbox(bb: Array, name_: String, id_: String) -> void:
+	_ar["bbox"] = bb
+	_ar["name"] = name_
+	_ar["id"] = id_
+	(_ar["map"] as AreaMap).sel = bb
+	(_ar["map"] as AreaMap).queue_redraw()
+	var wkm := (float(bb[3]) - float(bb[1])) * 111.32 * cos(deg_to_rad((float(bb[0]) + float(bb[2])) * 0.5))
+	var hkm := (float(bb[2]) - float(bb[0])) * 110.54
+	(_ar["sel"] as Label).text = "%s\n%.4f, %.4f → %.4f, %.4f   (%.1f × %.1f km, %.0f km²)" % [name_, bb[0], bb[1], bb[2], bb[3], wkm, hkm, wkm * hkm]
+	(_ar["est"] as Label).text = "estimating…"
+	var ver := int(_ar.get("est_ver", 0)) + 1
+	_ar["est_ver"] = ver
+	_area_async(["estimate", "--bbox=%f,%f,%f,%f" % bb, "--json"], func(js: Dictionary) -> void:
+		if int(_ar.get("est_ver", 0)) != ver:
+			return
+		if js.is_empty():
+			(_ar["est"] as Label).text = "estimate failed (python3 + numpy + Pillow on this PC? area too big? max 120 km a side)"
+			return
+		var ex: Variant = js.get("osm_extract")
+		(_ar["est"] as Label).text = ("DEM %d tiles (%d new, ~%.1f MB)   IMAGERY z%d %d tiles (%d new, ~%.1f MB)\n" +
+			"OSM %s (%s)   3D REGION ~%d chunks (~%.0f MB)") % [js["dem_tiles"], js["dem_new"], js["dem_mb"], js["img_zoom"],
+			js["img_tiles"], js["img_new"], js["img_mb"], (ex as Dictionary).get("name", "?") + " extract" if ex is Dictionary else "no extract found",
+			"cached" if js.get("osm_cached", false) else "%.0f MB download" % float(js.get("osm_mb", 0.0)), js["region_chunks"], js["region_mb"]])
+
+
+func _build_areas(page: Control) -> void:
+	var h := hbox(page, 12)
+	var a := panel(h, "PICK AN AREA", true, true)
+	a.get_parent().size_flags_stretch_ratio = 1.5
+	var am := AreaMap.new()
+	am.custom_minimum_size = Vector2(420, 330)
+	am.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	a.add_child(am)
+	_ar["map"] = am
+	am.box_drawn.connect(func(bb: Array) -> void:
+		_set_area_bbox(bb, "Map box", "box_%.3f_%.3f" % [(float(bb[0]) + float(bb[2])) * 0.5, (float(bb[1]) + float(bb[3])) * 0.5]))
+	var pr := hbox(a, 8)
+	pr.add_child(label("PRESET", 20, C_DIM, false))
+	var ob := OptionButton.new()
+	ob.focus_mode = Control.FOCUS_NONE
+	ob.add_theme_font_size_override("font_size", 20)
+	ob.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pr.add_child(ob)
+	var presets: Dictionary = {}
+	var pf := ProjectSettings.globalize_path("res://tools/area_presets.json")
+	if FileAccess.file_exists(pf):
+		var pj: Variant = JSON.parse_string(FileAccess.get_file_as_string(pf))
+		if pj is Dictionary:
+			presets = pj
+	ob.add_item("— choose —")
+	for k: String in presets:
+		ob.add_item(str(presets[k]["name"]))
+		ob.set_item_metadata(ob.item_count - 1, k)
+	ob.item_selected.connect(func(i: int) -> void:
+		if i <= 0:
+			return
+		var k: String = ob.get_item_metadata(i)
+		var bb: Array = presets[k]["bbox"]
+		_set_area_bbox(bb, str(presets[k]["name"]), k)
+		am.frame(bb))
+	var cr := hbox(a, 6)
+	cr.add_child(label("LAT", 18, C_DIM, false))
+	var e_lat := LineEdit.new()
+	e_lat.text = "45.9636"
+	e_lat.custom_minimum_size.x = 110
+	cr.add_child(e_lat)
+	cr.add_child(label("LON", 18, C_DIM, false))
+	var e_lon := LineEdit.new()
+	e_lon.text = "-66.6431"
+	e_lon.custom_minimum_size.x = 120
+	cr.add_child(e_lon)
+	cr.add_child(label("RADIUS km", 18, C_DIM, false))
+	var e_r := LineEdit.new()
+	e_r.text = "5"
+	e_r.custom_minimum_size.x = 60
+	cr.add_child(e_r)
+	cr.add_child(button("SET", func() -> void:
+		var lat := clampf(e_lat.text.to_float(), -84.0, 84.0)
+		var lon := clampf(e_lon.text.to_float(), -180.0, 180.0)
+		var r := clampf(e_r.text.to_float(), 0.5, 60.0)
+		var dlat := r / 110.54
+		var dlon := r / (111.32 * maxf(cos(deg_to_rad(lat)), 0.05))
+		var bb := [lat - dlat, lon - dlon, lat + dlat, lon + dlon]
+		_set_area_bbox(bb, "%.4f, %.4f (%g km)" % [lat, lon, r], "area_%.3f_%.3f" % [lat, lon])
+		am.frame(bb), 20, 48))
+	var sel := label("No area selected: pick a preset, type lat / lon + radius, or drag a box on the map.", 18, C_TEXT)
+	a.add_child(sel)
+	_ar["sel"] = sel
+	var est := label("", 17, C_DIM)
+	a.add_child(est)
+	_ar["est"] = est
+	var sr := hbox(a, 6)
+	var steps := {}
+	for st: String in ["dem", "imagery", "osm", "build"]:
+		var cb := CheckBox.new()
+		cb.text = {"dem": "DEM", "imagery": "IMAGERY", "osm": "OSM EXTRACT", "build": "3D BUILD"}[st]
+		cb.button_pressed = true
+		cb.focus_mode = Control.FOCUS_NONE
+		cb.add_theme_font_size_override("font_size", 18)
+		sr.add_child(cb)
+		steps[st] = cb
+	var q := button("QUEUE DOWNLOAD + GENERATE", func() -> void:
+		var bb := _area_bbox()
+		if bb.is_empty():
+			return
+		var sl: Array = []
+		for st: String in steps:
+			if (steps[st] as CheckBox).button_pressed:
+				sl.append(st)
+		var c := _area_cli(["add", "--id", str(_ar["id"]), "--name", str(_ar["name"]), "--bbox=%f,%f,%f,%f" % bb,
+			"--steps", ",".join(sl), "--run"])
+		OS.create_process(str(c[0]), c[1])
+		_ar["next_poll"] = 0.0, 22, 60)
+	a.add_child(q)
+	live["area_q"] = func() -> void: q.disabled = _area_bbox().is_empty()
+	a.add_child(label("Jobs run in the background on this PC (tools/area_manager.py; also usable from a terminal) and keep going if the game quits. " +
+		"Imagery: Sentinel-2 cloudless by EOX (CC BY-NC-SA 4.0, personal use). Elevation: AWS Terrain Tiles. Map data © OpenStreetMap contributors (Geofabrik extracts).", 15, C_DIM))
+	var b := panel(h, "CACHED AREAS", true, true)
+	var info := label("", 17, C_DIM)
+	b.add_child(info)
+	_ar["info"] = info
+	var list := VBoxContainer.new()
+	list.add_theme_constant_override("separation", 6)
+	b.add_child(list)
+	_ar["list"] = list
+	var rr := hbox(b, 8)
+	var rl := button("RELOAD TERRAIN", func() -> void: _area_reload(), 20, 52)
+	rl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rr.add_child(rl)
+	var rf := button("REFRESH", func() -> void: _ar["next_poll"] = 0.0, 20, 52)
+	rr.add_child(rf)
+	live["areas"] = func() -> void:
+		if current != "AREAS" or _now() < float(_ar.get("next_poll", 0.0)) or _ar.get("polling", false):
+			return
+		_ar["polling"] = true
+		_area_async(["status", "--json"], func(js: Dictionary) -> void:
+			_ar["polling"] = false
+			_ar["next_poll"] = _now() + 2.0
+			_area_list(js))
+
+
+func _area_reload() -> void:
+	var w := get_tree().get_first_node_in_group("world")
+	if w and w.has_method("reload_terrain"):
+		w.call("reload_terrain")
+
+
+func _area_list(js: Dictionary) -> void:
+	var list: VBoxContainer = _ar["list"]
+	var areas: Array = js.get("areas", [])
+	var info: Label = _ar["info"]
+	if js.is_empty():
+		info.text = "area tool not available (needs python3 with numpy + Pillow on this PC)"
+		return
+	var tot := 0.0
+	var done_now: Array = []
+	for ar: Dictionary in areas:
+		tot += float(ar.get("disk_mb", 0.0))
+		if str(ar["state"]) == "done":
+			done_now.append(str(ar["id"]))
+	info.text = "%d area(s), %.0f MB   ·   runner %s   ·   ~/.local/share/filament-falcon/areas" % [areas.size(), tot,
+		("pid %d" % int(js.get("runner", 0))) if int(js.get("runner", 0)) > 0 else "idle"]
+	# a job just finished: the planet picks the new pack up (+ the region when you fly there)
+	var prev: Array = _ar.get("done", [])
+	if _ar.has("done") and done_now.any(func(i: String) -> bool: return not prev.has(i)):
+		_area_reload()
+	_ar["done"] = done_now
+	(_ar["map"] as AreaMap).areas = areas
+	(_ar["map"] as AreaMap).queue_redraw()
+	for c in list.get_children():
+		c.queue_free()
+	for ar: Dictionary in areas:
+		var id := str(ar["id"])
+		var st := str(ar["state"])
+		var row := hbox(list, 6)
+		var col := C_GREEN if st == "done" else (C_AMBER if st in ["running", "queued"] else (C_RED if st == "error" else C_DIM))
+		var t := label("%s  ·  %s%s  %d%%  ·  %.0f MB%s%s\n%s" % [str(ar["name"]), st.to_upper(),
+			(" " + str(ar["step"]).to_upper()) if st == "running" else "", int(float(ar["progress"]) * 100.0), float(ar["disk_mb"]),
+			"  · pack ✓" if ar["pack"] else "", ("  · 3D v%d" % int(ar["region"])) if int(ar["region"]) > 0 else "", str(ar["msg"]).left(90)], 16, col)
+		t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(t)
+		row.add_child(button("VIEW", func() -> void: (_ar["map"] as AreaMap).frame(ar["bbox"]), 16, 44))
+		if st in ["running", "queued"]:
+			row.add_child(button("CANCEL", func() -> void:
+				var c := _area_cli(["cancel", id])
+				OS.create_process(str(c[0]), c[1])
+				_ar["next_poll"] = _now() + 0.5, 16, 44))
+		else:
+			row.add_child(button("REBUILD", func() -> void:
+				var c := _area_cli(["add", id, "--run"])
+				OS.create_process(str(c[0]), c[1])
+				_ar["next_poll"] = _now() + 0.5, 16, 44))
+			var del := button("DELETE", func() -> void: pass, 16, 44)
+			del.pressed.connect(func() -> void:
+				if del.text == "SURE?":
+					var c := _area_cli(["delete", id])
+					OS.create_process(str(c[0]), c[1])
+					_ar["next_poll"] = _now() + 1.0
+					get_tree().create_timer(1.5).timeout.connect(_area_reload)
+				else:
+					del.text = "SURE?"
+					del.modulate = C_RED)
+			row.add_child(del)
+
+
 func _build_setup(page: Control) -> void:
 	# panels wrap onto a new row when the screen is too narrow (then the page scrolls down)
 	var h := HFlowContainer.new()

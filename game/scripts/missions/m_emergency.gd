@@ -34,7 +34,7 @@ func setup() -> void:
 			chain = ["leak", "power", "fire"]
 	for k: String in chain:
 		objectives.append({"text": "Fix the %s (follow the card)" % HELP[k][0].to_lower().trim_suffix("!"), "role": "BOTH"})
-	set_circular_orbit(earth(), 140000.0, deg_to_rad(30.0))
+	set_circular_orbit(earth(), 300000.0, deg_to_rad(30.0))
 	sim.basis = ship_basis(sim.vel, sim.pos.rel(earth().pos))
 	game.nav_targets = [{"name": "EARTH", "body": earth()}, {"name": "MOON", "body": moon()}]
 	set_card("ALL CALM", "Everything is fine. Look out of the window!\nIf an alarm rings, a card will tell you what to do.")

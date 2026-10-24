@@ -98,12 +98,11 @@ func _place_start() -> void:
 		steps += 1
 		if s.altitude < 5000.0:
 			break
+	# rotate the predicted entry so it ends 14 km short of the runway (the real KSC SLF is a
+	# little off the game equator, so this is a general rotation, not just a longitude shift)
 	var end_dir := s.up_dir
-	var lam_e := atan2(-end_dir.z, end_dir.x)
-	var rd: Vector3 = game.runway_dir
-	var lam_r := atan2(-rd.z, rd.x)
-	var delta := lam_r - lam_e - 14000.0 / e.radius
-	var rot := Basis(Vector3.UP, delta)
+	var tgt := entry_target()
+	var rot := Basis(Quaternion(end_dir.normalized(), tgt))
 	var p2 := rot * p
 	sim.pos.set_xyz(p2.x, p2.y, p2.z)
 	sim.vel = rot * v
@@ -111,6 +110,13 @@ func _place_start() -> void:
 	sim.basis = ship_basis(rot * v, up)
 	sim.basis = Basis(sim.basis.x, deg_to_rad(40.0)) * sim.basis
 	guidance["predicted_steps"] = steps
+
+
+## Where the predicted entry should end (5 km up): 14 km short of the runway.
+func entry_target() -> Vector3:
+	var rd: Vector3 = game.runway_dir
+	var ea := 14000.0 / earth().radius
+	return (rd * cos(ea) - CelestialBody.east_at(rd) * sin(ea)).normalized()
 
 
 ## Approach boxes relative to the ship (runway frame: x = along runway (east), y = up).

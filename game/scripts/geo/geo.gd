@@ -1,7 +1,7 @@
 class_name Geo
-## Real-world <-> game-planet mapping. The game Earth is a 600 km planet; the NASA textures
-## and the OSM regions are placed on it with one fixed rotation chosen so the game's launch pad
-## sits on Cape Canaveral (so the textures show Florida under the pad). Directions are unit
+## Real-world <-> game-planet mapping. The game Earth is real size (6371 km); the NASA textures,
+## area packs and OSM regions are placed on it with one fixed rotation chosen so the game's
+## launch pad sits on Cape Canaveral (so the textures show Florida under the pad). Directions are unit
 ## vectors in the planet's object space. Geo convention: lat/lon in degrees,
 ## dir = (cos lat sin lon, sin lat, -cos lat cos lon)  <=>  equirect u = (lon + 180) / 360.
 
@@ -130,7 +130,7 @@ static func iss_tle() -> Array:
 
 
 ## ISS ground position now (two-body + J2 from the TLE; a few tens of km off after a day, fine
-## for a 600 km game planet). {lat, lon, pos, vel_dir (geo frame, Earth-fixed), age_h, src}
+## for a game ground track). {lat, lon, pos, vel_dir (geo frame, Earth-fixed), age_h, src}
 static func iss_now(unix: float = -1.0) -> Dictionary:
 	if unix < 0.0:
 		unix = Time.get_unix_time_from_system()

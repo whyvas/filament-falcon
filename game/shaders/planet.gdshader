@@ -10,6 +10,9 @@ shader_type spatial;
 //  - soft cloud shadows cast along the sun direction from the 4.5 km deck;
 //  - Black Marble city lights fading in through the terminator.
 // The procedural planet stays as the fallback when no NASA textures are installed.
+// lod = true: drawn on the real-size LOD terrain chunks (scripts/world/planet_lod.gd): the
+// direction + height come per vertex (CUSTOM0), the ground normal from the mesh, water and
+// area-pack coverage from UV2; area packs (tools/area_manager.py) add Sentinel-2 imagery.
 render_mode unshaded, cull_back;
 
 #include "res://shaders/noise.gdshaderinc"
@@ -34,6 +37,24 @@ uniform float detail = 1.0;
 uniform float relief = 1.0;
 uniform float cloud_h_km = 4.5;
 uniform float city_gain = 1.4;
+// ---- LOD terrain mode
+uniform bool lod = false;
+uniform vec3 cam_planet_km = vec3(0.0, 0.0, 7000.0);   // camera, planet-centred, km
+uniform vec3 wave_shift = vec3(0.0);                  // camera planet position mod 4096 m
+uniform float lod_scale = 1.0;                         // scaled-space factor (world units -> m)
+uniform int pack_count = 0;
+uniform vec4 pack_box0 = vec4(0.0);    // S, W, N, E (degrees)
+uniform vec4 pack_box1 = vec4(0.0);
+uniform vec4 pack_box2 = vec4(0.0);
+uniform vec4 pack_box3 = vec4(0.0);
+uniform sampler2D pack_tex0 : source_color, filter_linear_mipmap, repeat_disable;
+uniform sampler2D pack_tex1 : source_color, filter_linear_mipmap, repeat_disable;
+uniform sampler2D pack_tex2 : source_color, filter_linear_mipmap, repeat_disable;
+uniform sampler2D pack_tex3 : source_color, filter_linear_mipmap, repeat_disable;
+varying vec4 lod_c;      // dir.xyz, height m
+varying vec2 lod_w;      // water 0..1, pack coverage 0..1
+varying vec3 lod_n;
+varying vec3 wpos;
 
 varying vec3 obj_dir;
 varying vec3 cam_obj_km;    // camera, planet-centred object space, km (scale removed)
@@ -67,17 +88,55 @@ float clouds_at(vec3 d, float widen) {
 }
 
 void vertex() {
-	obj_dir = normalize(VERTEX);
-	mat4 inv = inverse(MODEL_MATRIX);
-	cam_obj_km = (inv * vec4(CAMERA_POSITION_WORLD, 1.0)).xyz * 0.001;
-	sun_obj = normalize((inv * vec4(sun_dir, 0.0)).xyz);
+	if (lod) {   // chunk nodes are never rotated: world axes = planet axes
+		lod_c = CUSTOM0;
+		obj_dir = CUSTOM0.xyz;
+		lod_w = UV2;
+		lod_n = NORMAL;
+		cam_obj_km = cam_planet_km;
+		sun_obj = sun_dir;
+		wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	} else {
+		obj_dir = normalize(VERTEX);
+		mat4 inv = inverse(MODEL_MATRIX);
+		cam_obj_km = (inv * vec4(CAMERA_POSITION_WORLD, 1.0)).xyz * 0.001;
+		sun_obj = normalize((inv * vec4(sun_dir, 0.0)).xyz);
+		lod_c = vec4(obj_dir, 0.0);
+		lod_w = vec2(0.0);
+		lod_n = obj_dir;
+		wpos = vec3(0.0);
+	}
+}
+
+vec4 pack_color(vec2 ll, vec4 box, sampler2D t) {
+	vec2 uv = vec2((ll.y - box.y) / (box.w - box.y), (box.z - ll.x) / (box.z - box.x));
+	if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return vec4(0.0);
+	vec2 e = min(uv, 1.0 - uv);
+	return vec4(texture(t, uv).rgb, smoothstep(0.0, 0.01, min(e.x, e.y)));
+}
+
+// small wind waves near the camera: sines with periods dividing 4096 m (wave_shift keeps the
+// phase continuous and precise on a 6371 km planet); returns a tangent-plane slope
+vec2 wave_slope(vec3 p, float t) {
+	vec2 s = vec2(0.0);
+	vec2 q = vec2(p.x + p.y * 0.37, p.z - p.y * 0.21);
+	float k0 = 6.2831853 / 4096.0;
+	vec2 dirs[5] = vec2[](vec2(0.8, 0.6), vec2(-0.45, 0.89), vec2(0.97, -0.24), vec2(0.2, -0.98), vec2(-0.7, -0.71));
+	float ns[5] = float[](64.0, 112.0, 192.0, 320.0, 576.0);
+	for (int i = 0; i < 5; i++) {
+		float k = k0 * ns[i];
+		float a = 0.06 / (1.0 + float(i) * 0.6);
+		float ph = dot(dirs[i], q) * k - t * sqrt(9.81 * k);
+		s += dirs[i] * cos(ph) * a;
+	}
+	return s;
 }
 
 void fragment() {
 	vec3 d = normalize(obj_dir);
 	vec3 L = normalize(sun_obj);
-	vec3 p_km = d * planet_r_km;
-	vec3 V = normalize(cam_obj_km - p_km);
+	vec3 p_km = d * (planet_r_km + lod_c.w * 0.001);
+	vec3 V = lod ? normalize(CAMERA_POSITION_WORLD - wpos) : normalize(cam_obj_km - p_km);
 	float mu_s = dot(d, L);                // sun elevation (geometric) at this point
 	// --- albedo + land/water ---------------------------------------------------------------
 	float m = land_mask(d);
@@ -113,10 +172,36 @@ void fragment() {
 		ice = smoothstep(0.55, 0.75, min(dayc.r, min(dayc.g, dayc.b)));
 		albedo = dayc * mix(1.0, 0.92 + 0.16 * fine, is_land);
 	}
+	if (lod) {
+		float cov = lod_w.y;
+		// downloaded area: its own water mask (OSM lakes/rivers + DEM sea) and Sentinel-2 imagery
+		is_land = mix(is_land, 1.0 - smoothstep(0.35, 0.65, lod_w.x), cov);
+		if (pack_count > 0) {
+			vec3 g = normalize(geo_from_game * d);
+			vec2 ll = vec2(degrees(asin(clamp(g.y, -1.0, 1.0))), degrees(atan(g.x, -g.z)));
+			vec4 pc = pack_color(ll, pack_box0, pack_tex0);
+			if (pack_count > 1 && pc.a <= 0.0) pc = pack_color(ll, pack_box1, pack_tex1);
+			if (pack_count > 2 && pc.a <= 0.0) pc = pack_color(ll, pack_box2, pack_tex2);
+			if (pack_count > 3 && pc.a <= 0.0) pc = pack_color(ll, pack_box3, pack_tex3);
+			albedo = mix(albedo, pc.rgb * (0.94 + 0.12 * fine), pc.a);
+			ice *= 1.0 - pc.a;
+		}
+	}
 	float water = (1.0 - is_land) * (1.0 - ice);
+	// water is water: deep blue body colour whatever the imagery shows (silt, algae, shadow)
+	albedo = mix(albedo, mix(vec3(0.012, 0.04, 0.075), vec3(0.03, 0.1, 0.14), shore), water * 0.85);
 	// --- normal ----------------------------------------------------------------------------
 	vec3 n = d;
-	if (use_tex && use_normal) {
+	if (lod) {   // real relief from the LOD mesh; the DEM normal map adds detail from far away
+		n = normalize(lod_n);
+		if (use_tex && use_normal) {
+			vec3 nt;
+			nt.xy = geo_sample(normal_tex, guv).rg * 2.0 - 1.0;
+			nt.xy *= relief * is_land * (1.0 - near1) * 0.6;
+			nt.z = sqrt(max(1.0 - dot(nt.xy, nt.xy), 0.05));
+			n = normalize(n + geo_tbn(d) * nt - d);
+		}
+	} else if (use_tex && use_normal) {
 		vec3 nt;
 		nt.xy = geo_sample(normal_tex, guv).rg * 2.0 - 1.0;
 		nt.xy *= relief * is_land;
@@ -150,12 +235,22 @@ void fragment() {
 	if (water > 0.001) {
 		vec3 nw = d;
 		nw = normalize(nw + (vec3(fbm(d * 900.0 + time * 0.01, 3), fbm(d * 900.0 + 31.0 - time * 0.01, 3), 0.5) - 0.5) * 0.04 * near1);
+		if (lod) {   // wind waves within a few km of the camera
+			float dist_m = length(wpos) / max(lod_scale, 1e-6);
+			float wk = 1.0 - smoothstep(1500.0, 9000.0, dist_m);
+			if (wk > 0.0) {
+				vec2 sl = wave_slope(wpos / max(lod_scale, 1e-6) + wave_shift, time);
+				vec3 t1 = normalize(cross(d, vec3(0.0, 0.0, 1.0)) + vec3(1e-4, 0.0, 0.0));
+				vec3 t2 = cross(d, t1);
+				nw = normalize(nw - (t1 * sl.x + t2 * sl.y) * wk);
+			}
+		}
 		float ndv = max(dot(nw, V), 1e-3);
 		float ndl_w = max(dot(nw, L), 0.0);
 		vec3 H = normalize(L + V);
 		float ndh = max(dot(nw, H), 0.0);
 		float vdh = max(dot(V, H), 0.0);
-		float rough = mix(0.22, 0.09, near1);              // wave slopes: wider glint from orbit
+		float rough = mix(0.22, lod ? 0.06 : 0.09, near1);              // wave slopes: wider glint from orbit
 		float a2 = rough * rough * rough * rough;
 		float dd = ndh * ndh * (a2 - 1.0) + 1.0;
 		float D = a2 / (PI * dd * dd);

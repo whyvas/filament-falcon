@@ -109,20 +109,33 @@ if os.path.exists(os.path.join(A, "earth_clouds_hd.png")) and os.path.exists(os.
     os.remove(os.path.join(A, "src", "cloud_combined_8192.tif"))
 def bake_normal_mask():
     n_path, m_path, g = os.path.join(A, "earth_normal.png"), os.path.join(A, "earth_mask.png"), os.path.join(A, "gebco_raw.png")
-    if not os.path.exists(g) or (os.path.exists(n_path) and os.path.exists(m_path)):
+    ver_p = m_path + ".ver"          # bump MASK_VER when the land/water rule changes (re-bakes the mask)
+    MASK_VER = "2"
+    mask_ok = os.path.exists(m_path) and os.path.exists(ver_p) and open(ver_p).read().strip() == MASK_VER
+    if not os.path.exists(g) or (os.path.exists(n_path) and mask_ok):
         return
     W, H = 8192, 4096
     elev = np.asarray(Image.open(g).convert("L").resize((W, H), Image.BOX), dtype=np.float32) * (6400.0 / 255.0)   # metres
-    # land mask: above sea level, or not ocean-coloured in the day image (lowlands, ice shelves)
+    # land/water mask (v2). v1 was "land = above sea level OR not ocean-blue", which made every lake
+    # above sea level (Great Lakes, Lake Winnipeg, ...) and every turquoise shallow (Bahamas, reefs)
+    # LAND, so the planet shader painted them green. Now: water = water-coloured in the day image
+    # (dark blue, navy or turquoise: blue above red and close to / above green, not bright, so ice,
+    # snow and cloud stay land) OR at / below sea level and not bright (open ocean, sea ice excluded).
     days = sorted(glob.glob(os.path.join(A, "earth_day_*_hd.jpg"))) or sorted(glob.glob(os.path.join(A, "earth_day_*.jpg")))
-    land = elev > 0.5
+    water = (elev <= 0.5)
     if days:
         c = np.asarray(Image.open(days[0]).convert("RGB").resize((W, H), Image.BOX), dtype=np.float32) / 255.0
-        water = (c[..., 2] > np.maximum(c[..., 0], c[..., 1]) * 0.95 + 0.02) & (c.max(axis=2) < 0.55)
-        land |= ~water
+        r, gg, b = c[..., 0], c[..., 1], c[..., 2]
+        bright = c.max(axis=2) > 0.6
+        col = (b > r + 0.01) & (b >= gg * 0.85) & ~bright
+        water = (water & ~bright) | col
+    land = ~water
     m = Image.fromarray((land * 255).astype(np.uint8)).filter(__import__("PIL.ImageFilter", fromlist=["x"]).GaussianBlur(1.2))
     m.save(m_path)
-    print("  -> earth_mask.png")
+    open(ver_p, "w").write(MASK_VER)
+    print("  -> earth_mask.png (v%s)" % MASK_VER)
+    if os.path.exists(n_path):
+        return
     # normals in (east, north, up), relief exaggerated x6 so mountain ranges read from orbit
     R, k = 6371000.0, 6.0
     lat = (0.5 - (np.arange(H) + 0.5) / H) * np.pi
