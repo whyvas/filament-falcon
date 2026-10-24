@@ -10,7 +10,7 @@ pre-download and pre-generate them on THIS PC, check the cache, cancel, delete.
     python3 tools/area_manager.py add --id cape --bbox 28.40,-80.78,28.66,-80.52
     python3 tools/area_manager.py status [--json]               # areas, state, progress, disk use
     python3 tools/area_manager.py run [--wait]                  # process the job queue (background)
-    python3 tools/area_manager.py cancel ID | delete ID [--keep-osm]
+    python3 tools/area_manager.py cancel ID | delete ID [--purge-tiles]
 
 Area selection: a preset (tools/area_presets.json), --bbox S,W,N,E, or --center LAT,LON
 --radius KM (the Commander AREAS page also lets you drag a box on the map).
