@@ -263,7 +263,7 @@ height offset), tether 10/20/30 m.
 
 ## Troubleshooting: only stars, no ship or hands, controllers dead
 
-- Every VR run writes a log to `~/.local/share/filament-falcon/eva_vr.log`. It records XR init, the action map, tracker names and profiles, and whether each controller is tracked (every 10 s). Paste `tail -n 30 ~/.local/share/filament-falcon/eva_vr.log` when asking for help.
+- Every VR run writes a log to `~/.local/share/filament-falcon/eva_vr.log`. It records XR init, the action map, tracker names and profiles, and whether each controller is tracked (when that changes, plus a heartbeat every 60 s). Quitting ends the OpenXR session first and logs `quit: OpenXR uninitialized`. Paste `tail -n 30 ~/.local/share/filament-falcon/eva_vr.log` when asking for help.
 - `XR init FAILED`: WiVRn isn't running or the Quest isn't connected. Start the WiVRn server, connect the headset, then run `./run.sh --eva-vr` again.
 - `left_hand: MISSING` or `tracked=false`: wake the controllers (press a button). On a fresh clone, run `./run.sh` once so the project re-imports, which picks up `openxr_action_map.tres`.
 - Controls: grip grabs handrails, the left stick moves the jetpack, the right stick goes up/down and snap-turns, the trigger uses the tool, and holding Menu for 1 s recenters.

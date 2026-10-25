@@ -49,6 +49,7 @@ var _ptt := false
 
 
 func _ready() -> void:
+	add_to_group("eva_client")
 	Game.external_clock = true
 	_port = int(Settings.cli.get("eva-port", Settings.get_v("eva", "port")))
 	if Settings.cli.has("eva-bot"):
@@ -218,6 +219,35 @@ func _system_info() -> Dictionary:
 	return {"runtime": str(si.get("XRRuntimeName", "OpenXR")) + " " + str(si.get("XRRuntimeVersion", "")), "system": str(si.get("XRSystemName", si.get("OpenXRSystemName", "headset")))}
 
 
+## Orderly exit (cockpit "quit" command, window close via Game.quit_game): stop the sim and the
+## world's worker threads, stop submitting XR frames, uninitialize OpenXR (ends + destroys the
+## session and the hand / spatial-entity extensions while everything is still alive), then quit
+## a frame later. Quitting with the session live let engine teardown race the OpenXR runtime
+## (XR_ERROR_SESSION_NOT_STOPPING, leaked RIDs, SIGSEGV in pthread_mutex_lock). Safe to call twice.
+var _quitting := false
+
+
+func quit_clean(code: int = 0) -> void:
+	if _quitting:
+		return
+	_quitting = true
+	set_process(false)
+	set_physics_process(false)
+	sim = null
+	if world:
+		world.shutdown_workers()
+	if has_xr and xr_if and xr_if.is_initialized():
+		_xlog("quit: stopping XR rendering + session")
+		get_viewport().use_xr = false
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		xr_if.uninitialize()
+		has_xr = false
+		_xlog("quit: OpenXR uninitialized")
+	await get_tree().process_frame
+	get_tree().quit(code)
+
+
 func _selftest() -> void:
 	# XR unavailable must be a clean fallback: report and quit
 	await get_tree().process_frame
@@ -227,6 +257,8 @@ func _selftest() -> void:
 
 
 var _xlog_t := 0.0
+var _xlog_last := ""         # last logged tracker state (positions excluded)
+var _xlog_beat := 0.0        # seconds since the last status line
 ## XR diagnostics -> ~/.local/share/filament-falcon/eva_vr.log (user://eva_vr.log)
 func _xlog(msg: String) -> void:
 	var path := OS.get_environment("HOME") + "/.local/share/filament-falcon/eva_vr.log"
@@ -238,12 +270,14 @@ func _xlog(msg: String) -> void:
 	print("[EVA-VR] ", msg)
 
 
-func _xr_status() -> void:
+## Tracker / controller status: logged when it changes (positions left out of the compare)
+## and otherwise only as a 60 s heartbeat, not every poll.
+func _xr_status(dt: float) -> void:
 	var s := ""
 	for side: String in ["left_hand", "right_hand"]:
 		var t := XRServer.get_tracker(side) as XRPositionalTracker
 		s += "%s: %s profile=%s · " % [side, "present" if t else "MISSING", t.profile if t else "-"]
-	s += "trackers=%s · origin=%s head=%s" % [str(XRServer.get_trackers(0xFF).keys()), origin.global_position.snapped(Vector3.ONE * 0.1), xr_cam.global_position.snapped(Vector3.ONE * 0.1)]
+	s += "trackers=%s" % str(XRServer.get_trackers(0xFF).keys())
 	for i in ctrl.size():
 		var t := XRServer.get_tracker(ctrl[i].tracker) as XRPositionalTracker
 		var poses := ""
@@ -253,7 +287,12 @@ func _xr_status() -> void:
 				if ps:
 					poses += "%s(%s) " % [pn, ps.has_tracking_data]
 		s += " · c%d tracked=%s pose=%s has=[%s]" % [i, ctrl[i].get_has_tracking_data(), ctrl[i].pose, poses.strip_edges()]
-	_xlog(s)
+	_xlog_beat += dt
+	if s == _xlog_last and _xlog_beat < 60.0:
+		return
+	_xlog_last = s
+	_xlog_beat = 0.0
+	_xlog(s + " · origin=%s head=%s" % [origin.global_position.snapped(Vector3.ONE * 0.1), xr_cam.global_position.snapped(Vector3.ONE * 0.1)])
 
 
 # ======================================================================== frame
@@ -277,8 +316,8 @@ func _process(dt: float) -> void:
 		_update_comfort(dt)
 		_xlog_t -= dt
 		if _xlog_t <= 0.0:
-			_xlog_t = 10.0
-			_xr_status()
+			_xlog_t = 2.0
+			_xr_status(2.0)
 		cuff.text = _cuff_text()
 	else:
 		_place_flat_cam()
@@ -646,7 +685,7 @@ func _apply_world(w: Dictionary) -> void:
 			"abort":
 				sim = null
 			"quit":
-				get_tree().quit()
+				quit_clean()
 	if not bool(w["eva"]) and sim != null and sim.done:
 		sim = null
 

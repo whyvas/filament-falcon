@@ -224,6 +224,12 @@ func quit_game(code: int = 0) -> void:
 	if _quitting:
 		return
 	_quitting = true
+	if Settings.is_eva_client():
+		# the VR client ends its OpenXR session first (see EvaClient.quit_clean)
+		var ec := get_tree().get_first_node_in_group("eva_client")
+		if ec:
+			ec.call("quit_clean", code)
+			return
 	print("Quitting: stopping helpers")
 	var gl := GroundLink.get_link(false)
 	if gl:
@@ -233,6 +239,10 @@ func quit_game(code: int = 0) -> void:
 	Ics.stop()
 	if LedLink:
 		LedLink.clear_all()
+	# no LOD / texture worker may still be running while the tree and the engine tear down
+	for wv: Node in get_tree().get_nodes_in_group("world"):
+		if wv.has_method("shutdown_workers"):
+			wv.call("shutdown_workers")
 	get_tree().quit(code)
 
 

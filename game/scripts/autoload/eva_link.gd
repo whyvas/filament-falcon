@@ -408,11 +408,19 @@ func _spawn_client(headless: bool, extra: Array, wivrn_rt: String) -> bool:
 	return client_pid > 0
 
 
+## Ask the VR client to quit and give it time to end its OpenXR session cleanly (it stops XR
+## rendering, uninitializes the interface, then exits); kill it only if it hangs. WiVRn is
+## stopped after the client is gone, never under a live session.
 func stop_client() -> void:
 	if client_pid > 0 and OS.is_process_running(client_pid):
 		_send_cmd("quit", {})
-		_net_tx()
-		OS.kill(client_pid)
+		var t0 := Time.get_ticks_msec()
+		while OS.is_process_running(client_pid) and Time.get_ticks_msec() - t0 < 4000:
+			_net_tx()          # resent until acked / gone (UDP)
+			OS.delay_msec(50)
+		if OS.is_process_running(client_pid):
+			_log("EVA client did not exit in 4 s: killing pid %d" % client_pid)
+			OS.kill(client_pid)
 	client_pid = -1
 	_stop_wivrn()
 
