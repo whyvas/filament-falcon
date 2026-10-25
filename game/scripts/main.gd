@@ -3,6 +3,7 @@ extends Node
 ## when asked on the command line, the automated test / screenshot runners.
 ##   godot --path game -- --dev                 single-window tiled dev mode
 ##   godot --path game -- --smoke-test          run every mission headless (cheat-advance)
+##   godot --path game -- --hand-test           hand tracking -> glove orientation / curls
 ##   godot --path game -- --flight-test         autopilot bots genuinely fly the missions
 ##   godot --path game -- --screenshots=DIR     capture the hero shots (use xvfb + lavapipe)
 ##   godot --path game --xr-mode on -- --eva-client   the VR spacewalk client (see EvaClient)
@@ -24,6 +25,9 @@ func _ready() -> void:
 		return
 	if Settings.cli.has("quit-test"):
 		add_child(load("res://tests/quit_test.gd").new())
+		return
+	if Settings.cli.has("hand-test"):
+		add_child(load("res://tests/hand_test.gd").new())
 		return
 	if Settings.cli.has("ui-fit"):
 		add_child(load("res://tests/ui_fit.gd").new())

@@ -185,6 +185,20 @@ static func ik(shoulder: Vector3, target: Vector3, pole: Vector3, a: float, b: f
 
 
 ## pose: {head, l, r: Transform3D (ship frame), hp: [l, r] hand poses, up, vel, lamp, jet, ground}
+## Glove fingers from curls (thumb, index..pinky; 0 straight .. 1 fist). Positive curl turns
+## each segment about its local X so the tips go toward -Y, the palm pad side.
+func pose_fingers(s: String, cf: PackedFloat32Array) -> void:
+	var f: Dictionary = fingers[s]
+	var fl2: Array = f["f"]
+	for k in 4:
+		var amt := cf[k + 1]
+		(fl2[k][0] as Node3D).rotation.x = -(0.12 + amt * 1.2)
+		(fl2[k][1] as Node3D).rotation.x = -(0.1 + amt * 1.3)
+	var sgn := -1.0 if s == "r" else 1.0
+	(f["thumb"][0] as Node3D).rotation = Vector3(-cf[0] * 0.4, -sgn * (0.7 - cf[0] * 0.5), 0)
+	(f["thumb"][1] as Node3D).rotation.x = -(0.15 + cf[0] * 0.9)
+
+
 func apply_pose(p: Dictionary, dt: float) -> void:
 	if p.is_empty():
 		visible = false
@@ -257,14 +271,7 @@ func apply_pose(p: Dictionary, dt: float) -> void:
 			var tgt := tf[k] if tf.size() == 5 else ([c.z, c.y, c.x, c.x, c.x][k] as float)
 			cf[k] = lerpf(cf[k], tgt, k_s) if tf.size() == 5 else tgt
 		f["cf"] = cf
-		var fl2: Array = f["f"]
-		for k in 4:
-			var amt := cf[k + 1]
-			(fl2[k][0] as Node3D).rotation.x = -(0.12 + amt * 1.2)
-			(fl2[k][1] as Node3D).rotation.x = -(0.1 + amt * 1.3)
-		var sgn := -1.0 if s == "r" else 1.0
-		(f["thumb"][0] as Node3D).rotation = Vector3(-cf[0] * 0.4, -sgn * (0.7 - cf[0] * 0.5), 0)
-		(f["thumb"][1] as Node3D).rotation.x = -(0.15 + cf[0] * 0.9)
+		pose_fingers(s, cf)
 	# legs
 	var v: Vector3 = p.get("vel", Vector3.ZERO)
 	var on_ground := bool(p.get("ground", false))

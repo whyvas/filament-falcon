@@ -356,24 +356,10 @@ func _optical_hand(i: int) -> XRHandTracker:
 	return null
 
 
-static func _bend(ht: XRHandTracker, a: int, b: int, c: int, d: int, full: float) -> float:
-	var d1 := ht.get_hand_joint_transform(b).origin - ht.get_hand_joint_transform(a).origin
-	var d2 := ht.get_hand_joint_transform(d).origin - ht.get_hand_joint_transform(c).origin
-	if d1.length_squared() < 1e-8 or d2.length_squared() < 1e-8:
-		return 0.0
-	return clampf(d1.angle_to(d2) / full, 0.0, 1.0)
-
-
-## Per-finger curl from the tracked skeleton (angle between the first and last bone of each
-## finger), so the articulated suit glove follows your real fingers.
-static func hand_curls(ht: XRHandTracker) -> PackedFloat32Array:
-	var J := XRHandTracker
-	return PackedFloat32Array([
-		_bend(ht, J.HAND_JOINT_THUMB_METACARPAL, J.HAND_JOINT_THUMB_PHALANX_PROXIMAL, J.HAND_JOINT_THUMB_PHALANX_DISTAL, J.HAND_JOINT_THUMB_TIP, PI * 0.45),
-		_bend(ht, J.HAND_JOINT_INDEX_FINGER_METACARPAL, J.HAND_JOINT_INDEX_FINGER_PHALANX_PROXIMAL, J.HAND_JOINT_INDEX_FINGER_PHALANX_DISTAL, J.HAND_JOINT_INDEX_FINGER_TIP, PI * 0.8),
-		_bend(ht, J.HAND_JOINT_MIDDLE_FINGER_METACARPAL, J.HAND_JOINT_MIDDLE_FINGER_PHALANX_PROXIMAL, J.HAND_JOINT_MIDDLE_FINGER_PHALANX_DISTAL, J.HAND_JOINT_MIDDLE_FINGER_TIP, PI * 0.8),
-		_bend(ht, J.HAND_JOINT_RING_FINGER_METACARPAL, J.HAND_JOINT_RING_FINGER_PHALANX_PROXIMAL, J.HAND_JOINT_RING_FINGER_PHALANX_DISTAL, J.HAND_JOINT_RING_FINGER_TIP, PI * 0.8),
-		_bend(ht, J.HAND_JOINT_PINKY_FINGER_METACARPAL, J.HAND_JOINT_PINKY_FINGER_PHALANX_PROXIMAL, J.HAND_JOINT_PINKY_FINGER_PHALANX_DISTAL, J.HAND_JOINT_PINKY_FINGER_TIP, PI * 0.8)])
+## Per-finger curl from the tracked skeleton (signed flexion toward the palm, from joint
+## positions; see HandPose), so the articulated suit glove follows your real fingers.
+static func hand_curls(ht: XRHandTracker, left: bool) -> PackedFloat32Array:
+	return HandPose.curls(HandPose.joints_of(ht), left)
 
 
 ## Gesture state from curls + thumb-index gap, with hysteresis. Returns [pinch, fist, point].
@@ -412,9 +398,12 @@ func _hand_xform(i: int) -> Array:
 		# hands (controllers down): pinch = grab, fist = grip (handrails / tools), fist with the
 		# index out = point. Pinch held on a tool = use.
 		_set_hand_mode(i, "hand")
-		var palm := ht.get_hand_joint_transform(XRHandTracker.HAND_JOINT_PALM)
-		var gap := ht.get_hand_joint_transform(XRHandTracker.HAND_JOINT_THUMB_TIP).origin.distance_to(ht.get_hand_joint_transform(XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP).origin)
-		var cu := hand_curls(ht)
+		# palm frame from joint positions: the tracker's joint bases are in Godot's humanoid
+		# convention (+Y along the bone, +Z out of the palm), not the glove's (-Z / -Y)
+		var jp := HandPose.joints_of(ht)
+		var palm := HandPose.hand_frame(jp, i == 0)
+		var gap := jp[XRHandTracker.HAND_JOINT_THUMB_TIP].distance_to(jp[XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP])
+		var cu := HandPose.curls(jp, i == 0)
 		_fingers[i] = cu
 		var gs := hand_gestures(cu, gap, _pinch_on[i], _fist_on[i])
 		_pinch_on[i] = gs[0]

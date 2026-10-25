@@ -292,7 +292,10 @@ whenever a hand is optically tracked, and the Touch controller otherwise. It swi
 
 - **Pinch** (thumb + index) = grab (rocks, tools, the flag). **Fist** = grip (handrails, the ladder).
   A fist with the index out = point.
-- The articulated suit gloves follow each tracked finger.
+- The articulated suit gloves follow each tracked finger. The glove orientation and the finger
+  curls are worked out from the joint positions, not the joint rotations (Godot hands those out in
+  its humanoid-skeleton convention), so the fingers curl toward the palm on both hands
+  (`godot --headless --path game -- --hand-test` checks it with synthetic hands).
 - `~/.local/share/filament-falcon/eva_vr.log` says whether the runtime offers hand tracking
   (`hand tracking (XR_EXT_hand_tracking): AVAILABLE`), and logs every switch (`left hand: HAND TRACKING …`).
 - On the Quest: Settings → Movement tracking → Hand and body tracking → on.
