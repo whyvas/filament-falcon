@@ -100,7 +100,7 @@ After the DEM step the pack is already usable; imagery and water refine it. With
 
 ## Packages and tests
 
-- **Packages:** `sudo apt install curl python3-numpy python3-pil python3-osmium osmium-tool`.
+- **Packages:** `sudo apt install curl python3-numpy python3-pil python3-pip osmium-tool; then: pip install --user --break-system-packages osmium`.
 - **Tests:**
   - `godot --headless --path game -- --region-test --region-dir=DIR` (sync and threaded build);
   - `XDG_DATA_HOME=/tmp/x godot --headless --path game -- --asset-test` (shader compile and texture cache);

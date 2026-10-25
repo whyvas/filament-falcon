@@ -8,7 +8,7 @@
 OSM source (default): the Geofabrik New Brunswick extract (~65 MB), downloaded once into
 ~/.local/share/filament-falcon/osm/ and refreshed only when older than 30 days (If-Modified-
 Since / Last-Modified check: unchanged = no re-download). Parsed locally with pyosmium
-(sudo apt install python3-osmium osmium-tool, or pip install osmium); with osmium-tool the
+(sudo apt install osmium-tool; pip install --user --break-system-packages osmium, or pip install osmium); with osmium-tool the
 region is first cut out of the .pbf in a second. Every city in the province builds from the
 same file. --source overpass (or no pyosmium) falls back to the Overpass API.
 
@@ -631,7 +631,7 @@ def main():
             src_id = ["pbf", os.path.basename(pbf), os.path.getsize(pbf), int(os.path.getmtime(pbf))]
             loader = lambda: read_pbf(pbf, bbox)  # noqa: E731
         except ImportError:
-            log("pyosmium missing (sudo apt install python3-osmium osmium-tool, or pip install osmium): falling back to Overpass")
+            log("pyosmium missing (sudo apt install osmium-tool; pip install --user --break-system-packages osmium, or pip install osmium): falling back to Overpass")
             a.source = "overpass"
     if not a.osm and a.source == "overpass":
         src_id = ["overpass", time.strftime("%Y-%m")]          # re-query at most monthly
