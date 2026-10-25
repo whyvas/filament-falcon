@@ -41,13 +41,18 @@ python3 tools/area_manager.py estimate fredericton                 # or --bbox=S
 python3 tools/area_manager.py add fredericton --run                # queue all steps + start the runner
 python3 tools/area_manager.py add --id home --center 45.96,-66.64 --radius 5 --steps dem,imagery --run
 python3 tools/area_manager.py add --id cape --bbox=28.40,-80.78,28.66,-80.52 --run
+python3 tools/area_manager.py add --id nb --bbox=45.0,-68.0,48.0,-64.0 --fit split --run   # > 120 km: tiles
 python3 tools/area_manager.py status [--json]
 python3 tools/area_manager.py run --wait                           # work the queue in this terminal
 python3 tools/area_manager.py cancel home
 python3 tools/area_manager.py delete home [--purge-tiles]
 ```
 
-Use `--bbox=` with an `=` when the latitude is negative. An area can be at most 120 km on a side; split anything bigger.
+Use `--bbox=` with an `=` when the latitude is negative.
+
+- **Size:** an area can be at most 120 km on a side. Bigger boxes are refused with the size and the tile count, unless you add `--fit clamp` (a 120 km box around the centre) or `--fit split` (a grid of ≤ 120 km areas `<id>_r<row>c<col>`, at most 64). The AREAS page has the same choice (OVER 120 km: CLAMP / SPLIT INTO TILES).
+- **Ids:** any id in the registry works on the CLI, including ones the map made (`area_45_964_-66_643`; dots and other characters are normalised the same way by the game and the CLI).
+- **Delete** is idempotent: deleting an area that is already gone prints "already deleted" and succeeds, queued jobs for it are dropped, and deleting a running area cancels it and removes it once the runner stops.
 
 ### Steps
 

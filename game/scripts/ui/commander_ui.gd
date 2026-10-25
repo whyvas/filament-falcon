@@ -1160,8 +1160,17 @@ func _build_eva(page: Control) -> void:
 # ======================================================================== SETUP
 # ======================================================================== AREAS (real Earth)
 const AREA_TOOL := "res://tools/area_manager.py"
+const AREA_MAX_KM := 120.0   # tools/area_manager.py MAX_KM
 var _ar := {}            # widgets + state of the AREAS page
 var _ar_tasks: Array[int] = []
+
+
+## Same normalisation as tools/area_manager.py norm_id(): the UI and the CLI agree on ids.
+static func _area_id(raw: String) -> String:
+	var out := ""
+	for ch in raw.strip_edges().to_lower():
+		out += ch if (ch >= "a" and ch <= "z") or (ch >= "0" and ch <= "9") or ch == "-" or ch == "_" else "_"
+	return out
 
 
 static func _area_cli(args: Array) -> Array:
@@ -1196,26 +1205,43 @@ func _area_bbox() -> Array:
 func _set_area_bbox(bb: Array, name_: String, id_: String) -> void:
 	_ar["bbox"] = bb
 	_ar["name"] = name_
-	_ar["id"] = id_
+	_ar["id"] = _area_id(id_)
 	(_ar["map"] as AreaMap).sel = bb
 	(_ar["map"] as AreaMap).queue_redraw()
 	var wkm := (float(bb[3]) - float(bb[1])) * 111.32 * cos(deg_to_rad((float(bb[0]) + float(bb[2])) * 0.5))
 	var hkm := (float(bb[2]) - float(bb[0])) * 110.54
-	(_ar["sel"] as Label).text = "%s\n%.4f, %.4f → %.4f, %.4f   (%.1f × %.1f km, %.0f km²)" % [name_, bb[0], bb[1], bb[2], bb[3], wkm, hkm, wkm * hkm]
+	var big := maxf(wkm, hkm) > AREA_MAX_KM
+	var sel := name_ + "\n" + "%.4f, %.4f → %.4f, %.4f   (%.1f × %.1f km, %.0f km²)" % [bb[0], bb[1], bb[2], bb[3], wkm, hkm, wkm * hkm]
+	if big:
+		sel += "\nOver %.0f km a side: " % AREA_MAX_KM
+		if _area_fit() == "split":
+			sel += "QUEUE splits it into %d areas" % (ceili(wkm / AREA_MAX_KM) * ceili(hkm / AREA_MAX_KM))
+		else:
+			sel += "QUEUE clamps it to a %.0f km box around its centre" % AREA_MAX_KM
+	(_ar["sel"] as Label).text = sel
 	(_ar["est"] as Label).text = "estimating…"
 	var ver := int(_ar.get("est_ver", 0)) + 1
 	_ar["est_ver"] = ver
-	_area_async(["estimate", "--bbox=%f,%f,%f,%f" % bb, "--json"], func(js: Dictionary) -> void:
+	_area_async(["estimate", "--bbox=%f,%f,%f,%f" % bb, "--fit", _area_fit(), "--json"], func(js: Dictionary) -> void:
 		if int(_ar.get("est_ver", 0)) != ver:
+			return
+		if js.has("error"):
+			(_ar["est"] as Label).text = "estimate: " + str(js["error"])
 			return
 		if js.is_empty():
 			(_ar["est"] as Label).text = "estimate failed (python3 + numpy + Pillow on this PC? area too big? max 120 km a side)"
 			return
 		var ex: Variant = js.get("osm_extract")
+		var osm_name := (str((ex as Dictionary).get("name", "?")) + " extract") if ex is Dictionary else "no extract found"
+		var osm_dl := "cached" if js.get("osm_cached", false) else "%.0f MB download" % float(js.get("osm_mb", 0.0))
+		var note := ""
+		if int(js.get("parts", 1)) > 1:
+			note = "   (first of %d tiles)" % int(js["parts"])
+		elif str(js.get("fit", "none")) == "clamp":
+			note = "   (clamped to %.0f km)" % AREA_MAX_KM
 		(_ar["est"] as Label).text = ("DEM %d tiles (%d new, ~%.1f MB)   IMAGERY z%d %d tiles (%d new, ~%.1f MB)\n" +
 			"OSM %s (%s)   3D REGION ~%d chunks (~%.0f MB)") % [js["dem_tiles"], js["dem_new"], js["dem_mb"], js["img_zoom"],
-			js["img_tiles"], js["img_new"], js["img_mb"], (ex as Dictionary).get("name", "?") + " extract" if ex is Dictionary else "no extract found",
-			"cached" if js.get("osm_cached", false) else "%.0f MB download" % float(js.get("osm_mb", 0.0)), js["region_chunks"], js["region_mb"]])
+			js["img_tiles"], js["img_new"], js["img_mb"], osm_name, osm_dl, js["region_chunks"], js["region_mb"]] + note)
 
 
 func _build_areas(page: Control) -> void:
@@ -1229,6 +1255,15 @@ func _build_areas(page: Control) -> void:
 	_ar["map"] = am
 	am.box_drawn.connect(func(bb: Array) -> void:
 		_set_area_bbox(bb, "Map box", "box_%.3f_%.3f" % [(float(bb[0]) + float(bb[2])) * 0.5, (float(bb[1]) + float(bb[3])) * 0.5]))
+	var fr := hbox(a, 8)
+	fr.add_child(label("OVER %.0f km" % AREA_MAX_KM, 18, C_DIM, false))
+	for fm: String in ["clamp", "split"]:
+		var fb := button({"clamp": "CLAMP TO %.0f km" % AREA_MAX_KM, "split": "SPLIT INTO TILES"}[fm], func() -> void:
+			_ar["fit"] = fm
+			if not _area_bbox().is_empty():
+				_set_area_bbox(_area_bbox(), str(_ar["name"]), str(_ar["id"])), 16, 40)
+		fr.add_child(fb)
+		live["area_fit_" + fm] = func() -> void: fb.modulate = C_GREEN if _area_fit() == fm else Color.WHITE
 	var pr := hbox(a, 8)
 	pr.add_child(label("PRESET", 20, C_DIM, false))
 	var ob := OptionButton.new()
@@ -1276,7 +1311,7 @@ func _build_areas(page: Control) -> void:
 		var dlat := r / 110.54
 		var dlon := r / (111.32 * maxf(cos(deg_to_rad(lat)), 0.05))
 		var bb := [lat - dlat, lon - dlon, lat + dlat, lon + dlon]
-		_set_area_bbox(bb, "%.4f, %.4f (%g km)" % [lat, lon, r], "area_%.3f_%.3f" % [lat, lon])
+		_set_area_bbox(bb, "%.4f, %.4f (%.1f km)" % [lat, lon, r], "area_%.3f_%.3f" % [lat, lon])
 		am.frame(bb), 20, 48))
 	var sel := label("No area selected: pick a preset, type lat / lon + radius, or drag a box on the map.", 18, C_TEXT)
 	a.add_child(sel)
@@ -1303,7 +1338,7 @@ func _build_areas(page: Control) -> void:
 			if (steps[st] as CheckBox).button_pressed:
 				sl.append(st)
 		var c := _area_cli(["add", "--id", str(_ar["id"]), "--name", str(_ar["name"]), "--bbox=%f,%f,%f,%f" % bb,
-			"--steps", ",".join(sl), "--run"])
+			"--steps", ",".join(sl), "--fit", _area_fit(), "--run"])
 		OS.create_process(str(c[0]), c[1])
 		_ar["next_poll"] = 0.0, 22, 60)
 	a.add_child(q)
@@ -1332,6 +1367,10 @@ func _build_areas(page: Control) -> void:
 			_ar["polling"] = false
 			_ar["next_poll"] = _now() + 2.0
 			_area_list(js))
+
+
+func _area_fit() -> String:
+	return str(_ar.get("fit", "clamp"))
 
 
 func _area_reload() -> void:
@@ -1364,9 +1403,15 @@ func _area_list(js: Dictionary) -> void:
 	(_ar["map"] as AreaMap).queue_redraw()
 	for c in list.get_children():
 		c.queue_free()
+	var deleting: Dictionary = _ar.get("deleting", {})
 	for ar: Dictionary in areas:
 		var id := str(ar["id"])
 		var st := str(ar["state"])
+		if deleting.has(id):
+			if _now() - float(deleting[id]) < 60.0:
+				hbox(list, 6).add_child(label(str(ar["name"]) + "  ·  DELETING…", 16, C_DIM))
+				continue
+			deleting.erase(id)
 		var row := hbox(list, 6)
 		var col := C_GREEN if st == "done" else (C_AMBER if st in ["running", "queued"] else (C_RED if st == "error" else C_DIM))
 		var t := label("%s  ·  %s%s  %d%%  ·  %.0f MB%s%s\n%s" % [str(ar["name"]), st.to_upper(),
@@ -1388,6 +1433,10 @@ func _area_list(js: Dictionary) -> void:
 			var del := button("DELETE", func() -> void: pass, 16, 44)
 			del.pressed.connect(func() -> void:
 				if del.text == "SURE?":
+					del.disabled = true          # one delete per area (the list refreshes under it)
+					var dl: Dictionary = _ar.get("deleting", {})
+					dl[id] = _now()
+					_ar["deleting"] = dl
 					var c := _area_cli(["delete", id])
 					OS.create_process(str(c[0]), c[1])
 					_ar["next_poll"] = _now() + 1.0

@@ -11,9 +11,17 @@ pre-download and pre-generate them on THIS PC, check the cache, cancel, delete.
     python3 tools/area_manager.py status [--json]               # areas, state, progress, disk use
     python3 tools/area_manager.py run [--wait]                  # process the job queue (background)
     python3 tools/area_manager.py cancel ID | delete ID [--purge-tiles]
+    python3 tools/area_manager.py add --id nb --bbox 45.5,-67.3,46.4,-66.0 --fit split   # > 120 km
 
-Area selection: a preset (tools/area_presets.json), --bbox S,W,N,E, or --center LAT,LON
---radius KM (the Commander AREAS page also lets you drag a box on the map).
+Area selection: a preset (tools/area_presets.json), an existing area id (any id you created,
+e.g. from the Commander map: area_45_964_-66_643), --bbox S,W,N,E, or --center LAT,LON
+--radius KM (the Commander AREAS page also lets you drag a box on the map). Ids are normalised
+(lower case, anything but letters / digits / - / _ becomes _), so "area_45.964_-66.643" and
+"area_45_964_-66_643" are the same area. Areas larger than 120 km a side: --fit clamp (a 120 km
+box around the centre) or --fit split (tiled into <=120 km areas <id>_r<row>c<col>, all queued).
+`cancel` and `delete` are idempotent (deleting a gone area is fine; deleting a running area
+cancels it and the runner removes it when the step stops).
+
 
 Steps (default: all four):
   dem      AWS Terrain Tiles (terrarium, zoom 13, ~20 m) -> areas/<id>/dem.bin (int16, 0.5 m units)
@@ -98,8 +106,23 @@ def img_zoom(bbox):
     return z
 
 
-def parse_area(a):
-    """(id, name, bbox) from a preset name or --bbox / --center + --radius."""
+def norm_id(aid):
+    return "".join(c if c.isalnum() or c in "-_" else "_" for c in str(aid).strip().lower())
+
+
+def area_json(aid):
+    try:
+        return json.load(open(os.path.join(AREAS, aid, "area.json")))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def parse_area(a, fit=None):
+    """(id, name, bbox) from an existing area id, a preset name or --bbox / --center + --radius."""
+    if a.preset and not a.bbox and not a.center:
+        m = area_json(norm_id(a.preset))
+        if m is not None and "bbox" in m:       # the registry first: custom ids (map boxes, --id) work everywhere
+            return norm_id(a.preset), m.get("name", a.preset), list(m["bbox"])
     if a.bbox:
         bbox = [float(v) for v in a.bbox.split(",")]
         aid, name = a.id or a.preset or "area_%.3f_%.3f" % ((bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2), a.name
@@ -110,12 +133,9 @@ def parse_area(a):
         bbox = [lat - dlat, lon - dlon, lat + dlat, lon + dlon]
         aid, name = a.id or a.preset or "area_%.3f_%.3f" % (lat, lon), a.name
     elif a.preset:
-        p = presets().get(a.preset)
+        p = presets().get(a.preset) or presets().get(norm_id(a.preset))
         if p is None:
             known = sorted(set(presets()) | set(existing()))
-            if a.preset in existing():
-                m = json.load(open(os.path.join(AREAS, a.preset, "area.json")))
-                return a.preset, m.get("name", a.preset), m["bbox"]
             sys.exit(f"unknown area '{a.preset}': one of {', '.join(known)}, or --bbox / --center")
         bbox, aid, name = list(p["bbox"]), a.id or a.preset, a.name or p["name"]
     else:
@@ -124,10 +144,35 @@ def parse_area(a):
     s, w, n, e = bbox
     if not (-85 < s < n < 85 and -180 <= w < e <= 180):
         sys.exit(f"bad bbox {bbox}")
-    if max(bbox_km(bbox)) > MAX_KM:
-        sys.exit(f"area too big ({max(bbox_km(bbox)):.0f} km side, max {MAX_KM:.0f}): split it")
-    aid = "".join(c if c.isalnum() or c in "-_" else "_" for c in aid.lower())
+    aid = norm_id(aid)
     return aid, name or aid, bbox
+
+
+def fit_area(aid, name, bbox, fit):
+    """[(id, name, bbox)] no side over MAX_KM: as is, clamped around the centre, or tiled."""
+    wkm, hkm = bbox_km(bbox)
+    if max(wkm, hkm) <= MAX_KM + 0.01:
+        return [(aid, name, bbox)]
+    s, w, n, e = bbox
+    if fit == "clamp":
+        cl, cn = (s + n) / 2, (w + e) / 2
+        dl = min(n - s, MAX_KM / 110.54) / 2
+        dn = min(e - w, MAX_KM / (111.32 * max(math.cos(math.radians(cl)), 0.05))) / 2
+        return [(aid, name, [round(cl - dl, 5), round(cn - dn, 5), round(cl + dl, 5), round(cn + dn, 5)])]
+    if fit == "split":
+        nc, nr = math.ceil(wkm / MAX_KM), math.ceil(hkm / MAX_KM)
+        if nc * nr > 64:
+            sys.exit(f"area too big to split ({wkm:.0f} x {hkm:.0f} km = {nc * nr} tiles, max 64)")
+        out = []
+        for r in range(nr):
+            for c in range(nc):
+                bb = [round(s + (n - s) * r / nr, 5), round(w + (e - w) * c / nc, 5),
+                      round(s + (n - s) * (r + 1) / nr, 5), round(w + (e - w) * (c + 1) / nc, 5)]
+                out.append((f"{aid}_r{r}c{c}", f"{name} [{r},{c}]", bb))
+        return out
+    sys.exit(f"area too big ({max(wkm, hkm):.0f} km side, max {MAX_KM:.0f}): add --fit clamp "
+             f"(a {MAX_KM:.0f} km box around the centre) or --fit split "
+             f"({math.ceil(wkm / MAX_KM) * math.ceil(hkm / MAX_KM)} areas of <= {MAX_KM:.0f} km)")
 
 
 def existing():
@@ -256,7 +301,8 @@ def read_status(aid):
 
 def write_status(aid, **kw):
     d = os.path.join(AREAS, aid)
-    os.makedirs(d, exist_ok=True)
+    if not os.path.isdir(d):
+        return              # deleted meanwhile: never resurrect an area as a bare status file
     st = read_status(aid)
     st.update(kw)
     st["updated"] = time.time()
@@ -279,7 +325,9 @@ def write_area(aid, **kw):
 def status_all():
     out = []
     for aid in existing():
-        m = json.load(open(os.path.join(AREAS, aid, "area.json")))
+        m = area_json(aid)
+        if m is None or "bbox" not in m:
+            continue        # being deleted / half written
         st = read_status(aid)
         reg = os.path.join(REGIONS, aid)
         man = os.path.join(reg, "manifest.json")
@@ -513,6 +561,26 @@ class Job:
         except Exception as ex:  # noqa: BLE001
             write_status(self.aid, state="error", msg=str(ex)[:300])
             log(self.aid, "error:", ex)
+        if os.path.exists(os.path.join(self.dir, "delete")):   # `delete` while running: finish it now
+            remove_area(self.aid)
+            log(self.aid, "deleted (after cancel)")
+
+
+def drop_queued(aid):
+    n = 0
+    for f in os.listdir(QUEUE) if os.path.isdir(QUEUE) else []:
+        if f.endswith(f"_{aid}.json"):
+            try:
+                os.remove(os.path.join(QUEUE, f))
+                n += 1
+            except OSError:
+                pass
+    return n
+
+
+def remove_area(aid):
+    shutil.rmtree(os.path.join(AREAS, aid), ignore_errors=True)
+    shutil.rmtree(os.path.join(REGIONS, aid), ignore_errors=True)
 
 
 def runner_alive():
@@ -574,6 +642,8 @@ def main():
     ap.add_argument("--wait", action="store_true", help="run: in the foreground")
     ap.add_argument("--offline", action="store_true", help="estimate: no network")
     ap.add_argument("--purge-tiles", action="store_true", help="delete: also the area's DEM / imagery tiles")
+    ap.add_argument("--fit", choices=["none", "clamp", "split"], default="none",
+                    help="areas over 120 km a side: clamp to 120 km around the centre, or split into tiles")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args()
     if a.cmd == "presets":
@@ -584,8 +654,17 @@ def main():
             for k, v in p.items():
                 print(f"{k:14s} {v['name']:28s} {','.join(str(x) for x in v['bbox'])}")
     elif a.cmd == "estimate":
-        _, name, bbox = parse_area(a)
+        aid, name, bbox0 = parse_area(a)
+        if max(bbox_km(bbox0)) > MAX_KM + 0.01 and a.fit == "none" and a.json:
+            wkm, hkm = bbox_km(bbox0)
+            print(json.dumps({"error": "too_big", "km": [round(wkm, 1), round(hkm, 1)], "max_km": MAX_KM,
+                              "split_tiles": math.ceil(wkm / MAX_KM) * math.ceil(hkm / MAX_KM)}))
+            return
+        parts = fit_area(aid, name, bbox0, a.fit)
+        bbox = parts[0][2] if len(parts) == 1 else bbox0
         est = estimate(bbox, online=not a.offline)
+        est["parts"] = len(parts)
+        est["fit"] = a.fit if bbox != bbox0 or len(parts) > 1 else "none"
         if a.json:
             print(json.dumps(est))
         else:
@@ -596,17 +675,25 @@ def main():
                   f"  OSM      {ex['name'] + ' extract' if ex else '?'} ({est['osm_mb']} MB{', cached' if est['osm_cached'] else ''})\n"
                   f"  region   ~{est['region_chunks']} chunks (~{est['region_mb']} MB)")
     elif a.cmd == "add":
-        aid, name, bbox = parse_area(a)
+        aid0, name0, bbox0 = parse_area(a)
+        parts = fit_area(aid0, name0, bbox0, a.fit)
+        if len(parts) > 1 or parts[0][2] != bbox0:
+            w0, h0 = bbox_km(bbox0)
+            log(f"{aid0}: {w0:.0f} x {h0:.0f} km is over {MAX_KM:.0f} km a side -> " +
+                (f"split into {len(parts)} areas" if len(parts) > 1 else f"clamped to {MAX_KM:.0f} km around the centre"))
         steps = [s for s in a.steps.split(",") if s in STEPS]
-        write_area(aid, name=name, bbox=bbox, steps=steps, source=a.source, created=time.time())
-        try:
-            os.remove(os.path.join(AREAS, aid, "cancel"))
-        except OSError:
-            pass
-        os.makedirs(QUEUE, exist_ok=True)
-        json.dump({"id": aid}, open(os.path.join(QUEUE, "%d_%s.json" % (time.time() * 1000, aid)), "w"))
-        write_status(aid, state="queued", step="", progress=0.0, msg="queued")
-        log(f"queued {aid} ({name}) {bbox} steps={','.join(steps)}")
+        for aid, name, bbox in parts:
+            write_area(aid, name=name, bbox=bbox, steps=steps, source=a.source, created=time.time())
+            for flag in ("cancel", "delete"):
+                try:
+                    os.remove(os.path.join(AREAS, aid, flag))
+                except OSError:
+                    pass
+            os.makedirs(QUEUE, exist_ok=True)
+            drop_queued(aid)
+            json.dump({"id": aid}, open(os.path.join(QUEUE, "%d_%s.json" % (time.time() * 1000, aid)), "w"))
+            write_status(aid, state="queued", step="", progress=0.0, msg="queued")
+            log(f"queued {aid} ({name}) {bbox} steps={','.join(steps)}")
         if a.run:
             spawn_runner()
     elif a.cmd == "status":
@@ -624,19 +711,29 @@ def main():
         else:
             spawn_runner()
     elif a.cmd == "cancel":
-        aid = a.preset or a.id
-        for f in os.listdir(QUEUE) if os.path.isdir(QUEUE) else []:
-            if f.endswith(f"_{aid}.json"):
-                os.remove(os.path.join(QUEUE, f))
-                write_status(aid, state="cancelled", msg="cancelled")
-        if read_status(aid).get("state") == "running":
+        aid = norm_id(a.preset or a.id or "")
+        if drop_queued(aid):
+            write_status(aid, state="cancelled", msg="cancelled")
+        if read_status(aid).get("state") == "running" and runner_alive():
             open(os.path.join(AREAS, aid, "cancel"), "w").close()
+        elif read_status(aid).get("state") == "running":    # runner died mid-job
+            write_status(aid, state="cancelled", msg="cancelled (runner not running)")
         log("cancel", aid)
     elif a.cmd == "delete":
-        aid = a.preset or a.id
-        if read_status(aid).get("state") == "running":
-            sys.exit(f"{aid} is running: cancel it first")
+        aid = norm_id(a.preset or a.id or "")
+        if not aid:
+            sys.exit("delete: which area?")
         d = os.path.join(AREAS, aid)
+        drop_queued(aid)
+        if not os.path.isdir(d) and not os.path.isdir(os.path.join(REGIONS, aid)):
+            log("already deleted", aid)
+            return
+        if read_status(aid).get("state") == "running" and runner_alive():
+            open(os.path.join(d, "delete"), "w").close()
+            open(os.path.join(d, "cancel"), "w").close()
+            write_status(aid, msg="deleting (cancelling the running step)")
+            log("delete", aid, "(running: cancelling, the runner removes it)")
+            return
         if a.purge_tiles and os.path.exists(os.path.join(d, "area.json")):
             bbox = json.load(open(os.path.join(d, "area.json")))["bbox"]
             others = [json.load(open(os.path.join(AREAS, o, "area.json")))["bbox"] for o in existing() if o != aid]
@@ -649,8 +746,7 @@ def main():
                             os.remove(os.path.join(folder, f"{t[0]}_{t[1]}.{ext}"))
                         except OSError:
                             pass
-        shutil.rmtree(d, ignore_errors=True)
-        shutil.rmtree(os.path.join(REGIONS, aid), ignore_errors=True)
+        remove_area(aid)
         log("deleted", aid)
 
 
