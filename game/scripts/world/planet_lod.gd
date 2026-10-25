@@ -328,12 +328,21 @@ func busy() -> bool:
 	return not _pending.is_empty()
 
 
-## Drop every chunk above the base levels (terrain data changed: new area pack / region).
-func rebuild() -> void:
+## Wait for every in-flight chunk build and drop its result (main thread). Call before the
+## terrain data a worker might be sampling changes (area packs reloaded, region swapped or
+## deleted); the chunks are simply requested again next frame.
+func quiesce() -> void:
 	for tid: int in _pending.values():
 		WorkerThreadPool.wait_for_task_completion(tid)
 	_pending.clear()
+	_mx.lock()
 	_done.clear()
+	_mx.unlock()
+
+
+## Drop every chunk above the base levels (terrain data changed: new area pack / region).
+func rebuild() -> void:
+	quiesce()
 	for k: int in chunks.keys():
 		(chunks[k]["node"] as Node).queue_free()
 	chunks.clear()

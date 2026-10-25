@@ -98,8 +98,7 @@ func _ready() -> void:
 ## The ground follows the region's DEM (physics + the planet LOD mesh). Idempotent.
 func _register() -> void:
 	if not dem.is_empty():
-		Game.earth.height_hook = height_at
-		Game.earth.render_hook = lod_height
+		Game.earth.set_hooks(height_at, lod_height)
 
 
 ## Height for the planet LOD mesh: the region's own terrain mesh covers it, so the LOD surface
@@ -248,13 +247,20 @@ func busy() -> bool:
 	return not (_queue.is_empty() and _pending.is_empty())
 
 
-func _exit_tree() -> void:
+## Wait for and drop every in-flight chunk build (quit / region swap).
+func quiesce() -> void:
 	for tid: int in _pending.values():
 		WorkerThreadPool.wait_for_task_completion(tid)
 	_pending.clear()
+	_mx.lock()
+	_done.clear()
+	_mx.unlock()
+
+
+func _exit_tree() -> void:
+	quiesce()
 	if Game.earth and Game.earth.height_hook == Callable(self, "height_at"):
-		Game.earth.height_hook = Callable()
-		Game.earth.render_hook = Callable()
+		Game.earth.set_hooks(Callable(), Callable())
 
 
 func _cc(k: String, cs: float) -> Vector2:

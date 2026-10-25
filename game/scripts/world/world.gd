@@ -218,7 +218,8 @@ func _apply_nasa_textures() -> void:
 	# worker thread and replaces the 5400 px set when ready (cached compressed after 1st run).
 	if FileAccess.file_exists(Geo.asset_dir() + "/earth_normal.png") or FileAccess.file_exists(Geo.asset_dir() + "/earth_day_%02d_hd.jpg" % month):
 		var wr: WeakRef = weakref(self)
-		WorkerThreadPool.add_task(func() -> void:
+		# tracked so quitting waits for it (an untracked decode during engine teardown crashes)
+		_pack_tasks.append(WorkerThreadPool.add_task(func() -> void:
 			var t0 := Time.get_ticks_msec()
 			var out := {}
 			for spec: Array in [["day_tex", "earth_day_%02d_hd.jpg" % month, "color"], ["night_tex", "earth_night_hd.jpg", "color"],
@@ -230,7 +231,7 @@ func _apply_nasa_textures() -> void:
 			(func() -> void:
 				var w: Object = wr.get_ref()
 				if w:
-					w.call("_apply_hd", out)).call_deferred(), false, "earth HD textures")
+					w.call("_apply_hd", out)).call_deferred(), false, "earth HD textures"))
 	var mc := Geo.tex("moon_color.jpg")
 	var mh := Geo.tex("moon_height.png")
 	if mc and mh:
@@ -561,7 +562,18 @@ func _load_pack_tex(id: String, path: String) -> void:
 				w.call("_pack_tex_ready", id, img)).call_deferred(), false, "area pack imagery"))
 
 
+## Quit / teardown: no worker may still be sampling terrain or decoding images while nodes and
+## the engine go away (planet LOD first: its workers call back into the region view).
 func _exit_tree() -> void:
+	shutdown_workers()
+
+
+## Called by Game.quit_game / the EVA client before get_tree().quit() as well.
+func shutdown_workers() -> void:
+	if earth_lod:
+		earth_lod.quiesce()
+	if is_instance_valid(region):
+		region.quiesce()
 	for t: int in _pack_tasks:
 		WorkerThreadPool.wait_for_task_completion(t)
 	_pack_tasks.clear()
@@ -574,6 +586,8 @@ func _pack_tex_ready(id: String, img: Image) -> void:
 
 ## Area packs / regions changed on disk (area manager job finished): re-read and re-mesh.
 func reload_terrain() -> void:
+	if earth_lod:
+		earth_lod.quiesce()     # no LOD worker may be sampling while packs / the region change
 	if Game.earth.terrain != null:
 		Game.earth.terrain.reload_packs()
 	_pack_tex.clear()
@@ -618,6 +632,8 @@ func _set_region(d0: String) -> void:
 	var d := d0 if d0 != "" else Geo.asset_dir() + "/regions/fredericton"
 	if region and region.dir == d:
 		return
+	if earth_lod:
+		earth_lod.quiesce()     # LOD workers call the region's render hook: stop them first
 	if region:
 		region.queue_free()
 		remove_child(region)

@@ -11,7 +11,9 @@ extends RefCounted
 ##      + land/water mask (earth_mask.png, ~5 km) + noise detail
 ##   4. nothing installed: gentle noise hills everywhere (tests / offline)
 ## The pad and the runway are flattened at their real 3 m elevation. Thread-safe after _init
-## (all lookups read immutable packed arrays); reload_packs() swaps the pack list atomically.
+## (all lookups read immutable packed arrays); reload_packs() swaps in a new pack list and is
+## only called after World has stopped the LOD workers (PlanetLOD.quiesce), so no worker ever
+## reads `packs` while it changes (no lock on the per-vertex path).
 
 const GLOBAL_CACHE_VER := 1
 const PACK_VER := 1
@@ -26,7 +28,7 @@ var g_px := PackedByteArray()
 var m_w := 0                    # global land mask (L8, 255 = land), equirect
 var m_h := 0
 var m_px := PackedByteArray()
-var packs: Array = []           # [{id, name, s, w, n, e, dw, dh, dem: PackedByteArray, wm: PackedByteArray, img_path, area}]
+var packs: Array = []           # replaced whole, never edited in place: [{id, name, s, w, n, e, dw, dh, dem: PackedByteArray, wm: PackedByteArray, img_path, area}]
 
 
 func _init(b: CelestialBody) -> void:

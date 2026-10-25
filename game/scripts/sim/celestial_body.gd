@@ -28,7 +28,8 @@ var crater_noise := FastNoiseLite.new()
 var cratered := false
 var relief_amp := 0.0          # broad low-frequency relief (Moon highlands / basins), m
 var relief_noise := FastNoiseLite.new()
-var sites: Array = []          # [{dir: Vector3, flat_r: float, h: float}]
+var sites: Array = []          # [{dir: Vector3, flat_r: float, h: float}] copy-on-write: never mutated in place
+var _sites_old: Array = []     # replaced site lists, kept alive: an LOD worker may still be iterating one
 ## Real-Earth heights (global DEM + land mask + downloaded area packs), see EarthTerrain.
 ## null = procedural noise terrain (the Moon, or Earth with no assets installed).
 var terrain: EarthTerrain = null
@@ -79,6 +80,16 @@ var height_hook: Callable   # a loaded detail region (RegionView.height_at): NAN
 var render_hook: Callable   # same, for the planet LOD mesh (sits just under the region's own mesh)
 
 
+## Install (or clear, with empty Callables) the detail-region hooks. LOD worker threads read
+## render_hook per vertex without a lock, so World stops them (PlanetLOD.quiesce) before a
+## region comes or goes, and re-registering the same region writes nothing.
+func set_hooks(h: Callable, r: Callable) -> void:
+	if height_hook != h:
+		height_hook = h
+	if render_hook != r:
+		render_hook = r
+
+
 func terrain_height(dir: Vector3) -> float:
 	if height_hook.is_valid():
 		var rh: float = height_hook.call(dir)
@@ -111,7 +122,7 @@ func natural_height(dir: Vector3, flatten: bool) -> float:
 
 ## Blend a height toward each site's flat pad height (flat inside flat_r, natural beyond 4x).
 func flatten_sites(dir: Vector3, h: float) -> float:
-	for s in sites:
+	for s: Dictionary in sites:
 		var sd: Vector3 = s["dir"]
 		var flat_r: float = s["flat_r"]
 		var d := sd.angle_to(dir) * radius
@@ -126,11 +137,20 @@ func add_site(dir: Vector3, flat_r: float, height: float = NAN) -> void:
 	var h := height
 	if is_nan(h):
 		h = natural_height(d, false) if relief_amp > 0.0 else terrain_amp * 0.25
-	sites.append({"dir": d, "flat_r": flat_r, "h": h})
+	var ns: Array = sites.duplicate()
+	ns.append({"dir": d, "flat_r": flat_r, "h": h})
+	_swap_sites(ns)
 
 
 func clear_sites() -> void:
-	sites.clear()
+	_swap_sites([])
+
+
+## Sites are read per vertex by LOD worker threads: never edit the live array in place (the
+## old in-place append/clear raced them), publish a new one and keep the old one alive.
+func _swap_sites(ns: Array) -> void:
+	_sites_old.append(sites)
+	sites = ns
 
 
 ## Unit "east" vector at a surface direction.
