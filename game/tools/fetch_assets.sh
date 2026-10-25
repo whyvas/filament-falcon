@@ -25,6 +25,8 @@ for a in "$@"; do case "$a" in
   *) echo "fetch_assets: unknown option $a (see --help)" >&2; exit 2 ;; esac; done
 N=https://eoimages.gsfc.nasa.gov/images/imagerecords
 S=https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720     # NASA SVS CGI Moon Kit (svs.gsfc.nasa.gov/4720)
+BM=https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-topography-bathymetry   # NASA Blue Marble NG (topo+bathy)
+MN=(january february march april may june july august september october november december)
 FAIL=0
 get() {  # dest url [fallback urls...]: first URL that works wins (all public domain NASA data)
   local dest="$1"; shift
@@ -45,7 +47,7 @@ IDS=(73580 73605 73630 73655 73701 73726 74092 74117 74142 74167 74192 74218)
 for m in $(seq 1 12); do
   [ "$MONTHS" != all ] && [ "$m" != "$MONTHS" ] && continue
   id=${IDS[$((m-1))]}; mm=$(printf %02d "$m")
-  get "earth_day_$mm.jpg" "$N/$((id/1000*1000))/$id/world.2004$mm.3x5400x2700.jpg"
+  get "earth_day_$mm.jpg" "$BM/${MN[$((m-1))]}/world.topo.bathy.2004$mm.3x5400x2700.jpg" "$N/$((id/1000*1000))/$id/world.topo.bathy.2004$mm.3x5400x2700.jpg" "$N/$((id/1000*1000))/$id/world.2004$mm.3x5400x2700.jpg"
 done
 get earth_night.jpg "$N/144000/144898/BlackMarble_2016_3km.jpg"
 get earth_clouds.jpg "$N/57000/57747/cloud_combined_2048.jpg"
@@ -55,7 +57,7 @@ if [ "$DO_HD" = 1 ] && [ "$HAVE_PY" = 1 ]; then
   for m in $(seq 1 12); do
     [ "$HD_MONTHS" != all ] && [ "$m" != "$HD_MONTHS" ] && continue
     id=${IDS[$((m-1))]}; mm=$(printf %02d "$m"); base="$N/$((id/1000*1000))/$id"
-    [ -s "$A/earth_day_${mm}_hd.jpg" ] || get "src/earth_day_${mm}_21600.jpg" "$base/world.topo.bathy.2004$mm.3x21600x10800.jpg" "$base/world.2004$mm.3x21600x10800.jpg"
+    [ -s "$A/earth_day_${mm}_hd.jpg" ] || get "src/earth_day_${mm}_21600.jpg" "$BM/${MN[$((m-1))]}/world.topo.bathy.2004$mm.3x21600x10800.jpg" "$base/world.topo.bathy.2004$mm.3x21600x10800.jpg" "$base/world.2004$mm.3x21600x10800.jpg"
   done
   [ -s "$A/earth_clouds_hd.png" ] || get src/cloud_combined_8192.tif "$N/57000/57747/cloud_combined_8192.tif"
 fi
