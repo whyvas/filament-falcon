@@ -3,8 +3,11 @@ extends Node3D
 ## Draws the spacewalk in the shared 3D world (cockpit windows, docking / arm / chase cameras,
 ## helmet cam, the VR client): handrails, worksite props, items, the tether cable, frosty
 ## handprints / knock ripples on the canopy, and the astronaut avatar. Everything is in the
-## ship frame: this node carries the Falcon's attitude (the ship sits at the world origin).
-## NOT a child of the ship model, so the cockpit windows (which hide the hull) still see it.
+## ship frame: this node carries the Falcon's pose relative to the floating origin, exactly as
+## WorldView places the ship model (normally the origin itself; the debug free camera moves the
+## origin off the ship), so every view (windows, camera feeds, the VR client) draws the
+## spacewalker at the same world position. NOT a child of the ship model, so the cockpit
+## windows (which hide the hull) still see it.
 
 var avatar: AstronautModel
 var client_sim: EvaSim = null       # VR client: draw our own local sim (no interpolation)
@@ -41,6 +44,12 @@ func _ready() -> void:
 		Eva.eva_event.connect(_on_event)
 
 
+## The ship frame relative to the floating origin (same as WorldView's ship model).
+static func ship_xform() -> Transform3D:
+	var s: ShipSim = Game.sim
+	return Transform3D(s.basis, s.pos.rel(Game.slew.view_pos(Game)))
+
+
 func _src() -> EvaSim:
 	if client_sim != null:
 		return client_sim
@@ -49,7 +58,7 @@ func _src() -> EvaSim:
 
 func _process(dt: float) -> void:
 	_t += dt
-	transform = Transform3D(Game.sim.basis, Vector3.ZERO)
+	transform = ship_xform()
 	var sim := _src()
 	if sim == null:
 		_pose = {}

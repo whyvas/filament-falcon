@@ -239,11 +239,25 @@ func _update_world_inputs() -> void:
 	var s: ShipSim = Game.sim
 	sim.arm_ok = Game.arm_extend > 0.9 and bool(Game.powered.get("arm", false))
 	sim.arm_tip = Game.arm_base_body() + Game.arm_dir_body() * Game.arm_len * Game.arm_extend + Vector3(0, -0.15, 0)
-	sim.ship_w = s.basis.inverse() * s.ang_vel
-	sim.ship_acc = s.basis.inverse() * s.accel_proper if s.thrust_now > 0.0 or s.in_trans.length() > 0.01 else Vector3.ZERO
+	var m := ship_motion()
+	sim.ship_w = s.basis.inverse() * (m[0] as Vector3)
+	sim.ship_acc = s.basis.inverse() * (m[1] as Vector3)
 	var w: WorldView = get_tree().get_first_node_in_group("world")
 	sim.in_sun = w == null or not w.in_shadow
 	sim.cargo_door = Game.cargo_door
+
+
+## How the ship actually moved this tick, world frame: [angular velocity, non-gravitational
+## acceleration]. A free-floating spacewalker shares the ship's gravity (the tidal difference
+## over tens of metres is negligible), so only these two make them drift in the ship frame.
+## Zero while the ship is not being integrated (paused / briefing / complete), docked (clamped:
+## the ship rides the station's orbit) or sitting on the ground, so nothing drags the
+## spacewalker around while the hull itself is frozen.
+func ship_motion() -> Array:
+	var s: ShipSim = Game.sim
+	if s == null or Game.state != Game.State.ACTIVE or s.clamped or s.touching:
+		return [Vector3.ZERO, Vector3.ZERO]
+	return [s.ang_vel, s.accel_proper]
 
 
 func _handle_events(evs: Array) -> void:
@@ -478,6 +492,7 @@ func _net_tx() -> void:
 	if not _bound or not client_connected() or _client_port == 0:
 		return
 	var s: ShipSim = Game.sim
+	var motion := ship_motion()
 	var ents := []
 	for e: Dictionary in Game.entities:
 		var rel := (e["pos"] as BigVec).rel(s.pos)
@@ -486,10 +501,10 @@ func _net_tx() -> void:
 			ents.append([e["id"], p.x(), p.y(), p.z(), e["basis"], e.get("visible", true), e["vel"]])
 	_seq += 1
 	var w := {"t": "w", "seq": _seq, "mid": Game.mission_id, "gt": Game.t, "px": s.pos.x(), "py": s.pos.y(), "pz": s.pos.z(),
-		"vel": s.vel, "basis": s.basis, "w": s.ang_vel, "sun": Game.sun_dir, "door": Game.cargo_door,
+		"vel": s.vel, "basis": s.basis, "w": motion[0], "sun": Game.sun_dir, "door": Game.cargo_door,
 		"arm": [Game.arm_yaw, Game.arm_pitch, Game.arm_len, Game.arm_extend, bool(Game.powered.get("arm", false))],
 		"thr": s.thrust_now, "eng": s.engine_on, "dens": s.density_now, "ents": ents, "cmds": _cmds.slice(0, 4),
-		"ack": _ev_seen, "state": Game.state, "eva": active, "wave": Game.crew_wave, "acc": s.accel_proper if s.thrust_now > 0.0 or s.in_trans.length() > 0.01 else Vector3.ZERO,
+		"ack": _ev_seen, "state": Game.state, "eva": active, "wave": Game.crew_wave, "acc": motion[1],
 		"cfg": {"snap": float(Settings.get_v("eva", "snap_deg")), "vignette": float(Settings.get_v("eva", "vignette")),
 			"seated": str(Settings.get_v("eva", "play_height")) == "seated"}}
 	_udp.set_dest_address(_client_ip, _client_port)

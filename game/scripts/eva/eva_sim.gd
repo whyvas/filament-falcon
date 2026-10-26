@@ -9,6 +9,19 @@ extends RefCounted
 ## is `rig`; head and hands are rig-local transforms from the headset / controllers (or from
 ## FlatControl). A rig-local -Z is "the way the rig faces".
 ##
+## Frames of reference (the physics):
+##  - Holding on (handrail, flat rail, canopy frame, arm foot restraint): the body is fixed to
+##    the hull, so it follows every ship burn and rotation; `vel` is then SHIP-RELATIVE.
+##  - Free-floating: the body is its own inertial object. `vel` is its velocity relative to the
+##    ship's centre in the inertial frame, expressed in ship axes. Each step the ship's
+##    rotation (ship_w) turns the body the other way in ship coordinates and the ship's
+##    non-gravitational acceleration (ship_acc: engine, RCS) is subtracted, so a burn or a turn
+##    never drags a free-floating spacewalker (both share the orbit's gravity).
+##  - Letting go: the body keeps the hull's inertial velocity at that point (ship_w x r) plus
+##    its own push-off (or the arm tip's motion).
+##  - Tether and hull contacts react to the velocity relative to the moving anchor / hull.
+##  - Moon surface (`surface`): the ship is landed, gravity + ground, plain ship frame.
+##
 ## Locomotion:
 ##  - VR: grab a handrail with GRIP and pull (the body moves so the hand stays put); let go
 ##    with some speed to glide. Grab the arm tip to ride the robotic arm.
@@ -72,6 +85,7 @@ var on_ground := false
 var lamp := false
 var jet_on := 0.0             # 0..1 thrust this frame (vignette, sound, avatar plume)
 var flat := false
+var _was_holding := true      # attached last step (vel was ship-relative)
 
 # ---- suit
 var o2 := 100.0               # %
@@ -136,6 +150,7 @@ func setup(s: Dictionary) -> void:
 	var st: Transform3D = s.get("start", Transform3D(Basis.IDENTITY, hatch))
 	rig = st
 	vel = Vector3.ZERO
+	_was_holding = true       # out of the hatch at rest relative to the hull
 	gas = float(s.get("gas", 100.0))
 	riding = false
 	att_edge = -1
@@ -303,14 +318,18 @@ func step_sim(dt: float, inp: Dictionary) -> void:
 	var turn := float(inp.get("turn", 0.0))
 	if turn != 0.0:
 		_rotate_rig(turn)
-	# free-floating: the ship turns / accelerates under us
-	var holding := grab_kind[0] in ["rail", "arm"] or grab_kind[1] in ["rail", "arm"] or att_edge >= 0 or riding or perch
+	# free-floating: the ship turns / accelerates under us (see "Frames of reference")
+	var holding := is_holding()
 	if not holding and not surface:
+		if _was_holding:
+			# just let go: carry the hull's own motion at this point into free flight
+			vel += hull_vel(rig.origin)
 		if ship_w.length_squared() > 1e-10:
 			var r := Basis(ship_w.normalized(), -ship_w.length() * dt)
 			rig = Transform3D(r * rig.basis, r * rig.origin)
 			vel = r * vel
 		vel -= ship_acc * dt
+	_was_holding = holding or surface
 	# hands: velocities, grabs, items
 	for i in 2:
 		var hp := hand_s(i).origin
@@ -375,6 +394,27 @@ func step_sim(dt: float, inp: Dictionary) -> void:
 	_suit(dt, inp)
 
 
+## Attached to the ship (moves rigidly with the hull).
+func is_holding() -> bool:
+	return grab_kind[0] in ["rail", "arm"] or grab_kind[1] in ["rail", "arm"] or att_edge >= 0 or riding or perch
+
+
+## Inertial velocity (relative to the ship's centre, ship axes) of a point fixed to the hull.
+func hull_vel(p: Vector3) -> Vector3:
+	return ship_w.cross(p)
+
+
+## Body velocity relative to the hull point / anchor at p (what a contact or the tether feels).
+func _vel_rel_hull(p: Vector3) -> Vector3:
+	return vel - hull_vel(p) if not _was_holding else vel
+
+
+## World-consistent state for tests / tools: the rig in the inertial frame centred on the ship
+## (ship basis applied), and the body's inertial velocity relative to the ship centre.
+func inertial_vel() -> Vector3:
+	return vel + hull_vel(rig.origin) if is_holding() and not surface else vel
+
+
 func _rotate_rig(a: float) -> void:
 	# about the head, so the view does not swing around the room centre
 	var hp := head_s().origin
@@ -437,8 +477,8 @@ func _release(i: int) -> void:
 			var v := -hand_vel[i]
 			vel = v.limit_length(THROW_MAX)
 	elif k == "arm":
-		riding = false
-		vel = Vector3.ZERO
+		riding = false     # keeps the arm tip's last (ship-relative) motion; + hull motion on the next step
+		vel = vel.limit_length(THROW_MAX)
 		_event("arm_off", {})
 	elif k == "item":
 		_drop_item(i)
@@ -681,10 +721,14 @@ func _hull_collide() -> void:
 			continue
 		var n := Vector3(q.x / d * EvaScenarios.YS, q.y / d, 0.0).normalized()
 		rig.origin += n * (lim - d)
-		var vn := vel.dot(n)
+		# contact with the (possibly turning) hull: react to the velocity relative to its surface
+		var hv := hull_vel(p) if not _was_holding else Vector3.ZERO
+		var vr := vel - hv
+		var vn := vr.dot(n)
 		if vn < 0.0:
-			vel -= n * vn * 1.15
-			vel = vel.lerp(n * vel.dot(n), 0.25)   # scuff: friction along the hull
+			vr -= n * vn * 1.15
+			vr = vr.lerp(n * vr.dot(n), 0.25)   # scuff: friction along the hull
+			vel = vr + hv
 			if vn < -0.4:
 				_event("knock", {"pos": p - n * SUIT_R, "n": n, "hand": 1})
 
@@ -702,9 +746,11 @@ func _tether(_dt: float) -> void:
 	if tether_used > tether_len:
 		var n := d / tether_used
 		rig.origin -= n * (tether_used - tether_len)
-		var vn := vel.dot(n)
+		# the anchor rides the hull: only the stretch rate (velocity relative to it) is stopped,
+		# then a little elastic bounce back. A burn pulls a taut tether (and you) along with it.
+		var vn := _vel_rel_hull(w).dot(n)
 		if vn > 0.0:
-			vel -= n * vn * 1.3    # a little bounce back
+			vel -= n * vn * 1.3
 		if riding:
 			riding = false
 			grab_kind[0] = ""

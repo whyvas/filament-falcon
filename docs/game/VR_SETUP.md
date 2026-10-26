@@ -67,6 +67,20 @@ DRONE feed. The helmet is on its own render layer (`EVA_HEAD_LAYER`) and the tor
 (`EVA_BODY_LAYER`): the HELMET CAM and the VR headset hide them (you never see the inside of your own helmet),
 but arms and gloves stay visible to the wearer.
 
+**Physics: the spacewalker is a separate body.** One authoritative state (the VR client's `EvaSim`, or the
+cockpit's own in flat mode), in the ship frame, drawn by every view through the same transform as the hull
+model (ship attitude + its offset from the floating origin), so the windows, camera feeds and the headset
+agree on where the astronaut is, also with the debug free camera moving the origin.
+- **Free-floating** (no grip): the astronaut keeps their own inertial velocity. A ship burn (RCS/engine) or a
+  turn does *not* carry them along: the ship accelerates/rotates away and they drift relative to the hull
+  (tethered: until the line goes taut and tows them, with a little elastic bounce).
+- **Holding on** (handrail, flat rail, canopy frame, arm foot restraint): rigid with the hull, follows every
+  burn and rotation.
+- **Letting go**: they keep the hull's velocity at the grab point (ω×r on a turning ship) plus their push-off
+  (or the arm tip's motion). Hull bumps and the tether react to the velocity relative to the (moving) hull.
+- Paused, docked or landed: the hull isn't moving, so nothing drifts.
+Headless check: `godot --headless --path . --audio-driver Dummy -- --eva-frame-test` (~10 s).
+
 **Avatar.** Procedural EMU-style suit: hard upper torso, PLSS backpack with the SAFER jetpack, display and
 control module, flag patch, red stripes (EV1), helmet with a gold visor, two helmet lamps (real spot lights +
 glow), gloves with curling fingers and a pointing index. Driven by head + both controller poses: two-bone IK
