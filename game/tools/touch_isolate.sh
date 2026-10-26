@@ -14,7 +14,11 @@
 #          every device) and turns them into taps on the console window.
 #   master put the device on its own master pointer (xinput create-master "Falcon Touch").
 #          The mouse cursor stays where it is; a second cursor follows the finger. For devices
-#          that are plain absolute pointers with no touch class.
+#          that are plain absolute pointers with no touch class. NOT for real touchscreens under
+#          Cinnamon/GNOME: the window manager hides the cursor (XFixes, screen-wide) when the
+#          last-used device is a touchscreen and only shows it again when the *core* pointer
+#          switches devices, which never happens once touch lives on another master. The game
+#          nudges the pointer after touches (tools/x11_show_cursor.py) to bring it back.
 #   0      off (same as ./run.sh --no-touch-isolate)
 # Does nothing (exit 1) with no X display, Wayland, no xinput or no touchscreen.
 # Touch device detection is setup_displays.sh's (--device / $FALCON_TOUCH_DEVICE override it).
@@ -34,7 +38,8 @@ usable() {
 
 # master id a slave is attached to ("" when floating)
 master_of() { xinput list "$1" 2>/dev/null | sed -n 's/.*slave  *\(pointer\|keyboard\)  *(\([0-9][0-9]*\)).*/\2/p' | head -1; }
-is_direct_touch() { xinput list --long "$1" 2>/dev/null | grep -qi 'direct touch'; }
+# xinput prints "Touch mode: direct" for a touchscreen ("dependent" for touchpads)
+is_direct_touch() { xinput list --long "$1" 2>/dev/null | grep -qiE 'touch mode: *direct|direct touch'; }
 dev_exists() { xinput list --name-only "$1" >/dev/null 2>&1; }
 id_of() { xinput list --id-only "$1" 2>/dev/null; }
 
@@ -89,6 +94,9 @@ do_start() {
     n=$((n + 1))
   done
   if [ "$n" = 0 ]; then do_stop >/dev/null; return 1; fi
+  if pgrep -x 'unclutter|unclutter-xfixes' >/dev/null 2>&1; then
+    log "warning: unclutter is running and hides the mouse cursor; stop it for the Commander"
+  fi
   return 0
 }
 

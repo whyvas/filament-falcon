@@ -51,6 +51,10 @@ var reasons := {}                   # role -> "auto" | "output" | "screen" | ""
 var commander_embedded := false
 var _esc_was := false
 var _no_input_hint := false         # WM_HINTS input=False currently set on the console window
+var _touch_wins: Array[Window] = []  # windows whose touches trigger the cursor keeper
+var _nudge_due := -1.0               # when to nudge the mouse pointer back into view (ms, -1 none)
+var _nudge_last := -1e9
+var _mouse_check_t := 0.0
 
 
 func setup(w: WorldView) -> void:
@@ -465,6 +469,53 @@ func _guard_touch_focus(console_win: Window, commander_win: Window) -> void:
 	if on:
 		commander_win.grab_focus()
 		print("display: touch focus guard on (console window never takes keyboard focus)")
+	_watch_touch(console_win)
+	_watch_touch(get_tree().root)
+
+
+## Cursor keeper. Nothing in the game ever hides or captures the mouse (mouse_mode stays
+## VISIBLE, re-asserted after touches and once a second). But Cinnamon / GNOME hide the cursor
+## screen-wide when the last-used device is a touchscreen and show it again only when the core
+## pointer switches to a mouse, which no longer happens once touch_isolate.sh moved the
+## touchscreen off the core pointer. So after a touch, tools/x11_show_cursor.py nudges the core
+## pointer 1 px and back via XTEST (at most once a second, trailing): the window manager sees a
+## "mouse" and shows the cursor again. FALCON_CURSOR_NUDGE=0 turns the nudge off.
+func _watch_touch(w: Window) -> void:
+	if w == null or w in _touch_wins:
+		return
+	_touch_wins.append(w)
+	w.window_input.connect(_on_window_input)
+
+
+func _on_window_input(ev: InputEvent) -> void:
+	if ev is InputEventScreenTouch or ev is InputEventScreenDrag:
+		_keep_mouse_visible()
+		if ev is InputEventScreenTouch and not (ev as InputEventScreenTouch).pressed and cursor_nudge_enabled():
+			_nudge_due = Time.get_ticks_msec() + 80.0
+
+
+func _keep_mouse_visible() -> void:
+	if Input.mouse_mode != Input.MOUSE_MODE_VISIBLE:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func _cursor_keeper(dt: float) -> void:
+	_mouse_check_t += dt
+	if _mouse_check_t >= 1.0:
+		_mouse_check_t = 0.0
+		_keep_mouse_visible()
+	var now := float(Time.get_ticks_msec())
+	if _nudge_due >= 0.0 and now >= _nudge_due and now - _nudge_last >= 1000.0:
+		_nudge_due = -1.0
+		_nudge_last = now
+		OS.create_process("python3", PackedStringArray([ProjectSettings.globalize_path("res://tools/x11_show_cursor.py")]))
+
+
+static func cursor_nudge_enabled() -> bool:
+	if DisplayServer.get_name() != "X11" or not touch_guard_enabled():
+		return false
+	var v := OS.get_environment("FALCON_CURSOR_NUDGE").strip_edges().to_lower()
+	return not (v in ["0", "off", "no", "false"])
 
 
 static func touch_guard_enabled() -> bool:
@@ -597,12 +648,13 @@ func frustum_for(side: int) -> Array:
 	return off_axis(screen_rect_for("left" if side < 0 else "right"))
 
 
-func _process(_dt: float) -> void:
+func _process(dt: float) -> void:
 	# Escape: show/hide the Commander tab on the console (three-screen rigs)
 	var esc := Input.is_physical_key_pressed(KEY_ESCAPE) and not Input.is_key_pressed(KEY_SHIFT)
 	if esc and not _esc_was and commander_embedded:
 		console.toggle_commander()
 	_esc_was = esc
+	_cursor_keeper(dt)
 	if world == null:
 		return
 	near_now = minf(NEAR, EVA_NEAR) if Eva.active else NEAR

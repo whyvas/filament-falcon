@@ -306,7 +306,7 @@ and the window manager gives that window keyboard focus, so Dad's cursor jumps a
 (and Alt+F4) stop working until he clicks back. While the game runs, **`run.sh` keeps the touchscreen apart
 from the mouse** (`game/tools/touch_isolate.sh`):
 
-- *Multi-touch device* (the TD2220 normally is one; `xinput list --long <id>` shows "Direct touch device"):
+- *Multi-touch device* (the TD2220 normally is one; `xinput list --long <id>` shows "Touch mode: direct"):
   it is **floated** (`xinput float`). X no longer moves the cursor or sends clicks for it. Godot still reads
   its XI2 touch events and turns them into taps and drags on the console window (multi-touch TALK pads too).
 - *Plain absolute pointer* (no touch class): it gets its **own master pointer** "Falcon Touch"
@@ -320,10 +320,21 @@ from the mouse** (`game/tools/touch_isolate.sh`):
   (state: `~/.local/share/filament-falcon/touch_isolate.state`, log: `touch_isolate.log` next to it).
 - It does nothing on Wayland, without `xinput`, or with no touchscreen. The touchscreen keeps working on the
   desktop when the game isn't running.
+- **The mouse cursor never stays hidden.** The game never hides or captures the mouse (`mouse_mode` is
+  re-asserted VISIBLE after touches and every second). The cursor that vanished after a tap was Cinnamon's
+  doing: its window manager (muffin, like GNOME's mutter) hides the cursor screen-wide when the last-used
+  device is a touchscreen and shows it again only when the *core* pointer switches back to a mouse. With
+  the touchscreen on its own "Falcon Touch" master (which the first version picked by mistake for real
+  touchscreens: it looked for "direct touch" while xinput prints "Touch mode: direct"), that switch never
+  happens, so the cursor stayed gone. Now real touchscreens are floated (no hide at all), and as a safety
+  net the game runs `tools/x11_show_cursor.py` after touches (≤ 1/s): it nudges the core pointer 1 px and
+  back via XTEST, which the window manager counts as mouse use and shows the cursor. Also: don't run
+  `unclutter` (touch_isolate.log warns if it is).
 
 ```bash
 FALCON_TOUCH_ISOLATE=0 ./run.sh --cockpit       # off (or: ./run.sh --no-touch-isolate)
 FALCON_TOUCH_ISOLATE=master ./run.sh --cockpit  # force the second-master method (default: auto)
+FALCON_CURSOR_NUDGE=0 ./run.sh --cockpit        # no cursor nudge after touches
 game/tools/touch_isolate.sh status              # what is isolated right now
 game/tools/touch_isolate.sh stop                # put the touchscreen back by hand
 ```
