@@ -60,7 +60,8 @@ with the software Vulkan driver at the Ultra preset (`QUALITY=ultra`), so they l
 `run.sh` also maps the touchscreen to the kids' console monitor before each launch (see
 [Touch mapping](#touch-mapping-the-td2220)) and starts the intercom helper (see [Intercom](#6-intercom-ics-three-usb-headsets)).
 Extra `run.sh` options: `--landscape-console` (turn the console monitor to landscape first),
-`--no-display-setup` (skip the touch mapping), `--no-ics` (no intercom) and `--eva-vr` (start the VR spacewalk
+`--no-display-setup` (skip the touch mapping), `--no-touch-isolate` (let touches move the mouse pointer again, see
+[Touch vs. mouse](#touch-vs-mouse-focus)), `--no-ics` (no intercom) and `--eva-vr` (start the VR spacewalk
 client for the Quest 3 instead of the cockpit, in a second terminal; add `--eva-flat` to try it without a
 headset; see [section 7](#7-vr-spacewalks-meta-quest-3)).
 
@@ -297,6 +298,38 @@ game/tools/setup_displays.sh --output DisplayPort-0 --device "NextWindow"   # ov
 
 If the touch cable gets replugged during a session, run the script again (or just restart via `run.sh`). Use
 the default X11 Cinnamon session; on Wayland the compositor's own touch-mapping setting is needed instead.
+
+### Touch vs. mouse focus
+
+Out of the box, X treats the touchscreen as a second mouse: a tap moves *the* cursor to the kids' panel
+and the window manager gives that window keyboard focus, so Dad's cursor jumps away and Commander shortcuts
+(and Alt+F4) stop working until he clicks back. While the game runs, **`run.sh` keeps the touchscreen apart
+from the mouse** (`game/tools/touch_isolate.sh`):
+
+- *Multi-touch device* (the TD2220 normally is one; `xinput list --long <id>` shows "Direct touch device"):
+  it is **floated** (`xinput float`). X no longer moves the cursor or sends clicks for it. Godot still reads
+  its XI2 touch events and turns them into taps and drags on the console window (multi-touch TALK pads too).
+- *Plain absolute pointer* (no touch class): it gets its **own master pointer** "Falcon Touch"
+  (`xinput create-master`). Dad's cursor stays put, and a second cursor follows the finger on the panel.
+- When the Commander has its own screen, the game also marks the console window as never taking keyboard
+  focus (Godot's click-to-focus off, plus ICCCM `WM_HINTS` input=False via `tools/x11_no_input_hint.py`
+  so Cinnamon doesn't focus it either). The keyboard stays on the Commander window. When the Commander is
+  embedded in the console (no Commander monitor), the console keeps normal focus.
+- On exit (normal quit, Alt+F4, crash or kill) a small watcher puts the device back on the
+  Virtual core pointer and removes the extra master. The next start also cleans up anything left over
+  (state: `~/.local/share/filament-falcon/touch_isolate.state`, log: `touch_isolate.log` next to it).
+- It does nothing on Wayland, without `xinput`, or with no touchscreen. The touchscreen keeps working on the
+  desktop when the game isn't running.
+
+```bash
+FALCON_TOUCH_ISOLATE=0 ./run.sh --cockpit       # off (or: ./run.sh --no-touch-isolate)
+FALCON_TOUCH_ISOLATE=master ./run.sh --cockpit  # force the second-master method (default: auto)
+game/tools/touch_isolate.sh status              # what is isolated right now
+game/tools/touch_isolate.sh stop                # put the touchscreen back by hand
+```
+
+If touch stops working in the game with the default (`float`), try `FALCON_TOUCH_ISOLATE=master` and say
+which one works.
 
 ### Later: projector dome (3× HY300)
 

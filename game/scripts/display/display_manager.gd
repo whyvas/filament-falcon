@@ -50,6 +50,7 @@ var assign := {}                    # role -> screen index (-1 = none)
 var reasons := {}                   # role -> "auto" | "output" | "screen" | ""
 var commander_embedded := false
 var _esc_was := false
+var _no_input_hint := false         # WM_HINTS input=False currently set on the console window
 
 
 func setup(w: WorldView) -> void:
@@ -397,6 +398,7 @@ func apply_layout() -> void:
 		host.add_child(cont["console"])
 		cont["console"].set_anchors_preset(Control.PRESET_FULL_RECT)
 		var win_roles: Array[String] = out_views.duplicate()
+		var commander_win: Window = null
 		if screen_of("commander") >= 0:
 			win_roles.append("commander")
 		else:
@@ -417,10 +419,14 @@ func apply_layout() -> void:
 			cont[n].set_anchors_preset(Control.PRESET_FULL_RECT)
 			windows.append(w)
 			_place_window.call_deferred(w, scr, fs)
+			if n == "commander":
+				commander_win = w
+		_guard_touch_focus.call_deferred(root_win, commander_win)
 		print("display: cockpit layout on %d screens" % monitors.size())
 		for r: String in role_list():
 			print("  %-14s %s" % [str(ROLE_NAMES.get(r, r)), _describe_cockpit(r)])
 	else:
+		_guard_touch_focus(root_win, null)
 		if root_win.mode == Window.MODE_FULLSCREEN or root_win.mode == Window.MODE_EXCLUSIVE_FULLSCREEN:
 			root_win.mode = Window.MODE_WINDOWED
 		_apply_vsync(root_win)
@@ -436,6 +442,36 @@ func apply_layout() -> void:
 		get_parent().add_child.call_deferred(dev_root)
 		dev_root.resized.connect(_layout_tiles)
 		_layout_tiles.call_deferred()
+
+
+## Touchscreen focus guard. When the Commander has its own screen, the KIDS' CONSOLE window never
+## takes keyboard focus: Godot's click-to-focus is off (unfocusable) and the window manager is told
+## the window takes no input (tools/x11_no_input_hint.py, ICCCM WM_HINTS). A tap on the panel then
+## leaves keyboard focus (shortcuts, Alt+F4) on the Commander. Taps and drags still work. run.sh's
+## tools/touch_isolate.sh keeps the touchscreen off the mouse pointer. FALCON_TOUCH_ISOLATE=0 turns
+## both off. With the Commander embedded in the console, the console keeps normal focus.
+func _guard_touch_focus(console_win: Window, commander_win: Window) -> void:
+	var on := commander_win != null and touch_guard_enabled()
+	if console_win.unfocusable != on:
+		console_win.unfocusable = on
+	if DisplayServer.get_name() == "X11" and on != _no_input_hint:
+		var xid := DisplayServer.window_get_native_handle(DisplayServer.WINDOW_HANDLE, console_win.get_window_id())
+		if xid != 0:
+			var args := PackedStringArray([ProjectSettings.globalize_path("res://tools/x11_no_input_hint.py"), str(xid)])
+			if not on:
+				args.append("--restore")
+			if OS.create_process("python3", args) > 0:
+				_no_input_hint = on
+	if on:
+		commander_win.grab_focus()
+		print("display: touch focus guard on (console window never takes keyboard focus)")
+
+
+static func touch_guard_enabled() -> bool:
+	if DisplayServer.get_name() == "headless":
+		return false
+	var v := OS.get_environment("FALCON_TOUCH_ISOLATE").strip_edges().to_lower()
+	return not (v in ["0", "off", "no", "false"])
 
 
 func _place_window(w: Window, screen: int, fullscreen: bool) -> void:

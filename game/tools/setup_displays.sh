@@ -7,6 +7,7 @@
 #   tools/setup_displays.sh --landscape     also: xrandr --output <console> --rotate normal
 #   tools/setup_displays.sh --output DisplayPort-0 --device "NextWindow"   override detection
 #   tools/setup_displays.sh --list          show outputs and touch devices, change nothing
+#   tools/setup_displays.sh --ids           print the touch device ids, one per line (for touch_isolate.sh)
 #
 # Console output name, first match wins: --output, $FALCON_CONSOLE_OUTPUT, console_output in
 # ~/.local/share/filament-falcon/falcon_settings.cfg, CONSOLE_OUTPUT in displays.env there
@@ -18,6 +19,7 @@
 set -u
 LANDSCAPE=0
 LIST=0
+IDS_ONLY=0
 QUIET=0
 OUT="${FALCON_CONSOLE_OUTPUT:-}"
 DEV="${FALCON_TOUCH_DEVICE:-}"
@@ -25,12 +27,13 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --landscape) LANDSCAPE=1 ;;
     --list) LIST=1 ;;
+    --ids) IDS_ONLY=1 ;;
     --quiet|-q) QUIET=1 ;;
     --output) OUT="${2:-}"; shift ;;
     --output=*) OUT="${1#*=}" ;;
     --device) DEV="${2:-}"; shift ;;
     --device=*) DEV="${1#*=}" ;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
   esac
   shift
 done
@@ -48,14 +51,20 @@ if [ -z "$OUT" ] && [ -f "$CFG_DIR/displays.env" ]; then
 fi
 OUT="${OUT:-DisplayPort-0}"
 
+# Slave pointers, plus floating slaves (touch_isolate.sh floats the touchscreen while the game runs).
 find_touch_ids() {
   command -v xinput >/dev/null 2>&1 || return 0
   if [ -n "$DEV" ]; then
-    xinput list | grep -E 'slave +pointer' | grep -iF -- "$DEV"
+    xinput list | grep -E 'slave +pointer|floating slave' | grep -iF -- "$DEV"
   else
-    xinput list | grep -E 'slave +pointer' | grep -iE 'nextwindow|viewsonic|touch' | grep -viE 'touchpad|xtest'
+    xinput list | grep -E 'slave +pointer|floating slave' | grep -iE 'nextwindow|viewsonic|touch' | grep -viE 'touchpad|xtest|keyboard'
   fi | sed -n 's/.*id=\([0-9][0-9]*\).*/\1/p'
 }
+
+if [ "$IDS_ONLY" = 1 ]; then
+  [ -n "${DISPLAY:-}" ] && find_touch_ids
+  exit 0
+fi
 
 if [ "$LIST" = 1 ]; then
   echo "Console output (from config): $OUT"

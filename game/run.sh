@@ -2,10 +2,14 @@
 # Launch The Filament Falcon. On a fresh clone, Godot must import the project once
 # (builds the script class cache in .godot/) before the game can run.
 # Before launching it maps the console touchscreen to the KIDS' CONSOLE monitor
-# (tools/setup_displays.sh; skipped quietly when there is no touchscreen or xinput).
+# (tools/setup_displays.sh; skipped quietly when there is no touchscreen or xinput), then
+# detaches it from the mouse pointer while the game runs (tools/touch_isolate.sh), so a tap on
+# the kids' panel doesn't move the Commander's cursor or keyboard focus. It is put back on exit.
 # Usage: ./run.sh [--cockpit|--dev] [--quality=ultra] [--mission=docking] ...
 #        ./run.sh --landscape-console     also rotate the console monitor to landscape
 #        ./run.sh --no-display-setup      skip the touch mapping
+#        ./run.sh --no-touch-isolate      let the touchscreen move the mouse pointer and take
+#                                         focus again (same as FALCON_TOUCH_ISOLATE=0)
 #        ./run.sh --no-fetch          skip the first-run Earth/Moon/OSM download (tools/fetch_assets.sh)
 #        ./run.sh --no-ics                no intercom helper (headsets off)
 #        ./run.sh --eva-vr                the spacewalker's VR client (Meta Quest 3 via WiVRn);
@@ -29,6 +33,7 @@ for a in "$@"; do
   case "$a" in
     --landscape-console) SETUP_ARGS+=("--landscape") ;;
     --no-display-setup) DO_SETUP=0 ;;
+    --no-touch-isolate) export FALCON_TOUCH_ISOLATE=0 ;;
     --no-ics) DO_ICS=0; GAME_ARGS+=("$a") ;;
     --no-fetch) DO_FETCH=0 ;;
     --eva-vr) EVA_VR=1 ;;
@@ -79,6 +84,16 @@ if [ "$EVA_VR" = 1 ]; then
 fi
 if [ "$DO_SETUP" = 1 ] && [ -x tools/setup_displays.sh ]; then
   tools/setup_displays.sh "${SETUP_ARGS[@]}" || true
+fi
+# Touch isolation; a watcher undoes it when the game exits (exec below keeps this pid), even
+# after a crash. The next start also cleans up anything left over.
+if [ -x tools/touch_isolate.sh ] && tools/touch_isolate.sh start; then
+  TLOG="${XDG_DATA_HOME:-$HOME/.local/share}/filament-falcon/touch_isolate.log"
+  if command -v setsid >/dev/null 2>&1; then
+    nohup setsid tools/touch_isolate.sh watch $$ >"$TLOG" 2>&1 &
+  else
+    nohup tools/touch_isolate.sh watch $$ >"$TLOG" 2>&1 &
+  fi
 fi
 if [ "$DO_ICS" = 1 ] && command -v python3 >/dev/null 2>&1; then
   LOGDIR="${XDG_DATA_HOME:-$HOME/.local/share}/filament-falcon"
