@@ -58,6 +58,11 @@ var _hold_warn_t := 0.0
 var _state_t := 0.0
 var ptt := false
 var last_cmd := {}
+var cmd_override := {}            # tests: merged into the flat controls
+var burn_go := false              # Commander said GO for engine burns with the spacewalker outside
+var go_pending := false           # the pilot asked; waiting for the Commander's GO / NO-GO
+var _tension_warn_t := 0.0
+const LEFT_BEHIND_M := 150.0
 
 
 func _ready() -> void:
@@ -106,7 +111,7 @@ func start(id: String, mission_eva: bool = false, mode: String = "") -> bool:
 		Voice.say("No spacewalk here right now. The ship must be in space with the engine off, or landed on the Moon.", 1)
 		return false
 	scen_id = id
-	scen = EvaScenarios.build(id, Game, float(Settings.get_v("eva", "tether_m")))
+	scen = EvaScenarios.build(id, Game, float(Settings.get_v("eva", "tether_m")), float(Settings.get_v("eva", "reel_speed")))
 	sim = EvaSim.new()
 	_update_world_inputs()
 	sim.setup(scen)
@@ -123,6 +128,8 @@ func start(id: String, mission_eva: bool = false, mode: String = "") -> bool:
 	_pose_buf.clear()
 	penalties = 0
 	result_text = ""
+	burn_go = false
+	go_pending = false
 	if driver == "vr":
 		_send_cmd("start", {"scen": scen})
 	flat = FlatControl.new()
@@ -143,6 +150,8 @@ func abort(reason: String = "Spacewalk ended by the Commander.") -> void:
 
 func _finish(ok: bool, text: String) -> void:
 	active = false
+	burn_go = false
+	go_pending = false
 	last_score = sim.score if sim else 0
 	result_text = text
 	var m: Mission = Game.mission
@@ -195,8 +204,56 @@ func _start_for_mission(id: String, m: Mission) -> void:
 		m.advance()
 
 
+## True while a spacewalker is outside and the Commander has not said GO for engine burns.
+## (Nothing else is gated: RCS, the arm, liftoff and missions all carry on; the physics decide
+## what happens to the spacewalker. See EvaSim "Frames of reference" / tether.)
 func blocks_engine() -> bool:
-	return active
+	return active and not burn_go
+
+
+## Pilot pressed ignition with the spacewalker outside: ask the Commander for GO / NO-GO.
+func request_burn_go() -> void:
+	if not active or burn_go:
+		return
+	if not go_pending:
+		go_pending = true
+		Voice.say("Spacewalker outside! Commander: GO or NO-GO for the engine burn?", 1)
+		Sfx.caution_chime()
+		Game.log_commander("EVA crew outside: pilot asks GO / NO-GO for an engine burn")
+		changed.emit()
+	else:
+		Voice.say("Waiting for the Commander: GO or NO-GO for the burn.", 1)
+
+
+## Commander's answer. GO lasts until the spacewalk ends (the pilot presses ignition again).
+func burn_decision(go: bool) -> void:
+	if not active:
+		return
+	go_pending = false
+	burn_go = go
+	if go:
+		Voice.say("Commander says GO for the burn. Spacewalker, hold on tight! Pilot, ignition when ready, gently.", 1)
+		Game.log_commander("GO for engine burns with EVA crew outside")
+	else:
+		Voice.say("Commander says NO-GO. Engine stays off until the spacewalker is inside.", 1)
+		Game.log_commander("NO-GO for engine burns during the EVA")
+	changed.emit()
+
+
+## REEL IN assist from the crew's screens (Commander EVA page / kids' console): winds the
+## spacewalker in on the tether until they are at the hatch.
+func set_reel(on: bool) -> void:
+	if not active or sim == null or not sim.tether_on:
+		return
+	if driver == "vr":
+		_send_cmd("reel", {"on": on})
+	sim.set_reel_assist(on)
+	Voice.say("Reeling the spacewalker in." if on else "Reel stopped.")
+	changed.emit()
+
+
+func reeling() -> bool:
+	return sim != null and (sim.reel_assist or sim.reel_on)
 
 
 # ======================================================================== frame
@@ -213,6 +270,8 @@ func tick(dt: float) -> void:
 	_update_world_inputs()
 	if driver == "flat":
 		var cmd: Dictionary = bot.decide(dt, sim) if bot else flat.read_devices(keyboard)
+		if not cmd_override.is_empty():
+			cmd.merge(cmd_override, true)
 		last_cmd = cmd
 		var inp := flat.apply(dt, sim, cmd)
 		sim.step_sim(dt, inp)
@@ -227,6 +286,24 @@ func tick(dt: float) -> void:
 		_hold_warn_t = 6.0
 		penalties += 1
 		Voice.say("Pilot, hold attitude! The spacewalker is on the arm.", 2)
+	_tension_warn_t = maxf(0.0, _tension_warn_t - dt)
+	if sim.tension > EvaSim.TENSION_WARN and _tension_warn_t <= 0.0:
+		_tension_warn_t = 4.0
+		penalties += 1
+		Voice.say("Tether tension high! Pilot, ease off!", 2)
+		Sfx.caution_chime()
+		Game.log_commander("TETHER TENSION HIGH: %d N" % int(sim.tension))
+	# the ship flew off / into the air without them: end the walk (the game recalls them)
+	var far := sim.waist_s().length()
+	if not sim.is_holding() and far > LEFT_BEHIND_M and active:
+		_finish(false, "The ship left the spacewalker behind! %s Spacewalker recalled." % ("Tether snapped." if sim.snapped else ""))
+		return
+	if Game.sim.density_now > 1e-4 and active:
+		_finish(false, "Entering the atmosphere! Spacewalker brought inside.")
+		return
+	if Game.state == Game.State.FAILED and active:
+		_finish(false, "Mission over. Spacewalker brought inside.")
+		return
 	if sim.done and active:
 		_finish(true, "EVA complete")
 	elif sim.failed == "o2" and active:
@@ -240,8 +317,22 @@ func _update_world_inputs() -> void:
 	sim.arm_ok = Game.arm_extend > 0.9 and bool(Game.powered.get("arm", false))
 	sim.arm_tip = Game.arm_base_body() + Game.arm_dir_body() * Game.arm_len * Game.arm_extend + Vector3(0, -0.15, 0)
 	var m := ship_motion()
-	sim.ship_w = s.basis.inverse() * (m[0] as Vector3)
-	sim.ship_acc = s.basis.inverse() * (m[1] as Vector3)
+	var bi := s.basis.inverse()
+	sim.ship_w = bi * (m[0] as Vector3)
+	sim.ship_acc = bi * (m[1] as Vector3)
+	if sim.surface:
+		# on the Moon gravity is explicit in EvaSim, so it wants the ship's acceleration relative
+		# to the ground (zero while it sits there) and the ground's own motion in the ship frame
+		sim.up = (bi * s.up_dir).normalized()
+		sim.ground_h = -s.agl
+		if Game.state != Game.State.ACTIVE or s.touching or s.clamped or s.dominant == null:
+			sim.ship_acc = Vector3.ZERO
+			sim.ground_vel = Vector3.ZERO
+		else:
+			var r := s.dominant.radius + s.altitude
+			var g := s.dominant.gm / maxf(r * r, 1.0)
+			sim.ship_acc = bi * ((m[1] as Vector3) - s.up_dir * g)
+			sim.ground_vel = -(bi * s.surface_vel)
 	var w: WorldView = get_tree().get_first_node_in_group("world")
 	sim.in_sun = w == null or not w.in_shadow
 	sim.cargo_door = Game.cargo_door
@@ -275,8 +366,18 @@ func _handle_events(evs: Array) -> void:
 			"step_done":
 				Sfx.chime()
 			"tether_taut":
-				Voice.say("Tether is tight! Come back toward the hatch.")
+				Voice.say("Tether is tight! Pull yourself back along it, or press REEL IN.")
 				Sfx.tone(180.0, 0.25, 0.25, "saw")
+			"tether_snap":
+				Voice.say("The tether snapped! Spacewalker, grab a handrail!", 2)
+				Sfx.caution_chime()
+				Game.log_commander("TETHER SNAPPED (%d N)" % int(float(data.get("tension", 0.0))))
+			"reel":
+				changed.emit()
+			"reel_home":
+				Voice.say("Spacewalker is reeled in to the hatch.")
+				Sfx.clunk()
+				changed.emit()
 			"knock":
 				Sfx.tone(140.0, 0.07, 0.6, "sine", 90.0)
 				Sfx.tone(160.0, 0.06, 0.4, "noise", -1.0, 0.01)
@@ -359,7 +460,8 @@ func telemetry() -> Dictionary:
 	if sim == null:
 		return {}
 	return {"o2": sim.o2, "batt": sim.batt, "co2": sim.co2, "temp": sim.suit_temp, "hr": sim.heart, "gas": sim.gas,
-		"tether": sim.tether_used, "tether_len": sim.tether_len, "tether_on": sim.tether_on, "step": sim.step, "steps": sim.steps.size(),
+		"tether": sim.tether_used, "tether_len": sim.tether_len, "tether_on": sim.tether_on,
+		"tension": sim.tension, "reel": reeling(), "snapped": sim.snapped, "go_pending": go_pending, "burn_go": burn_go, "step": sim.step, "steps": sim.steps.size(),
 		"text": sim.step_text(), "time": sim.time_out, "score": sim.score, "riding": sim.riding, "lamp": sim.lamp,
 		"progress": sim.progress, "hold": float(sim.cur_step().get("hold", 0.0))}
 
@@ -505,6 +607,7 @@ func _net_tx() -> void:
 		"arm": [Game.arm_yaw, Game.arm_pitch, Game.arm_len, Game.arm_extend, bool(Game.powered.get("arm", false))],
 		"thr": s.thrust_now, "eng": s.engine_on, "dens": s.density_now, "ents": ents, "cmds": _cmds.slice(0, 4),
 		"ack": _ev_seen, "state": Game.state, "eva": active, "wave": Game.crew_wave, "acc": motion[1],
+		"surf": [sim.up, sim.ground_h, sim.ground_vel, sim.ship_acc] if sim != null and sim.surface else [],
 		"cfg": {"snap": float(Settings.get_v("eva", "snap_deg")), "vignette": float(Settings.get_v("eva", "vignette")),
 			"seated": str(Settings.get_v("eva", "play_height")) == "seated"}}
 	_udp.set_dest_address(_client_ip, _client_port)

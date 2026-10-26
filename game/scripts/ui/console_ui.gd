@@ -635,14 +635,23 @@ func _build_eva(page: Control) -> void:
 		var used := float(t.get("tether", 0.0))
 		var ln := maxf(float(t.get("tether_len", 20.0)), 1.0)
 		if not bool(t.get("tether_on", true)):
-			return [0.0, "none (Moon)", C_EDGE]
-		return [used / ln, "%.1f / %d m" % [used, int(ln)], C_GREEN if used < ln * 0.85 else C_AMBER])
+			return [0.0, "SNAPPED!" if bool(t.get("snapped", false)) else "none", C_RED if bool(t.get("snapped", false)) else C_EDGE]
+		var ten := float(t.get("tension", 0.0))
+		if ten > EvaSim.TENSION_WARN:
+			return [1.0, "%.1f m  TENSION HIGH!" % used, C_RED]
+		return [used / ln, "%.1f / %d m%s" % [used, int(ln), "  REELING" if bool(t.get("reel", false)) else ""], C_GREEN if used < ln * 0.85 else C_AMBER])
+	# the crew can wind the spacewalker back in (stops by itself at the hatch)
+	var reel := button("REEL IN", func() -> void: Eva.set_reel(not Eva.reeling()), 26, 64)
+	b.add_child(reel)
 	var tasks := label("", 26, C_TEXT)
 	tasks.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	tasks.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	b.add_child(tasks)
 	live["eva"] = func() -> void:
 		tasks.text = eva_task_text()
+		reel.disabled = not (Eva.active and bool(Eva.telemetry().get("tether_on", false)))
+		reel.text = "STOP REELING" if Eva.reeling() else "REEL IN THE SPACEWALKER"
+		reel.modulate = Color(1.0, 0.7, 0.15) if Eva.reeling() else Color.WHITE
 
 
 static func eva_task_text() -> String:

@@ -358,6 +358,14 @@ func _cuff_text() -> String:
 		return "SPACEWALK CLIENT · waiting for the Commander (START EVA)\n" + ("headset: " + str(_system_info().get("system", "")) if has_xr else xr_error)
 	var s := "%s\n▶ %s\nO2 %d%%  BATT %d%%  HR %d\nGAS %d%%  TETHER %.1f/%d m%s" % [str(sim.scen.get("title", "")), sim.step_text(), int(sim.o2), int(sim.batt), int(sim.heart),
 		int(sim.gas), sim.tether_used, int(sim.tether_len), "  TAUT!" if sim.taut else ""]
+	if not sim.tether_on and sim.snapped:
+		s += "\nTETHER SNAPPED! Hold a handrail"
+	elif sim.reel_on or sim.reel_assist:
+		s += "\nREELING IN…  tension %d N" % int(sim.tension)
+	elif sim.tension > EvaSim.TENSION_WARN:
+		s += "\nTETHER TENSION HIGH %d N" % int(sim.tension)
+	elif sim.tether_on and sim.tether_used > 3.0:
+		s += "\nGrab the line + pull, or hold stick-click: REEL IN"
 	if sim.cur_step().has("hold"):
 		s += "\nHOLD %.1f / %.1f s" % [sim.progress, float(sim.cur_step()["hold"])]
 	return s
@@ -492,6 +500,8 @@ func _xr_input(dt: float) -> Dictionary:
 	inp["lamp_toggle"] = _edge("lamp", _xr_pressed(rc, "by_button"))
 	inp["hop"] = _edge("hop", _xr_pressed(rc, "ax_button"))
 	_ptt = _xr_pressed(lc, "ax_button")
+	# hold either thumbstick click: REEL IN on the tether (adjustable speed, Commander > EVA)
+	inp["reel"] = _xr_pressed(lc, "primary_click") or _xr_pressed(rc, "primary_click")
 	inp["ptt"] = _ptt
 	# hold Menu ~1 s: recenter (the runtime's own recenter also works)
 	if _xr_pressed(lc, "menu_button"):
@@ -520,6 +530,7 @@ func _update_comfort(dt: float) -> void:
 
 # ======================================================================== local feedback
 var _ev_local := 0
+var _tension_buzz_t := 0.0
 
 
 func _handle_local_events() -> void:
@@ -539,6 +550,19 @@ func _handle_local_events() -> void:
 			"tether_taut":
 				_haptic(0, 0.8)
 				_haptic(1, 0.8)
+			"tether_grab":
+				_haptic(int(e[2].get("hand", 1)), 0.35)
+			"tether_snap":
+				_haptic(0, 1.0)
+				_haptic(1, 1.0)
+	# tension you feel through the line: pulses scaled by the load, on the hands holding it
+	_tension_buzz_t -= get_process_delta_time()
+	if sim.tension > 150.0 and _tension_buzz_t <= 0.0:
+		_tension_buzz_t = 0.12
+		var amp := clampf(sim.tension / EvaSim.TENSION_WARN, 0.1, 1.0)
+		for i in 2:
+			if sim.grab_kind[i] == "tether" or sim.tension > EvaSim.TENSION_WARN * 0.5:
+				_haptic(i, amp)
 
 
 func _haptic(i: int, amp: float) -> void:
@@ -669,6 +693,12 @@ func _apply_world(w: Dictionary) -> void:
 		var b2: Basis = s.basis
 		sim.ship_w = b2.inverse() * (w["w"] as Vector3)
 		sim.ship_acc = b2.inverse() * (w["acc"] as Vector3)
+		var sf: Array = w.get("surf", [])
+		if sf.size() == 4 and sim.surface:
+			sim.up = sf[0]
+			sim.ground_h = float(sf[1])
+			sim.ground_vel = sf[2]
+			sim.ship_acc = sf[3]
 	for c: Array in w["cmds"]:
 		var id := int(c[0])
 		if id <= _cack:
@@ -684,6 +714,9 @@ func _apply_world(w: Dictionary) -> void:
 					bot = EvaBot.new()
 			"abort":
 				sim = null
+			"reel":
+				if sim != null:
+					sim.set_reel_assist(bool((c[2] as Dictionary).get("on", false)))
 			"quit":
 				quit_clean()
 	if not bool(w["eva"]) and sim != null and sim.done:

@@ -137,8 +137,14 @@ func _build_indicators(top: HBoxContainer) -> void:
 	var evab := button("", func() -> void: show_page("EVA"), 18, 36)
 	top.add_child(evab)
 	live["eva_chip"] = func() -> void:
-		if Eva.active:
-			evab.text = "EVA: OUTSIDE (%s) %d%% O2" % ["VR" if Eva.driver == "vr" else "SCREEN", int(Eva.telemetry().get("o2", 0))]
+		if Eva.active and Eva.go_pending:
+			evab.text = "EVA CREW OUTSIDE: BURN GO / NO-GO? ▶"
+			evab.modulate = C_RED if int(Time.get_ticks_msec() / 400) % 2 == 0 else C_AMBER
+		elif Eva.active and float(Eva.telemetry().get("tension", 0.0)) > EvaSim.TENSION_WARN:
+			evab.text = "EVA: TETHER TENSION HIGH ▶"
+			evab.modulate = C_RED
+		elif Eva.active:
+			evab.text = "EVA: OUTSIDE (%s) %d%% O2%s" % ["VR" if Eva.driver == "vr" else "SCREEN", int(Eva.telemetry().get("o2", 0)), " · REEL" if Eva.reeling() else ""]
 			evab.modulate = C_EVA
 		else:
 			evab.text = "SPACEWALK%s ▶" % (" · VR ✔" if Eva.client_has_xr() else "")
@@ -1123,6 +1129,7 @@ func _build_eva(page: Control) -> void:
 	opt.call("VIGNETTE", "vignette", [0.0, 0.4, 0.7, 1.0], ["OFF", "LOW", "MED", "HIGH"])
 	opt.call("PLAY", "play_height", ["standing", "seated"], ["STANDING", "SEATED"])
 	opt.call("TETHER", "tether_m", [10.0, 20.0, 30.0], ["10 m", "20 m", "30 m"])
+	opt.call("REEL SPEED", "reel_speed", [0.15, 0.3, 0.5], ["SLOW", "MED", "FAST"])
 	opt.call("VR QUALITY", "vr_quality", ["low", "medium", "high"], ["LOW", "MED", "HIGH"])
 	a.add_child(label("Safety: clear 2 x 2 m of floor OUTSIDE the cockpit frame, Guardian / boundary ON, a grown-up spotter. Recenter: hold the Menu button.", 16, C_AMBER))
 	live["eva_page"] = func() -> void:
@@ -1149,8 +1156,44 @@ func _build_eva(page: Control) -> void:
 	var tele := label("", 18, C_TEXT)
 	tele.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vr2.add_child(tele)
+	# tether + engine: REEL IN assist, GO / NO-GO for burns with the spacewalker outside
+	var tr := hbox(b2, 8)
+	var reel := button("REEL IN", func() -> void: Eva.set_reel(not Eva.reeling()), 18, 48)
+	tr.add_child(reel)
+	var bgo := button("BURN GO", func() -> void: Eva.burn_decision(true), 18, 48)
+	tr.add_child(bgo)
+	var bng := button("NO-GO", func() -> void: Eva.burn_decision(false), 18, 48)
+	tr.add_child(bng)
+	var tws := label("", 18, C_TEXT)
+	tws.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tr.add_child(tws)
 	var tasks := label("", 18, C_TEXT)
 	b2.add_child(tasks)
+	live["eva_tether"] = func() -> void:
+		var t := Eva.telemetry()
+		var on := Eva.active and bool(t.get("tether_on", false))
+		reel.disabled = not on
+		reel.text = "STOP REEL" if Eva.reeling() else "REEL IN"
+		reel.modulate = C_AMBER if Eva.reeling() else Color.WHITE
+		bgo.disabled = not Eva.active
+		bng.disabled = not Eva.active
+		bgo.modulate = C_GREEN if Eva.burn_go else (C_AMBER if Eva.go_pending else Color.WHITE)
+		bng.modulate = C_RED if Eva.go_pending else Color.WHITE
+		var ten := float(t.get("tension", 0.0))
+		if not Eva.active:
+			tws.text = ""
+		elif bool(t.get("snapped", false)):
+			tws.text = "TETHER SNAPPED!"
+			tws.modulate = C_RED
+		elif Eva.go_pending:
+			tws.text = "EVA CREW OUTSIDE: pilot wants to burn. GO or NO-GO?"
+			tws.modulate = C_RED
+		elif ten > EvaSim.TENSION_WARN:
+			tws.text = "TETHER TENSION HIGH %d N" % int(ten)
+			tws.modulate = C_RED
+		else:
+			tws.text = "TETHER %.1f / %d m  %d N%s" % [float(t.get("tether", 0.0)), int(t.get("tether_len", 0)), int(ten), "  · burns GO" if Eva.burn_go else ""]
+			tws.modulate = C_TEXT
 	live["eva_tasks"] = func() -> void:
 		tasks.text = ConsoleUI.eva_task_text()
 		var t := Eva.telemetry()

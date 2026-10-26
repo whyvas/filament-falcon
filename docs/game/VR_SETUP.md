@@ -81,6 +81,36 @@ agree on where the astronaut is, also with the debug free camera moving the orig
 - Paused, docked or landed: the hull isn't moving, so nothing drifts.
 Headless check: `godot --headless --path . --audio-driver Dummy -- --eva-frame-test` (~10 s).
 
+**Tether.** A retractable safety line from the clip next to the hatch to your waist (10/20/30 m, Commander →
+EVA; the moonwalk is clipped on too, at least 20 m). The reel keeps it straight and pays out freely; at full
+length it is a stiff spring (2000 N/m, damped) on a 180 kg suited body, so it tows you along when the ship
+moves away. Tension is shown on the wrist, the Commander EVA page and the kids' console (TETHER TENSION HIGH
+above 1500 N, voice + Commander log + strong haptics); above 4500 N the line **snaps**.
+- **Pull yourself back, hand over hand:** grip the line itself (any hand, controller grip or a tracked-hand
+  pinch/fist, within ~15 cm of it) and pull it toward your chest. The line can't pay out while you hold it,
+  so your *body* moves toward the hatch, and you keep that speed when you let go (it's momentum, not a
+  teleport: grab again to keep going, or let go and glide). On screen: hold **T** (gamepad D-pad up): the
+  hands reach and pull alternately and the view turns toward the hatch.
+- **REEL IN:** hold either **thumbstick click** (on screen: hold **V**, gamepad D-pad down), or the crew
+  presses **REEL IN** on the Commander EVA page / the kids' console EVA page (runs until you're home, press
+  again to stop). It winds in at the REEL SPEED setting (SLOW/MED/FAST = 0.15/0.3/0.5 m/s), slows near the
+  hatch and stops you there (~1.2 m from the clip). Holding a handrail pauses it.
+
+**Flying with the spacewalker outside.** Nothing is locked out: RCS, the arm, liftoff and missions carry on.
+The main engine asks first: pressing IGNITION with someone outside makes the Commander's EVA chip flash
+**EVA CREW OUTSIDE: BURN GO / NO-GO?**; BURN GO (EVA page) lets the pilot light the engine (press ignition
+again; GO lasts until the walk ends), NO-GO keeps it off. Then physics decides:
+- holding a handrail / the ladder / riding the arm: carried with the ship;
+- free and tethered: left behind until the line is taut, then towed (gentle burns are fine; a hard burn on a
+  slack line yanks: warning, and it snaps above 4500 N);
+- standing on the Moon, not holding anything: stays on the ground (the ground is its own moving frame once
+  the ship lifts off); tethered: lifted off when the line runs out;
+- more than 150 m from the ship (left behind / snapped), entering an atmosphere, or the mission failing ends
+  the walk ("spacewalker recalled"). Time warp stays at 1x during an EVA. A woven mission EVA keeps the
+  mission's objectives paused but its physics (contacts, chutes, rocks) running.
+Headless check: `-- --eva-tether-test` (~6 s: reel-in, hand over hand flat + VR, GO/NO-GO, towing within
+limits, snap, Moon liftoff left behind / carried / lifted).
+
 **Avatar.** Procedural EMU-style suit: hard upper torso, PLSS backpack with the SAFER jetpack, display and
 control module, flag patch, red stripes (EV1), helmet with a gold visor, two helmet lamps (real spot lights +
 glow), gloves with curling fingers and a pointing index. Driven by head + both controller poses: two-bone IK
@@ -187,7 +217,7 @@ so WiVRn lists it in the headset's launcher when no VR app is running. `--remove
 | CANADARM RESCUE | in orbit, cargo doors open | the jetpack is empty: **Ops** flies the arm to the drifting spacewalker, who grabs the foot restraint and rides to the hatch while the **Pilot** holds attitude (if the ship rotates, the voice calls "Pilot, hold attitude!" and the score drops) |
 
 With **EVA IN MISSIONS** on, the missions add a spacewalk objective by themselves near the end of launch,
-docking, asteroids and lunar (engines are locked out and time warp stays at 1× while someone is outside).
+docking, asteroids and lunar (the main engine needs the Commander's BURN GO and time warp stays at 1× while someone is outside).
 
 **VR controls (Touch controllers)**
 
@@ -200,6 +230,8 @@ docking, asteroids and lunar (engines are locked out and time warp stays at 1× 
 | Right stick up/down | jet up/down; right stick left/right: snap turn (15/30/45°, Commander → EVA) |
 | Left Y/B | stop (kill drift with the jetpack); right B: helmet lamp; right A: hop (Moon) |
 | Left X | push-to-talk on the intercom (the seat can also be VOX) |
+| Grip on the tether line + pull to your chest | hand over hand back toward the hatch (keeps momentum when you let go) |
+| Hold either thumbstick click | REEL IN on the tether (stops at the hatch) |
 | Hold Menu 1 s | recenter |
 | Hand tracking (controllers put down) | pinch or fist = grab, a pinch without a fist = use, fist with the index out = point |
 
@@ -208,14 +240,15 @@ and touching the window just work: move your real hands.
 
 **On-screen mode (no headset).** Commander → EVA → driver ON SCREEN, START EVA, then click the helmet cam
 to fly the spacewalker: `W A S D` move along rails / jet, `R F` up/down, mouse or `Q E` look, `Space` grab,
-`Enter` use, `G` wave, `K` knock, `P` point, `L` lamp, `X` stop, `C` helmet cam / drone, `Esc` releases the
-keyboard. A gamepad works too (sticks, A grab, X use, Y wave, B stop, LB knock, RB lamp, Back camera).
+`Enter` use, `G` wave, `K` knock, `P` point, `L` lamp, `X` stop, `C` helmet cam / drone, hold `T` pull
+yourself in along the tether, hold `V` REEL IN, `Esc` releases the keyboard. A gamepad works too (sticks, A
+grab, X use, Y wave, B stop, LB knock, RB lamp, Back camera, D-pad up tether pull, D-pad down reel in).
 Near the window, **Enter** glides you to the window pose.
 
 **Comfort.** No camera motion is ever forced on the wearer: only your own pulls and jetpack thrust move you;
 ship rotation (while riding the arm) is shown with the vignette. Options on Commander → EVA: snap turn
 angle, vignette OFF/LOW/MED/HIGH (narrows the view while you accelerate), STANDING/SEATED (seated adds the
-height offset), tether 10/20/30 m.
+height offset), tether 10/20/30 m, reel speed SLOW/MED/FAST.
 
 ## Safety
 

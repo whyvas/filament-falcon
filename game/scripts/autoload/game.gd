@@ -577,8 +577,8 @@ func _step_physics(dt: float) -> void:
 		sim.pick_dominant()
 		sim.step(h)
 		_update_entities(h)
-		if mission and mission.eva_obj.is_empty():
-			mission.physics(h)
+		if mission:
+			mission.physics(h)   # contacts / chutes / rocks stay physical during a woven spacewalk too
 
 
 func set_warp(w: float) -> void:
@@ -933,7 +933,7 @@ func _crew_inputs(dt: float) -> void:
 		elif not sim.engine_enabled:
 			Voice.say("Engine blocked. Check fuel pumps, ignition arm, and fire.", 1)
 		elif not sim.engine_on and Eva.blocks_engine():
-			Voice.say("No engine burns with a spacewalker outside!", 1)
+			Eva.request_burn_go()   # spacewalker outside: the Commander calls GO / NO-GO first
 		elif sim.engine_on:
 			sim.engine_on = false
 			Voice.say("Engine shutdown")

@@ -607,6 +607,7 @@ godot --headless --path . --audio-driver Dummy -- --smoke-test           # every
 godot --headless --path . --audio-driver Dummy -- --smoke-test --only=eva        # just the EVA part (--eva-only=window,rescue,antenna,sample)
 godot --headless --path . --audio-driver Dummy -- --eva-frame-test              # EVA physics frames: burn/turn don't drag a free-floater, handrail
                                                                           #   follows the hull, release inherits w x r, windows = VR position, origin shift
+godot --headless --path . --audio-driver Dummy -- --eva-tether-test             # EVA tether: reel-in, hand over hand, burn GO/NO-GO, towing/snap, Moon liftoff
 godot --headless --path . --xr-mode on -- --eva-client --eva-selftest            # the VR client starts cleanly with no OpenXR runtime
 XDG_DATA_HOME=/tmp/ff godot --headless --path . -- --asset-test               # every shader compiles + HD texture cache round-trip
 godot --headless --path . -- --region-test --region-dir=DIR                    # region chunks: sync build + threaded streaming

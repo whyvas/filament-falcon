@@ -10,9 +10,10 @@ extends RefCounted
 ##   SPACE grab / let go of the nearest handrail (or the arm tip; hop on the Moon)
 ##   ENTER (hold) USE: pick up / put down / bolt / chip / go inside
 ##   G wave · K knock on the window · P point · L helmet lamps · C camera (helmet / drone)
+##   T (hold) pull yourself in along the tether, hand over hand · V (hold) REEL IN
 ##   Mouse: right-drag to look around.
 ## Gamepad: left stick move, right stick look, A grab, X use, Y wave, B stop, LB knock, RB lamp,
-##   triggers up/down, BACK camera.
+##   triggers up/down, BACK camera, D-pad up: tether pull, D-pad down: REEL IN.
 
 var yaw := 0.0
 var pitch := 0.0
@@ -27,6 +28,11 @@ var _keys_prev := {}
 var _mouse_look := Vector2.ZERO
 var _t := 0.0
 var hint := ""
+var _pull_t := -1.0       # hand-over-hand cycle time (-1 idle)
+var _pull_hand := 1
+const PULL_REACH := 0.25  # s reaching out (open hand)
+const PULL_STROKE := 0.55 # s pulling the line to the chest (gripped)
+const PULL_LEN := 0.38    # m of line per pull
 
 
 func add_mouse_look(rel: Vector2) -> void:
@@ -65,6 +71,8 @@ func read_devices(keyboard: bool) -> Dictionary:
 	var lamp: bool = k.call(KEY_L)
 	var stop: bool = k.call(KEY_X)
 	var cam: bool = k.call(KEY_C)
+	var tpull: bool = k.call(KEY_T)
+	var reel: bool = k.call(KEY_V)
 	var p := _pad()
 	if p >= 0:
 		var lx := Input.get_joy_axis(p, JOY_AXIS_LEFT_X)
@@ -82,6 +90,8 @@ func read_devices(keyboard: bool) -> Dictionary:
 		knock = knock or Input.is_joy_button_pressed(p, JOY_BUTTON_LEFT_SHOULDER)
 		lamp = lamp or Input.is_joy_button_pressed(p, JOY_BUTTON_RIGHT_SHOULDER)
 		cam = cam or Input.is_joy_button_pressed(p, JOY_BUTTON_BACK)
+		tpull = tpull or Input.is_joy_button_pressed(p, JOY_BUTTON_DPAD_UP)
+		reel = reel or Input.is_joy_button_pressed(p, JOY_BUTTON_DPAD_DOWN)
 	c["move"] = mv
 	c["rail_move"] = -mv.z
 	c["look"] = look
@@ -92,6 +102,8 @@ func read_devices(keyboard: bool) -> Dictionary:
 	c["point"] = point
 	c["lamp"] = _edge("lamp", lamp)
 	c["stop"] = stop
+	c["tether_pull"] = tpull
+	c["reel"] = reel
 	if _edge("cam", cam):
 		third_person = not third_person
 	return c
@@ -99,7 +111,8 @@ func read_devices(keyboard: bool) -> Dictionary:
 
 ## Turn commands into an EvaSim input. cmd keys: move (Vector3, rig-local: x right, y up,
 ## z back), rail_move, look (Vector2 rate), look_at (Vector3 S frame, bots), grab (edge),
-## use (held), wave/knock (edge), point, lamp (edge), stop, rail_target (int).
+## use (held), wave/knock (edge), point, lamp (edge), stop, rail_target (int),
+## tether_pull (held: hand-over-hand along the tether), reel (held: REEL IN).
 func apply(dt: float, sim: EvaSim, cmd: Dictionary) -> Dictionary:
 	_t += dt
 	var look: Vector2 = cmd.get("look", Vector2.ZERO)
@@ -107,6 +120,8 @@ func apply(dt: float, sim: EvaSim, cmd: Dictionary) -> Dictionary:
 	pitch = clampf(pitch - look.y * dt * 1.4 - _mouse_look.y * 0.004, -1.3, 1.3)
 	_mouse_look = Vector2.ZERO
 	var turn := 0.0
+	if bool(cmd.get("tether_pull", false)) and sim.tether_on and not cmd.has("look_at") and look.length() < 0.1:
+		cmd["look_at"] = sim.tether_anchor + sim.rig.basis.y * 1.4   # face the hatch while pulling
 	if cmd.has("look_at"):
 		var lp: Vector3 = sim.rig.affine_inverse() * (cmd["look_at"] as Vector3)
 		var d := lp - Vector3(0, 1.6, 0)
@@ -162,6 +177,33 @@ func apply(dt: float, sim: EvaSim, cmd: Dictionary) -> Dictionary:
 			rh.origin = sh + reachv.limit_length(0.62)
 		else:
 			rh.origin = Vector3(0.25, 1.15, -0.55)
+	# hand-over-hand along the tether: reach toward the anchor, grip, pull to the chest, let go
+	var tgrip := [false, false]
+	var can_pull := sim.tether_on and not holding and sim.tether_used > EvaSim.REEL_MIN + 0.3
+	if _pull_t < 0.0 and bool(cmd.get("tether_pull", false)) and can_pull:
+		_pull_t = 0.0
+		_pull_hand = 1 - _pull_hand
+	if _pull_t >= 0.0:
+		if not can_pull:
+			_pull_t = -1.0
+		else:
+			var sh := Vector3(0.2 if _pull_hand == 1 else -0.2, 1.3, -0.1)
+			var dl := (sim.rig.affine_inverse() * sim.tether_anchor - sh).normalized()
+			var far := sh + dl * (0.12 + PULL_LEN)
+			var near := sh + dl * 0.12
+			var hx := Transform3D(Basis.looking_at(dl, Vector3.UP) if absf(dl.y) < 0.98 else Basis.IDENTITY, far)
+			if _pull_t < PULL_REACH:
+				hx.origin = near.lerp(far, _pull_t / PULL_REACH)
+			else:
+				hx.origin = far.lerp(near, clampf((_pull_t - PULL_REACH) / PULL_STROKE, 0.0, 1.0))
+				tgrip[_pull_hand] = _pull_t < PULL_REACH + PULL_STROKE
+			if _pull_hand == 0:
+				lh = hx
+			else:
+				rh = hx
+			_pull_t += dt
+			if _pull_t >= PULL_REACH + PULL_STROKE + 0.04:
+				_pull_t = -1.0
 	var grab_edge := bool(cmd.get("grab", false))
 	var use := bool(cmd.get("use", false))
 	var use_edge := use and not _use_was
@@ -170,7 +212,8 @@ func apply(dt: float, sim: EvaSim, cmd: Dictionary) -> Dictionary:
 		"move": cmd.get("move", Vector3.ZERO), "rail_move": cmd.get("rail_move", 0.0),
 		"stop": cmd.get("stop", false), "lamp_toggle": cmd.get("lamp", false),
 		"point": [false, bool(cmd.get("point", false))], "use": [false, use],
-		"grip": [holding, sim.grab_kind[1] != ""], "rail_target": cmd.get("rail_target", -1)}
+		"grip": [holding, not sim.grab_kind[1] in ["", "tether"]], "rail_target": cmd.get("rail_target", -1),
+		"tether_grip": tgrip, "reel": bool(cmd.get("reel", false))}
 	var st := sim.cur_step()
 	if st.has("pose") and (st["at"] as Vector3).distance_to(sim.head_s().origin) < 2.6:
 		if bool(cmd.get("glide", false)) or use:

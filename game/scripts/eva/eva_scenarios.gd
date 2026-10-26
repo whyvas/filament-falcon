@@ -169,11 +169,11 @@ static func available(game: Node) -> Array[String]:
 	return out
 
 
-static func build(id: String, game: Node, tether_len: float = 20.0) -> Dictionary:
+static func build(id: String, game: Node, tether_len: float = 20.0, reel_speed: float = 0.3) -> Dictionary:
 	var hatch := hatch_point()
 	var hn := hatch_normal()
 	var s := {"id": id, "title": TITLES.get(id, id), "brief": BRIEFS.get(id, ""), "hatch": hatch,
-		"tether": true, "tether_anchor": hatch + Vector3(0, 0.45, 0.35), "tether_len": tether_len,
+		"tether": true, "tether_anchor": hatch + Vector3(0, 0.45, 0.35), "tether_len": tether_len, "reel_speed": reel_speed,
 		"rails": hull_rails(), "items": [], "props": [], "steps": [], "surface": false, "arm": true}
 	var head0 := hatch + hn * 0.75 + Vector3(0, 0.25, 0)
 	s["start"] = Transform3D(Basis.looking_at(Vector3(0, 0, -1), Vector3.UP), head0 - Vector3(0, 1.6, 0))
@@ -242,7 +242,7 @@ static func build(id: String, game: Node, tether_len: float = 20.0) -> Dictionar
 			s["up"] = up
 			s["ground_h"] = gh
 			s["gravity"] = 1.62
-			s["tether"] = false
+			s["tether_len"] = maxf(tether_len, 20.0)   # clipped on: if the ship lifts off it drags you along
 			s["arm"] = false
 			var foot := hatch + hn * 0.35
 			foot = foot - up * (foot.dot(up) - gh)

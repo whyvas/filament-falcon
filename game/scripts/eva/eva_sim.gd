@@ -20,7 +20,17 @@ extends RefCounted
 ##  - Letting go: the body keeps the hull's inertial velocity at that point (ship_w x r) plus
 ##    its own push-off (or the arm tip's motion).
 ##  - Tether and hull contacts react to the velocity relative to the moving anchor / hull.
-##  - Moon surface (`surface`): the ship is landed, gravity + ground, plain ship frame.
+##  - Moon surface (`surface`): gravity + ground in the ship frame. The ground plane (`up`,
+##    `ground_h`, `ground_vel`) and the ship's acceleration relative to the Moon (`ship_acc`)
+##    are inputs, so when the ship lifts off a walker standing on the ground stays there (left
+##    behind), one on the ladder is carried, and a tethered one is yanked along.
+##  - Tether: a retractable line from the hatch clip to the waist. It stays straight (the reel
+##    takes up slack) and pays out freely up to `tether_len`; beyond that it is a stiff spring
+##    (TETHER_K / TETHER_C on a WALKER_MASS body) that tows the walker and reports `tension`.
+##    Above TENSION_SNAP it breaks. Grip the line with a hand and pull (hand-over-hand): the
+##    grip point is fixed on the line (the reel locks when pulled, like a seatbelt), so moving
+##    the hand away from the anchor moves the BODY toward it, with momentum. REEL IN (held, or
+##    the crew's assist button) winds the line in at `reel_speed`, slowing near the hatch.
 ##
 ## Locomotion:
 ##  - VR: grab a handrail with GRIP and pull (the body moves so the hand stays put); let go
@@ -40,6 +50,15 @@ const WALK_SPEED := 1.3       # moon lope
 const HOP_V := 1.4
 const CANOPY_C := Vector3(0.0, 1.05, -4.6)   # crew-deck window glass (ellipsoid), cut into the hull
 const CANOPY_R := Vector3(1.1, 0.62, 1.9)
+const WALKER_MASS := 180.0      # suited astronaut + SAFER, kg
+const TETHER_K := 2000.0        # N/m once the line is fully paid out
+const TETHER_C := 360.0         # N·s/m (about 0.3 of critical damping)
+const TETHER_MAX_STRETCH := 1.0
+const TENSION_WARN := 1500.0    # N: "tether tension high"
+const TENSION_SNAP := 4500.0    # N: the line breaks (~1000 lbf rating)
+const REEL_MIN := 1.2           # m, anchor to waist when fully reeled in (at the hatch)
+const TETHER_GRAB_R := 0.15     # VR: hand this close to the line grabs it
+const PULL_MAX := 1.2           # m/s fastest inward speed from a hand-over-hand pull
 
 # ---- scenario (built by EvaScenarios, sent to the driver process)
 var scen := {}
@@ -61,6 +80,16 @@ var tether_on := true
 var tether_anchor := Vector3.ZERO
 var tether_len := 20.0
 var hatch := Vector3.ZERO
+var ground_vel := Vector3.ZERO    # surface: inertial velocity of the ground relative to the ship centre (ship axes)
+var tension := 0.0                # N on the tether this step
+var tension_peak := 0.0
+var snapped := false
+var reel_on := false              # REEL IN held (VR stick click / flat key)
+var reel_assist := false          # REEL IN assist from the crew's screens (runs until home)
+var reel_speed := 0.3             # m/s
+var reel_len := 0.0               # reel limit while reeling (0 = paying out freely)
+var tether_grip: Array[float] = [0.0, 0.0]   # hand-over-hand: line length anchor -> grip
+var _pull_tension := 0.0
 
 # ---- body
 var rig := Transform3D.IDENTITY
@@ -71,7 +100,7 @@ var hand_fingers := [PackedFloat32Array(), PackedFloat32Array()]   # hand tracki
 var hand_curl: Array[Vector3] = [Vector3(-1, 0, 0), Vector3(-1, 0, 0)]   # (grip, trigger, thumb) 0..1; x<0 = no analog data
 var hand_pose: Array[String] = ["open", "open"]   # open | fist | point (avatar fingers)
 var grip_prev: Array[bool] = [false, false]
-var grab_kind: Array[String] = ["", ""]           # "" | rail | arm | item
+var grab_kind: Array[String] = ["", ""]           # "" | rail | arm | item | tether
 var grab_anchor: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
 var hand_prev_s: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
 var hand_vel: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
@@ -135,6 +164,7 @@ func setup(s: Dictionary) -> void:
 	tether_on = bool(s.get("tether", true))
 	tether_anchor = s.get("tether_anchor", Vector3.ZERO)
 	tether_len = float(s.get("tether_len", 20.0))
+	reel_speed = float(s.get("reel_speed", reel_speed))
 	hatch = s.get("hatch", Vector3.ZERO)
 	items = []
 	for it: Dictionary in s.get("items", []):
@@ -320,7 +350,11 @@ func step_sim(dt: float, inp: Dictionary) -> void:
 		_rotate_rig(turn)
 	# free-floating: the ship turns / accelerates under us (see "Frames of reference")
 	var holding := is_holding()
-	if not holding and not surface:
+	if bool(inp.get("reel_toggle", false)):
+		set_reel_assist(not reel_assist)
+	reel_on = bool(inp.get("reel", false))
+	if not holding:
+		# (surface: ship_acc is the ship's acceleration relative to the Moon, gravity is explicit)
 		if _was_holding:
 			# just let go: carry the hull's own motion at this point into free flight
 			vel += hull_vel(rig.origin)
@@ -329,7 +363,7 @@ func step_sim(dt: float, inp: Dictionary) -> void:
 			rig = Transform3D(r * rig.basis, r * rig.origin)
 			vel = r * vel
 		vel -= ship_acc * dt
-	_was_holding = holding or surface
+	_was_holding = holding
 	# hands: velocities, grabs, items
 	for i in 2:
 		var hp := hand_s(i).origin
@@ -342,6 +376,15 @@ func step_sim(dt: float, inp: Dictionary) -> void:
 			_release(i)
 		grip_prev[i] = g
 		hand_pose[i] = "fist" if grab_kind[i] != "" else ("point" if bool(pnt[i]) else ("fist" if g else "open"))
+	# flat: FlatControl animates hand-over-hand pulls and grips / lets go of the line itself
+	var tg: Array = inp.get("tether_grip", [])
+	if tg.size() == 2 and tether_on:
+		for i in 2:
+			if bool(tg[i]) and grab_kind[i] == "":
+				_grab_tether(i)
+			elif not bool(tg[i]) and grab_kind[i] == "tether":
+				grab_kind[i] = ""
+	_tether_hands(dt)
 	# locomotion
 	var moved_hand := false
 	var pull := Vector3.ZERO
@@ -412,7 +455,7 @@ func _vel_rel_hull(p: Vector3) -> Vector3:
 ## World-consistent state for tests / tools: the rig in the inertial frame centred on the ship
 ## (ship basis applied), and the body's inertial velocity relative to the ship centre.
 func inertial_vel() -> Vector3:
-	return vel + hull_vel(rig.origin) if is_holding() and not surface else vel
+	return vel + hull_vel(rig.origin) if is_holding() else vel
 
 
 func _rotate_rig(a: float) -> void:
@@ -458,14 +501,68 @@ func _try_grab(i: int) -> void:
 		return
 	if flat:
 		return
-	# 4. rails
+	# 4. rails, or the tether line if that is closer
 	var nr := nearest_rail(hp)
+	if tether_on:
+		var ld := _line_dist(hp)
+		if ld < TETHER_GRAB_R and (int(nr[0]) < 0 or ld < float(nr[1])) and hp.distance_to(tether_anchor) > 0.4:
+			_grab_tether(i)
+			return
 	if int(nr[0]) >= 0 and float(nr[1]) < reach:
 		grab_kind[i] = "rail"
 		grab_anchor[i] = hp
 		vel = Vector3.ZERO
 		if surface:
 			on_ground = false
+
+
+func _line_dist(p: Vector3) -> float:
+	var w := waist_s()
+	var seg := w - tether_anchor
+	var t := clampf((p - tether_anchor).dot(seg) / maxf(seg.length_squared(), 1e-6), 0.0, 1.0)
+	return p.distance_to(tether_anchor + seg * t)
+
+
+func _grab_tether(i: int) -> void:
+	if not tether_on:
+		return
+	grab_kind[i] = "tether"
+	tether_grip[i] = maxf(0.3, hand_s(i).origin.distance_to(tether_anchor))
+	_event("tether_grab", {"hand": i})
+
+
+## Hand-over-hand: a hand holds the line at tether_grip[i] from the anchor. The line can't get
+## longer there, so a hand moving away from the anchor (pulling toward the chest) moves the
+## body toward it instead and leaves it with that speed (relative to the hull at the anchor).
+## Reaching toward the anchor just slackens the bit in your hand. Not "holding": the body
+## stays a free-floating inertial object.
+func _tether_hands(dt: float) -> void:
+	for i in 2:
+		if grab_kind[i] != "tether":
+			continue
+		if not tether_on or is_holding():
+			grab_kind[i] = ""
+			continue
+		var dd := hand_s(i).origin - tether_anchor
+		var L := dd.length()
+		if L <= tether_grip[i] or L < 1e-3:
+			continue
+		var n := dd / L
+		var ex := L - tether_grip[i]
+		rig.origin -= n * ex
+		var vr := _vel_rel_hull(waist_s()).dot(n)
+		var want := -minf(ex / maxf(dt, 1e-4), PULL_MAX)
+		if vr > want:
+			vel += n * (want - vr)
+			exertion = maxf(exertion, 0.5)
+			_pull_tension = maxf(_pull_tension, WALKER_MASS * (vr - want) / maxf(dt, 1e-3) * 0.1)
+
+
+func set_reel_assist(on: bool) -> void:
+	if on == reel_assist:
+		return
+	reel_assist = on and tether_on
+	_event("reel", {"on": reel_assist})
 
 
 func _release(i: int) -> void:
@@ -663,17 +760,20 @@ func _free_motion(dt: float, inp: Dictionary) -> void:
 		on_ground = h <= ground_h + 0.02
 		if on_ground:
 			rig.origin += up * (ground_h - h)
-			var vn := vel.dot(up)
+			# the ground moves in the ship frame once the ship lifts off: walk / land relative to it
+			var vg := vel - ground_vel
+			var vn := vg.dot(up)
 			if vn < 0.0:
-				vel -= up * vn
+				vg -= up * vn
 			var want := (rig.basis * Vector3(mv.x, 0.0, mv.z)).slide(up)
 			want = want.limit_length(1.0) * WALK_SPEED
-			var hv := vel.slide(up)
+			var hv := vg.slide(up)
 			hv = hv.move_toward(want, dt * (4.0 if want.length() > 0.05 else 6.0))
-			vel = hv + up * vel.dot(up)
+			vg = hv + up * vg.dot(up)
 			if bool(inp.get("hop", false)):
-				vel += up * HOP_V
+				vg += up * HOP_V
 				on_ground = false
+			vel = vg + ground_vel
 			exertion = maxf(exertion, hv.length() * 0.9)
 	else:
 		if mv.length() > 0.05 and gas > 0.0:
@@ -733,29 +833,66 @@ func _hull_collide() -> void:
 				_event("knock", {"pos": p - n * SUIT_R, "n": n, "hand": 1})
 
 
-func _tether(_dt: float) -> void:
+func _tether(dt: float) -> void:
 	if not tether_on:
 		tether_used = 0.0
 		taut = false
+		tension = 0.0
+		reel_assist = false
 		return
 	var w := waist_s()
 	var d := w - tether_anchor
 	tether_used = d.length()
+	var held := is_holding()
+	var reeling := (reel_on or reel_assist) and not held
+	var rate := 0.0
+	if reeling:
+		# wind in: takes up the slack, then tows; slows down near the hatch
+		rate = minf(reel_speed, 0.06 + maxf(0.0, tether_used - REEL_MIN) * 0.35)
+		if reel_len <= 0.0:
+			reel_len = tether_used
+		reel_len = maxf(REEL_MIN, minf(reel_len, tether_used + 0.05) - rate * dt)
+		if tether_used <= REEL_MIN + 0.2:
+			# home: the short line and the clip hold you at the hatch
+			var hv := hull_vel(w)
+			vel = vel.move_toward(hv, dt * 1.5)
+			if reel_assist and (vel - hv).length() < 0.03:
+				reel_assist = false
+				_event("reel_home", {})
+	else:
+		reel_len = 0.0
+	var L := reel_len if reeling else tether_len
 	var was := taut
-	taut = tether_used > tether_len - 0.05
-	if tether_used > tether_len:
+	taut = tether_used > L - 0.05
+	tension = _pull_tension
+	_pull_tension = 0.0
+	if tether_used > L and tether_used > 1e-3 and not held:
 		var n := d / tether_used
-		rig.origin -= n * (tether_used - tether_len)
-		# the anchor rides the hull: only the stretch rate (velocity relative to it) is stopped,
-		# then a little elastic bounce back. A burn pulls a taut tether (and you) along with it.
-		var vn := _vel_rel_hull(w).dot(n)
-		if vn > 0.0:
-			vel -= n * vn * 1.3
-		if riding:
+		var x := tether_used - L
+		# the anchor rides the hull: react to the stretch rate relative to it (+ the reel's pull)
+		var vr := _vel_rel_hull(w).dot(n) + rate
+		tension = maxf(0.0, TETHER_K * x + TETHER_C * vr)
+		vel -= n * (tension / WALKER_MASS) * dt
+		if x > TETHER_MAX_STRETCH:
+			rig.origin -= n * (x - TETHER_MAX_STRETCH)
+			var vr2 := _vel_rel_hull(waist_s()).dot(n) + rate
+			if vr2 > 0.0:
+				tension = maxf(tension, WALKER_MASS * vr2 / maxf(dt, 1e-3))
+				vel -= n * vr2
+		if riding and x > 0.3:
 			riding = false
 			grab_kind[0] = ""
 			grab_kind[1] = ""
-	if taut and not was:
+		if tension > TENSION_SNAP:
+			tether_on = false
+			snapped = true
+			reel_assist = false
+			for i in 2:
+				if grab_kind[i] == "tether":
+					grab_kind[i] = ""
+			_event("tether_snap", {"tension": tension})
+	tension_peak = maxf(tension_peak, tension)
+	if taut and not was and not reeling:
 		_event("tether_taut", {"len": tether_len})
 
 
@@ -983,7 +1120,8 @@ func to_net() -> Dictionary:
 	return {"rig": rig, "vel": vel, "head": head, "hands": [hands[0], hands[1]], "hp": [hand_pose[0], hand_pose[1]], "hc": [hand_curl[0], hand_curl[1]], "hf": hand_fingers,
 		"step": step, "prog": progress, "col": collected, "riding": riding, "lamp": lamp, "jet": jet_on,
 		"suit": [o2, batt, co2, suit_temp, heart, gas, tether_used, exertion], "taut": taut, "done": done,
-		"failed": failed, "score": score, "time": time_out, "items": its, "props": ps, "ground": on_ground, "perch": perch}
+		"failed": failed, "score": score, "time": time_out, "items": its, "props": ps, "ground": on_ground, "perch": perch,
+		"tether": [tether_on, tension, reel_assist or reel_on, snapped, tether_len]}
 
 
 func from_net(d: Dictionary) -> void:
@@ -1027,6 +1165,13 @@ func from_net(d: Dictionary) -> void:
 	score = int(d.get("score", 0))
 	time_out = float(d.get("time", time_out))
 	on_ground = bool(d.get("ground", false))
+	var te: Array = d.get("tether", [])
+	if te.size() >= 5:
+		tether_on = bool(te[0])
+		tension = float(te[1])
+		reel_on = bool(te[2])
+		snapped = bool(te[3])
+		tether_len = float(te[4])
 	var its: Array = d.get("items", [])
 	for k in mini(its.size(), items.size()):
 		var a: Array = its[k]
@@ -1044,4 +1189,5 @@ func from_net(d: Dictionary) -> void:
 ## Pose snapshot for the avatar (and its interpolation buffer).
 func pose() -> Dictionary:
 	return {"head": head_s(), "l": hand_s(0), "r": hand_s(1), "hp": [hand_pose[0], hand_pose[1]], "hc": [hand_curl[0], hand_curl[1]], "hf": hand_fingers,
-		"up": body_up(), "vel": vel, "lamp": lamp, "jet": jet_on, "riding": riding, "ground": on_ground}
+		"up": body_up(), "vel": vel, "lamp": lamp, "jet": jet_on, "riding": riding, "ground": on_ground,
+		"tgrip": [grab_kind[0] == "tether", grab_kind[1] == "tether"]}

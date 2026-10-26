@@ -53,6 +53,10 @@ func _ready() -> void:
 		var st: Node = load("res://tests/smoke_test.gd").new()
 		st.name = "SmokeTest"
 		add_child(st)
+	elif Settings.cli.has("eva-tether-test"):
+		var et: Node = load("res://tests/eva_tether_test.gd").new()
+		et.name = "EvaTetherTest"
+		add_child(et)
 	elif Settings.cli.has("eva-frame-test"):
 		var ef: Node = load("res://tests/eva_frame_test.gd").new()
 		ef.name = "EvaFrameTest"

@@ -84,7 +84,7 @@ const DEFAULTS := {
 	# else on screen) | vr | flat. The VR client is a 2nd process of this game talking UDP on
 	# localhost:port. in_missions inserts a SPACEWALK objective into missions that have one.
 	"eva": {
-		"port": 47820, "mode": "auto", "tether_m": 20.0, "in_missions": false,
+		"port": 47820, "mode": "auto", "tether_m": 20.0, "reel_speed": 0.3, "in_missions": false,
 		"xr_runtime_json": "",      # "" = system active runtime (WiVRn sets it while connected)
 		"vr_quality": "medium",     # graphics quality inside the headset
 		"snap_deg": 30.0, "vignette": 0.7, "play_height": "standing",   # standing | seated
