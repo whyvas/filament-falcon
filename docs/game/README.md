@@ -37,6 +37,9 @@ with the software Vulkan driver at the Ultra preset (`QUALITY=ultra`), so they l
 
 ## 1. Install Godot (Linux Mint)
 
+> **Shortcut:** `./setup.sh` in the repo root does all of this (plus VR, panels and assets) and checks the result.
+> See [SETUP.md](SETUP.md). The manual steps are below.
+
 1. Download **Godot 4.7.x stable, standard (not .NET), Linux x86_64** from <https://godotengine.org/download/linux/>.
 2. Unzip it somewhere *outside* the repo, e.g. `~/Apps/godot/`, and make it executable:
    ```bash

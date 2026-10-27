@@ -16,6 +16,7 @@ A home-built, three-seat spaceship cockpit simulator for a dad and two kids. The
 | [`docs/electronics/`](docs/electronics/) | Wiring diagrams (start with `01_simple_joystick.png`), parts list, Linux setup |
 | [`game/`](game/) | Godot 4 game: three displays, six missions, Newtonian flight model |
 | [`docs/game/`](docs/game/) | How to run it, display setup, kids' crew guide, screenshots |
+| [`setup.sh`](setup.sh) | **New PC? Start here:** `./setup.sh` installs every dependency (Godot 4.7.2, apt, WiVRn, udev, assets) and checks it. See [`docs/game/SETUP.md`](docs/game/SETUP.md) |
 | [`bom/`](bom/) | Editable bill of materials (`Filament_Falcon_BOM.xlsx`) with Amazon.ca links |
 | [`shared/`](shared/) | Panel labels, input map, LED segment map, LED serial protocol |
 
