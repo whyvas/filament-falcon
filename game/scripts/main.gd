@@ -6,6 +6,7 @@ extends Node
 ##   godot --path game -- --hand-test           hand tracking -> glove orientation / curls
 ##   godot --path game -- --flight-test         autopilot bots genuinely fly the missions
 ##   XDG_DATA_HOME=$(mktemp -d) godot --headless --path game -- --area-runner-test   AREAS background job runner
+##   XDG_DATA_HOME=$(mktemp -d) godot --headless --path game -- --nav-map-test        nav map globe + ground inset
 ##   godot --path game -- --screenshots=DIR     capture the hero shots (use xvfb + lavapipe)
 ##   godot --path game --xr-mode on -- --eva-client   the VR spacewalk client (see EvaClient)
 
@@ -32,6 +33,9 @@ func _ready() -> void:
 		return
 	if Settings.cli.has("area-runner-test"):
 		add_child(load("res://tests/area_runner_test.gd").new())
+		return
+	if Settings.cli.has("nav-map-test"):
+		add_child(load("res://tests/nav_map_test.gd").new())
 		return
 	if Settings.cli.has("ui-fit"):
 		add_child(load("res://tests/ui_fit.gd").new())

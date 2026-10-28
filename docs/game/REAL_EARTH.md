@@ -119,6 +119,19 @@ The progress is in `~/.local/share/filament-falcon/areas/runner.log` (`tail -f` 
 - The region frame now uses true east/north at the region centre with the builder's exact projection; it was about 0.6% off and rotated.
 - Region height lookups are thread-safe (the LOD workers call them).
 
+## Nav map globe and GROUND close-up
+
+The console's NAV map ("WHERE ARE WE?") and the Commander's ORBIT MAP (`scripts/ui/nav_map.gd`) draw the planet as a lit globe instead of a flat disc. The globe uses the textures the 3D world already has loaded, so it adds no second copy in memory and switches to the HD set when it streams in:
+
+- **Earth:** Blue Marble day colour, a real terminator from the sun direction, an orange twilight band, Black Marble city lights on the night side, clouds, an ocean sun glint (from `earth_mask.png` when the HD set is present), limb haze and an atmosphere glow ring.
+- **Moon:** LROC colour, LOLA relief shading and Lommel-Seeliger lighting (the flat-looking full Moon).
+- **Other bodies** are drawn as small lit globes, so the Moon's phase shows even when it is clamped to the map edge.
+- **Ground sites on the globe's visible hemisphere:** the home region (Fredericton, or `--region`, in pink), the pad and every area the area manager knows. Area boxes are green when the area is ready and amber while it downloads.
+- **GROUND close-up:** when the ship is below 0.35 body radii or on the ground, a north-up close-up appears in the bottom right. It shows the ground under the ship (±25 km on the ground, growing with altitude up to ±0.3 R), the projected ground track (the game Earth does not spin, so the track is the orbit itself), the ship's heading, area boxes and names, the home region, the pad and a lat/lon readout. Over an area, it adds the area's Sentinel-2 imagery (when the world has it loaded nearby) and the **OSM overlay**: water and coast, built-up areas, buildings, parks, rivers, rail, roads (which glow at night) and town names.
+- **Cost:** each picture is a 2D `SubViewport` (`scripts/ui/nav_globe.gd`, `shaders/nav_globe.gdshader`, `shaders/nav_ground.gdshader`). The globe is at most 640 px, the other bodies up to 256 px and the close-up up to 384 px. They render with `UPDATE_ONCE` only when the picture changes, at most 4 Hz (and every 5 s for the sun), and the map rescales the last picture in between. With no assets downloaded, the shaders draw a procedural Earth and Moon.
+
+**OSM overlay (`tools/nav_overlay.py`, runs on the game PC):** it rasterizes each built region's cached extract (`osm/extract_<id>_*.json.gz`) into `assets/overlays/<id>.png`, an RGBA image over the region box with at most 2048 px on its longest side. It adds the area pack's `water.bin` sea and coastline when there is one. It writes `assets/overlays/<id>.json`, which holds the bbox and the place=city/town/village/suburb names read from the cached `.osm.pbf` with pyosmium; osmium-tool cuts the box first when it is installed. The script takes seconds and skips overlays that are up to date. `tools/fetch_assets.sh` runs it after the region build, the AREAS builder runs it at the end of each area's build step, and deleting an area removes its overlay. To redo them all, run `python3 tools/nav_overlay.py --force`.
+
 ## Packages and tests
 
 - **Packages:** `sudo apt install curl python3-numpy python3-pil python3-pip osmium-tool; then: pip install --user --break-system-packages osmium`.
@@ -126,6 +139,7 @@ The progress is in `~/.local/share/filament-falcon/areas/runner.log` (`tail -f` 
   - `godot --headless --path game -- --region-test --region-dir=DIR` (sync and threaded build);
   - `XDG_DATA_HOME=/tmp/x godot --headless --path game -- --asset-test` (shader compile and texture cache);
   - `-- --flight-test` (all missions on the real-size planet).
+  - `XDG_DATA_HOME=$(mktemp -d) godot --headless --path game -- --nav-map-test` (nav globe, ground close-up, area and overlay scan, procedural fallback).
   - A tiny offline region: `python3 tools/build_region.py --name t --bbox=… --osm file.json --flat-dem --out DIR`.
 
 ## Still approximate

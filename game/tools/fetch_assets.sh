@@ -164,6 +164,11 @@ if [ "$DO_REGION" = 1 ] && [ "$HAVE_PY" = 1 ]; then
   echo "OSM detail region '$REGION'..."
   python3 tools/build_region.py --region "$REGION" ${BBOX:+--bbox "$BBOX"} || { echo "  ! region build failed"; FAIL=1; }
 fi
+if [ "$HAVE_PY" = 1 ]; then
+  # nav map GROUND close-up overlays (roads / water / towns) from the cached region extracts:
+  # seconds per region, up-to-date ones skipped
+  python3 tools/nav_overlay.py || echo "  ! nav overlay failed (the nav map works without it)"
+fi
 [ "$FAIL" = 0 ] && touch "$A/.fetched"
 du -sh "$A" 2>/dev/null
 echo "Done$( [ "$FAIL" = 1 ] && echo " (some items failed; re-run tools/fetch_assets.sh when online)")."

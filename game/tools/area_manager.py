@@ -626,6 +626,10 @@ class Job:
             raise RuntimeError("build_region.py failed (see areas/%s/build.log)" % self.aid)
         self.prog("build", 0.95, "water mask")
         self.water_from_region()
+        self.prog("build", 0.98, "nav map overlay")
+        r = subprocess.run([sys.executable, os.path.join(HERE, "nav_overlay.py"), "--region", self.aid], capture_output=True, text=True)
+        if r.returncode != 0:      # a nicety: the area works without it
+            log(self.aid, "nav overlay failed: " + (r.stderr or r.stdout).strip()[-300:])
 
     def water_from_region(self):
         """Pack water mask (water.bin) from the built region's chunk water levels + the sea."""
@@ -711,6 +715,10 @@ def drop_queued(aid):
 def remove_area(aid):
     shutil.rmtree(os.path.join(AREAS, aid), ignore_errors=True)
     shutil.rmtree(os.path.join(REGIONS, aid), ignore_errors=True)
+    for ext in (".png", ".json"):      # its nav map overlay (tools/nav_overlay.py)
+        p = os.path.join(os.path.dirname(REGIONS), "overlays", aid + ext)
+        if os.path.exists(p):
+            os.remove(p)
 
 
 LOCK = os.path.join(AREAS, "runner.lock")      # flock()ed by the live runner: the kernel drops it when it dies

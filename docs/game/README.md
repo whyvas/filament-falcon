@@ -122,7 +122,7 @@ All views render at native 1920x1080 (the console also works in portrait, 1080x1
   UP/HALF/DOWN, ASSIST OFF/STAB/PROGRADE/HOLD. Ops half: mode RCS/ARM/SCANNER, a live camera that follows the
   mode (docking camera in RCS, arm camera in ARM), target readout with NAV TARGET, SCANNER PING, TRIGGER,
   CARGO DOORS, DOCK CLAMP and the five power switches.
-- **NAV**: orbit map, "highest/lowest point", STEER TO buttons for the Pilot, NAV TARGET for Ops.
+- **NAV**: orbit map with a lit Earth/Moon globe (day, night lights, clouds, atmosphere) and a GROUND close-up when low (roads, water and towns from OSM; see [REAL_EARTH.md](REAL_EARTH.md#nav-map-globe-and-ground-close-up)), "highest/lowest point", STEER TO buttons for the Pilot, NAV TARGET for Ops.
 - **SYSTEMS**: power distribution (all switches, power use, reactor), ship health bars, the fault list with
   what to do, SEAL LEAK, FIRE SUPPRESS, JUMP ARM/ENGAGE.
 - **CAMERAS**: docking, arm and chase cameras.
@@ -618,6 +618,7 @@ XDG_DATA_HOME=/tmp/ff godot --headless --path . -- --asset-test               # 
 godot --headless --path . -- --region-test --region-dir=DIR                    # region chunks: sync build + threaded streaming
 python3 tools/area_manager.py estimate fredericton --offline                   # area manager (no downloads)
 XDG_DATA_HOME=$(mktemp -d) godot --headless --path . -- --area-runner-test   # AREAS runner: auto-start, stale-job recovery, start failure shown
+XDG_DATA_HOME=$(mktemp -d) godot --headless --path . -- --nav-map-test       # nav map globe + GROUND close-up, overlays, procedural fallback
 python3 tools/test_falcon_ics.py                                         # intercom: DSP (band-pass, compressor), VOX, mixing/routing,
                                                                           # drift rings, device grouping (PulseAudio + PipeWire), replug matching,
                                                                           # the SPACEWALKER seat (WiVRn detection, suit radio, Quindar tones)
