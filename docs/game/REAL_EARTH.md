@@ -32,6 +32,7 @@ Pick areas, see what they cost, pre-download and pre-generate them **on this PC*
 - Tick the steps (DEM, IMAGERY, OSM EXTRACT, 3D BUILD) and press **QUEUE DOWNLOAD + GENERATE**. Jobs run one at a time in a background runner on this PC and keep going if the game quits.
 - **The job runner line** (top of CACHED AREAS) says what the background runner is doing: **RUNNER RUNNING** with the job, step, progress, MB downloaded and how long ago it last reported, or **RUNNER NOT RUNNING** / **RUNNER FAILED TO START** with the reason and the log lines. When jobs are queued and no runner is running, the page starts one by itself. It retries every 8 s, or every 30 s after a failed start. Other Commander pages check every 60 s. **RUN / RETRY NOW** starts it by hand. Missing Python modules (numpy, Pillow, pyosmium) are listed in red. The last lines of `areas/runner.log` are shown at the bottom.
 - **CACHED AREAS** lists every area with its state (queued / running + step / stalled / done / error / cancelled), progress, MB downloaded, disk use, `pack ✓` and `3D v3`. It has **VIEW** (frame it on the map), **CANCEL**, **REBUILD** and **DELETE** (click twice). Areas are drawn on the map in their state colour.
+- **Map layer (roads, rivers, lakes, names):** once an OSM extract is on this PC, the map draws lakes, rivers and roads and labels places. Major roads (motorway / trunk) and the big rivers and lakes show from the world zoom; primary, secondary, then tertiary roads, smaller rivers and lakes appear as you zoom in. Names go city → town → village → hamlet as you zoom in, without overlaps. Without a layer the map works as before and shows **BUILD MAP LAYER** (top right), which runs `tools/map_layer.py` in the background (log: `areas/map_layer.log`); the map picks the result up by itself within a few seconds. The AREAS runner also refreshes the layer after every OSM step.
 - When a job finishes, the terrain reloads by itself (**RELOAD TERRAIN** does it by hand). The planet picks up the new pack at once. A built region loads automatically when you fly within 30 km of it below 60 km altitude (`--region=NAME` / `--region-dir=DIR` pins one).
 
 ### CLI: `game/tools/area_manager.py`
@@ -47,6 +48,7 @@ python3 tools/area_manager.py status [--json]
 python3 tools/area_manager.py run --wait                           # work the queue in this terminal
 python3 tools/area_manager.py cancel home
 python3 tools/area_manager.py delete home [--purge-tiles]
+python3 tools/area_manager.py maplayer                             # AREAS map roads / rivers / names (background)
 ```
 
 Use `--bbox=` with an `=` when the latitude is negative.
@@ -132,6 +134,19 @@ The console's NAV map ("WHERE ARE WE?") and the Commander's ORBIT MAP (`scripts/
 
 **OSM overlay (`tools/nav_overlay.py`, runs on the game PC):** it rasterizes each built region's cached extract (`osm/extract_<id>_*.json.gz`) into `assets/overlays/<id>.png`, an RGBA image over the region box with at most 2048 px on its longest side. It adds the area pack's `water.bin` sea and coastline when there is one. It writes `assets/overlays/<id>.json`, which holds the bbox and the place=city/town/village/suburb names read from the cached `.osm.pbf` with pyosmium; osmium-tool cuts the box first when it is installed. The script takes seconds and skips overlays that are up to date. `tools/fetch_assets.sh` runs it after the region build, the AREAS builder runs it at the end of each area's build step, and deleting an area removes its overlay. To redo them all, run `python3 tools/nav_overlay.py --force`.
 
+## AREAS map layer (`tools/map_layer.py`, runs on the game PC)
+
+`python3 tools/map_layer.py [--pbf FILE ...] [--force]` reads every cached Geofabrik extract (`osm/*.osm.pbf`) with pyosmium (osmium-tool pre-filters the tags first when installed, much faster) and writes `maps/<extract>.ffml`, a compact binary layer (a few MB for a province; up-to-date files are skipped):
+
+| layer | zoom tiers (0 = visible from far out) |
+|---|---|
+| roads | motorway / trunk 0, primary 1, secondary 2, tertiary 3 (no streets) |
+| rivers | named length > 80 km 0, > 20 km 1, other rivers / canals 2 |
+| lakes | > 100 km² 0, > 10 km² 1, > 1 km² 2, > 0.05 km² 3 (outer rings) |
+| places | city, town, village, hamlet / suburb with population |
+
+Each line is stored at up to three Douglas-Peucker levels (0.006°, 0.001°, 0.0001°), only those its tier can be seen at. The game (`scripts/ui/map_layer.gd`) loads the files lazily on a worker thread the first time the AREAS map is drawn, merges the segments into cached buckets per kind, tier, detail level and map cell (lakes as one triangle mesh per bucket), and per frame draws only the buckets in view at the current detail level: one `draw_multiline` / `draw_mesh` per bucket. Labels are capped at 160 and rejected when they overlap. It is run by `tools/fetch_assets.sh`, the AREAS runner (after the OSM step; it never fails a job) and BUILD MAP LAYER (`area_manager.py maplayer`).
+
 ## Packages and tests
 
 - **Packages:** `sudo apt install curl python3-numpy python3-pil python3-pip osmium-tool; then: pip install --user --break-system-packages osmium`.
@@ -140,6 +155,8 @@ The console's NAV map ("WHERE ARE WE?") and the Commander's ORBIT MAP (`scripts/
   - `XDG_DATA_HOME=/tmp/x godot --headless --path game -- --asset-test` (shader compile and texture cache);
   - `-- --flight-test` (all missions on the real-size planet).
   - `XDG_DATA_HOME=$(mktemp -d) godot --headless --path game -- --nav-map-test` (nav globe, ground close-up, area and overlay scan, procedural fallback).
+  - `XDG_DATA_HOME=$(mktemp -d) godot --headless --path game -- --map-layer-test` (AREAS map layer: fallback button, background load, tiers and names by zoom, culling).
+  - `python3 tools/test_map_layer.py` (map_layer.py on a tiny generated .osm.pbf; needs pyosmium).
   - A tiny offline region: `python3 tools/build_region.py --name t --bbox=… --osm file.json --flat-dem --out DIR`.
 
 ## Still approximate

@@ -164,6 +164,8 @@ All views render at native 1920x1080 (the console also works in portrait, 1080x1
   build). Jobs run in the background on this PC; the list shows progress and disk use, with CANCEL / REBUILD /
   DELETE. The runner line shows whether the background job runner is running, what it is downloading (MB) and why
   a job waits; it starts by itself when jobs are queued, and **RUN / RETRY NOW** retries by hand (log tail at the bottom).
+  With an OSM map layer built (BUILD MAP LAYER on the map, or `tools/map_layer.py`) the map shows roads, rivers,
+  lakes and city / town / village names by zoom ([REAL_EARTH.md](REAL_EARTH.md#areas-map-layer-toolsmap_layerpy-runs-on-the-game-pc)).
   Same thing from a terminal: `python3 tools/area_manager.py status` / `run --wait`. See [REAL_EARTH.md](REAL_EARTH.md).
 - **ICS**: the intercom: headset per seat (◀ ▶, IDENTIFY through that station's AUDIO OUT, RESCAN), mic level
   meters, OUT meter + stream state per station, VOX/PTT, VOX level / attack /
@@ -619,6 +621,8 @@ godot --headless --path . -- --region-test --region-dir=DIR                    #
 python3 tools/area_manager.py estimate fredericton --offline                   # area manager (no downloads)
 XDG_DATA_HOME=$(mktemp -d) godot --headless --path . -- --area-runner-test   # AREAS runner: auto-start, stale-job recovery, start failure shown
 XDG_DATA_HOME=$(mktemp -d) godot --headless --path . -- --nav-map-test       # nav map globe + GROUND close-up, overlays, procedural fallback
+XDG_DATA_HOME=$(mktemp -d) godot --headless --path . -- --map-layer-test     # AREAS map roads / rivers / lakes / names by zoom, fallback button
+python3 tools/test_map_layer.py                                          # map_layer.py on a tiny generated .osm.pbf (needs pyosmium)
 python3 tools/test_falcon_ics.py                                         # intercom: DSP (band-pass, compressor), VOX, mixing/routing,
                                                                           # drift rings, device grouping (PulseAudio + PipeWire), replug matching,
                                                                           # the SPACEWALKER seat (WiVRn detection, suit radio, Quindar tones)

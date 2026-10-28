@@ -1363,6 +1363,14 @@ func _build_areas(page: Control) -> void:
 	_ar["map"] = am
 	am.box_drawn.connect(func(bb: Array) -> void:
 		_set_area_bbox(bb, "Map box", "box_%.3f_%.3f" % [(float(bb[0]) + float(bb[2])) * 0.5, (float(bb[1]) + float(bb[3])) * 0.5]))
+	am.build_layer.connect(func() -> void:     # roads / rivers / names from the cached OSM extracts
+		_area_async(["maplayer", "--json"], func(js: Dictionary) -> void:
+			if js.get("ok", false):
+				am.layer_note = str(js.get("msg", "building map layer..."))
+			else:
+				am.layer_note = "map layer: " + str(js.get("error", js.get("_error", "failed"))).right(140)
+				am._building_ms = -1e9
+			am.queue_redraw()))
 	var fr := hbox(a, 8)
 	fr.add_child(label("OVER %.0f km" % AREA_MAX_KM, 18, C_DIM, false))
 	for fm: String in ["clamp", "split"]:

@@ -3,8 +3,14 @@ extends Control
 ## World map for the Commander AREAS page (equirectangular, the game's Earth day texture).
 ## Mouse wheel = zoom at the cursor, right / middle drag = pan, left drag = draw the area box,
 ## left click = centre the box there. Cached areas are drawn in their state colour.
+## With an OSM map layer built (tools/map_layer.py -> maps/*.ffml, see MapLayer) it also draws
+## lakes, rivers and roads (major first, minor as you zoom in) and city / town / village names;
+## without one it shows a BUILD MAP LAYER button (build_layer signal) and works as before.
 
 signal box_drawn(bbox: Array)          # [S, W, N, E]
+signal build_layer                     # BUILD MAP LAYER pressed
+
+static var _live := 0
 
 var center := Vector2(-66.6, 45.9)     # lon, lat
 var deg_per_px := 0.25
@@ -15,6 +21,10 @@ var _a := Vector2.ZERO
 var _b := Vector2.ZERO
 var _tex: Texture2D
 var font: Font
+var build_btn: Button
+var layer_note := ""                   # build state shown next to the button
+var _ver := -1
+var _building_ms := -1e9
 
 
 func _ready() -> void:
@@ -22,6 +32,41 @@ func _ready() -> void:
 	clip_contents = true
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	focus_mode = Control.FOCUS_NONE
+	_live += 1
+	build_btn = Button.new()
+	build_btn.text = "BUILD MAP LAYER"
+	build_btn.tooltip_text = "Roads, rivers, lakes and town names from the downloaded OSM extracts (tools/map_layer.py, runs in the background)"
+	build_btn.focus_mode = Control.FOCUS_NONE
+	build_btn.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 8)
+	build_btn.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	build_btn.pressed.connect(func() -> void:
+		_building_ms = Time.get_ticks_msec()
+		layer_note = "building map layer..."
+		build_btn.disabled = true
+		build_layer.emit())
+	add_child(build_btn)
+	build_btn.visible = false
+
+
+func _exit_tree() -> void:
+	_live -= 1
+	if _live <= 0:
+		MapLayer.release()     # wait for loader threads, free the meshes before engine teardown
+
+
+func _process(_dt: float) -> void:
+	if not is_visible_in_tree():
+		return
+	MapLayer.poll()            # lazy: scans maps/ (every few s) and loads new layers in the background
+	if MapLayer.version != _ver:
+		_ver = MapLayer.version
+		queue_redraw()
+	var have := not MapLayer.layers.is_empty()
+	if have or MapLayer.loading():
+		layer_note = ""
+	var building := Time.get_ticks_msec() - _building_ms < 600000.0 and not have
+	build_btn.visible = not have and not MapLayer.loading()
+	build_btn.disabled = building
 
 
 func to_screen(lon: float, lat: float) -> Vector2:
@@ -114,6 +159,7 @@ func _draw() -> void:
 			var a := to_screen(lon0, lat0)
 			var b := to_screen(lon1, lat1)
 			draw_texture_rect_region(_tex, Rect2(a, b - a), src)
+	var nl := MapLayer.draw_lines(self, center, deg_per_px, size)
 	# graticule (labels in degrees)
 	var step := 10.0
 	for s: float in [10.0, 5.0, 1.0, 0.5, 0.1, 0.05, 0.01]:
@@ -133,6 +179,7 @@ func _draw() -> void:
 		draw_line(Vector2(0, y), Vector2(size.x, y), Color(0.5, 0.8, 1.0, 0.18))
 		draw_string(font, Vector2(2, y - 2), "%.2f" % la, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.7, 0.85, 1.0, 0.6))
 		la += step
+	MapLayer.draw_labels(self, center, deg_per_px, size, font)
 	for a: Dictionary in areas:
 		var st := str(a.get("state", ""))
 		var c := FalconPanel.C_GREEN if st == "done" else (FalconPanel.C_AMBER if st in ["running", "queued"] else (FalconPanel.C_RED if st == "error" else FalconPanel.C_DIM))
@@ -143,3 +190,12 @@ func _draw() -> void:
 		draw_rect(Rect2(_a, _b - _a).abs(), FalconPanel.C_EDGE, false, 2.0)
 	draw_string(font, Vector2(8, 18), "wheel zoom · right-drag pan · left-drag draw a box · click = 10 km box",
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.8, 0.9, 1.0, 0.8))
+	var note := layer_note
+	if note == "" and MapLayer.loading():
+		note = "loading map layer..."
+	elif note == "" and MapLayer.layers.is_empty():
+		note = "no map layer yet (roads / rivers / town names)"
+	elif nl == 0 and deg_per_px >= MapLayer.TIER_MAX_DPP[0]:
+		note = "zoom in for roads and town names"
+	if note != "":
+		draw_string(font, Vector2(8, 36), note, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1.0, 0.85, 0.5, 0.8))

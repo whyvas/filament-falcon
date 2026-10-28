@@ -12,6 +12,7 @@ pre-download and pre-generate them on THIS PC, check the cache, cancel, delete.
     python3 tools/area_manager.py run [--json]                  # start the background runner (checks it started)
     python3 tools/area_manager.py run --wait                    # work the queue in this terminal
     python3 tools/area_manager.py cancel ID | delete ID [--purge-tiles]
+    python3 tools/area_manager.py maplayer [--json]             # AREAS map roads / rivers / names (tools/map_layer.py, background)
     python3 tools/area_manager.py add --id nb --bbox 45.5,-67.3,46.4,-66.0 --fit split   # > 120 km
 
 Area selection: a preset (tools/area_presets.json), an existing area id (any id you created,
@@ -52,7 +53,7 @@ first; `status` says why a queued job is not moving); `cancel` stops the
 running step within a few seconds, `delete` removes the pack + region (the shared tile and
 extract caches stay; --purge-tiles also drops this area's tiles that no other area uses).
 """
-import argparse, fcntl, io, json, math, os, shutil, signal, subprocess, sys, time, urllib.error, urllib.request
+import argparse, fcntl, glob, io, json, math, os, shutil, signal, subprocess, sys, time, urllib.error, urllib.request
 from email.utils import formatdate
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -539,6 +540,24 @@ class Job:
         log(self.aid, "OSM extract(s):", ", ".join(f"{x['name']} ({x['url'].rsplit('/', 1)[-1]})" for x in exs))
         for k, ex in enumerate(exs):
             self.fetch_extract(ex, k / len(exs), (k + 1) / len(exs))
+        self.map_layer([extract_path(ex) for ex in exs])
+
+    def map_layer(self, pbfs):
+        """Refresh the AREAS map's roads / rivers / names layer (maps/*.ffml) for these extracts.
+        Best effort: never fails the job (needs pyosmium; skipped when up to date)."""
+        pbfs = [p for p in pbfs if os.path.exists(p)]
+        if not pbfs:
+            return
+        self.prog("osm", 1.0, "map layer (roads / rivers / names)")
+        try:
+            cmd = [sys.executable, os.path.join(HERE, "map_layer.py")] + [f"--pbf={p}" for p in pbfs]
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+            for ln in (r.stdout + r.stderr).strip().splitlines()[-4:]:
+                log(self.aid, ln)
+            if r.returncode == 2:
+                log(self.aid, "map layer skipped: pip install osmium (the AREAS map works without it)")
+        except Exception as ex:  # noqa: BLE001
+            log(self.aid, f"map layer failed (ignored): {ex}")
 
     def fetch_extract(self, ex, f0, f1):
         url = ex["url"]
@@ -923,6 +942,40 @@ def spawn_runner(wait_s=4.0):
     return {"ok": True, "pid": p.pid, "msg": "runner starting (pid %d)" % p.pid}
 
 
+MLOG = os.path.join(AREAS, "map_layer.log")
+MPID = os.path.join(AREAS, "map_layer.pid")
+
+
+def spawn_map_layer():
+    """BUILD MAP LAYER: run tools/map_layer.py detached (log areas/map_layer.log)."""
+    try:
+        pid = int(open(MPID).read().strip() or 0)
+        os.kill(pid, 0)
+        return {"ok": True, "pid": pid, "msg": "map layer already building (pid %d)" % pid}
+    except (OSError, ValueError):
+        pass
+    pbfs = [p for p in glob.glob(os.path.join(OSM_DIR, "*.osm.pbf")) if ".cut_" not in p]
+    if not pbfs:
+        return {"ok": False, "error": "no OSM extract downloaded yet: queue and run an area first"}
+    try:
+        import osmium  # noqa: F401
+    except ImportError:
+        return {"ok": False, "error": "pyosmium missing: pip install osmium (osmium-tool: faster)"}
+    os.makedirs(AREAS, exist_ok=True)
+    lf = open(MLOG, "a")
+    lf.write(f"\n{time.strftime('%Y-%m-%d %H:%M:%S')} === map layer ===\n")
+    lf.flush()
+    try:
+        p = subprocess.Popen([sys.executable, "-u", os.path.join(HERE, "map_layer.py")], cwd=HERE, stdin=subprocess.DEVNULL,
+                             stdout=lf, stderr=subprocess.STDOUT, start_new_session=True, close_fds=True)
+    except OSError as ex:
+        return {"ok": False, "error": f"could not start map_layer.py: {ex}"}
+    finally:
+        lf.close()
+    open(MPID, "w").write(str(p.pid))
+    return {"ok": True, "pid": p.pid, "msg": "building map layer from %d extract(s) (pid %d, log areas/map_layer.log)" % (len(pbfs), p.pid)}
+
+
 def why_waiting(areas, pid, d):
     """Fill 'why' for areas that are not moving."""
     q = queued_ids()
@@ -975,7 +1028,7 @@ def status_doc():
 # ------------------------------------------------------------------ commands
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("cmd", choices=["presets", "estimate", "add", "status", "run", "cancel", "delete"])
+    ap.add_argument("cmd", choices=["presets", "estimate", "add", "status", "run", "cancel", "delete", "maplayer"])
     ap.add_argument("preset", nargs="?", help="preset or existing area id")
     ap.add_argument("--id")
     ap.add_argument("--name")
@@ -1086,6 +1139,11 @@ def main():
             log(r.get("msg") or r.get("error"))
             for ln in r.get("log", []):
                 print("  | " + ln)
+        if not r["ok"]:
+            sys.exit(1)
+    elif a.cmd == "maplayer":
+        r = spawn_map_layer()
+        print(json.dumps(r) if a.json else (r.get("msg") or r.get("error")))
         if not r["ok"]:
             sys.exit(1)
     elif a.cmd == "cancel":

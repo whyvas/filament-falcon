@@ -168,6 +168,8 @@ if [ "$HAVE_PY" = 1 ]; then
   # nav map GROUND close-up overlays (roads / water / towns) from the cached region extracts:
   # seconds per region, up-to-date ones skipped
   python3 tools/nav_overlay.py || echo "  ! nav overlay failed (the nav map works without it)"
+  # AREAS map roads / rivers / lakes / town names from every cached Geofabrik extract (needs pyosmium)
+  python3 tools/map_layer.py || echo "  ! map layer skipped (pip install osmium; the AREAS map works without it)"
 fi
 [ "$FAIL" = 0 ] && touch "$A/.fetched"
 du -sh "$A" 2>/dev/null
