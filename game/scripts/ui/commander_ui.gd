@@ -1216,11 +1216,38 @@ static func _area_id(raw: String) -> String:
 	return out
 
 
+static var _area_env_c := -1    # 1: /usr/bin/env understands -C DIR (coreutils >= 8.28)
+
+
+## An explicit python3 (a desktop launcher's PATH can be thin), never just "python3" when a real one exists.
+static func _area_python() -> String:
+	for p: String in ["/usr/bin/python3", "/usr/local/bin/python3", "/bin/python3"]:
+		if FileAccess.file_exists(p):
+			return p
+	return "python3"
+
+
+## [program, args] for tools/area_manager.py: explicit python3 + absolute script path, started through
+## /usr/bin/env with tools/ as the working dir and HOME + PATH set. The tool itself starts the background
+## runner detached (`run --wait`, logging to areas/runner.log) and reports whether it really started.
 static func _area_cli(args: Array) -> Array:
-	return ["python3", [ProjectSettings.globalize_path(AREA_TOOL)] + args]
+	var script := ProjectSettings.globalize_path(AREA_TOOL)
+	var py := _area_python()
+	if not FileAccess.file_exists("/usr/bin/env"):
+		return [py, [script] + args]
+	if _area_env_c < 0:
+		_area_env_c = 1 if OS.execute("/usr/bin/env", ["-C", "/", "true"]) == 0 else 0
+	var home := OS.get_environment("HOME")
+	if home == "":
+		home = "/home/" + OS.get_environment("USER")
+	var path := OS.get_environment("PATH")
+	path = (path + ":" if path != "" else "") + "/usr/local/bin:/usr/bin:/bin"
+	var pre: Array = ["-C", script.get_base_dir()] if _area_env_c == 1 else []
+	return ["/usr/bin/env", pre + ["HOME=" + home, "PATH=" + path, "PYTHONUNBUFFERED=1", py, script] + args]
 
 
-## Run the area tool without blocking the UI (a worker thread); cb gets the parsed JSON (or {}).
+## Run the area tool without blocking the UI (a worker thread); cb gets the parsed JSON (its last
+## JSON line), or {"_error": what it printed, "_exit": code} when it failed / printed no JSON.
 func _area_async(args: Array, cb: Callable) -> void:
 	var c := _area_cli(args)
 	for t: int in _ar_tasks.duplicate():
@@ -1229,10 +1256,48 @@ func _area_async(args: Array, cb: Callable) -> void:
 			_ar_tasks.erase(t)
 	_ar_tasks.append(WorkerThreadPool.add_task(func() -> void:
 		var out: Array = []
-		OS.execute(str(c[0]), c[1], out, true)
+		var code := OS.execute(str(c[0]), c[1], out, true)
 		var txt := "".join(out)
-		var js: Variant = JSON.parse_string(txt.substr(txt.find("{"))) if txt.find("{") >= 0 else null
-		cb.call_deferred(js if typeof(js) == TYPE_DICTIONARY else {}), false, "area tool"))
+		var js: Variant = null
+		var lines := txt.strip_edges().split("\n")
+		for i in range(lines.size() - 1, -1, -1):
+			if lines[i].strip_edges().begins_with("{"):
+				js = JSON.parse_string(lines[i])
+				break
+		if typeof(js) != TYPE_DICTIONARY:
+			var tail := txt.strip_edges().right(400)
+			js = {"_error": tail if tail != "" else "no output (exit code %d): is python3 installed? (%s)" % [code, str(c[0])], "_exit": code}
+		cb.call_deferred(js), false, "area tool"))
+
+
+## Start (or retry) the background job runner and show whether it really started.
+func _area_run(manual: bool) -> void:
+	if _ar.get("starting", false):
+		return
+	_ar["starting"] = true
+	_ar["last_start"] = _now()
+	if manual:
+		_ar["runner_err"] = ""
+	_ar["runner_msg"] = "starting the runner…"
+	_area_async(["run", "--json"], func(js: Dictionary) -> void:
+		_ar["starting"] = false
+		_area_runner_result(js)
+		_ar["next_poll"] = _now() + 0.3)
+
+
+## Result of `run --json` / `add --run --json`: {"ok", "pid", "msg"} or {"ok": false, "error", "log"}.
+func _area_runner_result(js: Dictionary) -> void:
+	if js.get("ok", false):
+		_ar["runner_err"] = ""
+		_ar["runner_msg"] = str(js.get("msg", ""))
+		return
+	var err := str(js.get("error", js.get("_error", "the runner did not start")))
+	var lg: Array = js.get("log", [])
+	if not lg.is_empty():
+		err += "\n" + "\n".join(PackedStringArray(lg.slice(-4)))
+	_ar["runner_err"] = err
+	_ar["runner_msg"] = ""
+	push_warning("AREAS: job runner failed to start: " + err)
 
 
 func _exit_tree() -> void:
@@ -1271,8 +1336,8 @@ func _set_area_bbox(bb: Array, name_: String, id_: String) -> void:
 		if js.has("error"):
 			(_ar["est"] as Label).text = "estimate: " + str(js["error"])
 			return
-		if js.is_empty():
-			(_ar["est"] as Label).text = "estimate failed (python3 + numpy + Pillow on this PC? area too big? max 120 km a side)"
+		if js.is_empty() or js.has("_error"):
+			(_ar["est"] as Label).text = "estimate failed (python3 on this PC? area too big? max 120 km a side): " + str(js.get("_error", "")).right(160)
 			return
 		var ex: Variant = js.get("osm_extract")
 		var osm_name := (str((ex as Dictionary).get("name", "?")) + " extract") if ex is Dictionary else "no extract found"
@@ -1380,9 +1445,14 @@ func _build_areas(page: Control) -> void:
 		for st: String in steps:
 			if (steps[st] as CheckBox).button_pressed:
 				sl.append(st)
-		var c := _area_cli(["add", "--id", str(_ar["id"]), "--name", str(_ar["name"]), "--bbox=%f,%f,%f,%f" % bb,
-			"--steps", ",".join(sl), "--fit", _area_fit(), "--run"])
-		OS.create_process(str(c[0]), c[1])
+		_ar["runner_msg"] = "queueing…"
+		_area_async(["add", "--id", str(_ar["id"]), "--name", str(_ar["name"]), "--bbox=%f,%f,%f,%f" % bb,
+			"--steps", ",".join(sl), "--fit", _area_fit(), "--run", "--json"], func(js: Dictionary) -> void:
+				if js.has("_error"):        # the add itself failed (bad box, python missing …)
+					(_ar["est"] as Label).text = "QUEUE failed: " + str(js["_error"]).right(240)
+				else:
+					_area_runner_result(js)
+				_ar["next_poll"] = 0.0)
 		_ar["next_poll"] = 0.0, 22, 60)
 	a.add_child(q)
 	live["area_q"] = func() -> void: q.disabled = _area_bbox().is_empty()
@@ -1392,6 +1462,12 @@ func _build_areas(page: Control) -> void:
 	var info := label("", 17, C_DIM)
 	b.add_child(info)
 	_ar["info"] = info
+	var rs := label("", 17, C_DIM)          # job runner: running / not running / failed to start (+ why)
+	b.add_child(rs)
+	_ar["runner_lbl"] = rs
+	var probs := label("", 16, C_RED)       # missing python modules etc.
+	b.add_child(probs)
+	_ar["probs"] = probs
 	var list := VBoxContainer.new()
 	list.add_theme_constant_override("separation", 6)
 	b.add_child(list)
@@ -1400,10 +1476,30 @@ func _build_areas(page: Control) -> void:
 	var rl := button("RELOAD TERRAIN", func() -> void: _area_reload(), 20, 52)
 	rl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	rr.add_child(rl)
+	var rn := button("RUN / RETRY NOW", func() -> void: _area_run(true), 20, 52)
+	rr.add_child(rn)
 	var rf := button("REFRESH", func() -> void: _ar["next_poll"] = 0.0, 20, 52)
 	rr.add_child(rf)
+	b.add_child(label("RUNNER LOG  (~/.local/share/filament-falcon/areas/runner.log)", 15, C_DIM))
+	var lg := label("", 13, C_DIM)
+	lg.clip_text = true
+	b.add_child(lg)
+	_ar["log_lbl"] = lg
 	live["areas"] = func() -> void:
-		if current != "AREAS" or _now() < float(_ar.get("next_poll", 0.0)) or _ar.get("polling", false):
+		if current != "AREAS":
+			# other pages: every 60 s, restart the runner if jobs are queued and it is not running
+			if _now() > float(_ar.get("next_bg", 20.0)) and not _ar.get("polling", false):
+				_ar["next_bg"] = _now() + 60.0
+				_ar["polling"] = true
+				_area_async(["status", "--json"], func(js: Dictionary) -> void:
+					_ar["polling"] = false
+					if int(js.get("runner", 1)) == 0 and not _ar.get("starting", false):
+						for ar: Dictionary in js.get("areas", []):
+							if str(ar["state"]) in ["queued", "stalled"] and not str(ar.get("why", "")).begins_with("blocked"):
+								_area_run(false)
+								break)
+			return
+		if _now() < float(_ar.get("next_poll", 0.0)) or _ar.get("polling", false):
 			return
 		_ar["polling"] = true
 		_area_async(["status", "--json"], func(js: Dictionary) -> void:
@@ -1426,17 +1522,19 @@ func _area_list(js: Dictionary) -> void:
 	var list: VBoxContainer = _ar["list"]
 	var areas: Array = js.get("areas", [])
 	var info: Label = _ar["info"]
-	if js.is_empty():
-		info.text = "area tool not available (needs python3 with numpy + Pillow on this PC)"
+	if js.is_empty() or js.has("_error"):
+		info.text = "area tool failed to run (python3 on this PC? run ./setup.sh --check):\n" + str(js.get("_error", "")).right(300)
+		info.modulate = C_RED
 		return
+	info.modulate = Color.WHITE
+	_area_runner_view(js, areas)
 	var tot := 0.0
 	var done_now: Array = []
 	for ar: Dictionary in areas:
 		tot += float(ar.get("disk_mb", 0.0))
 		if str(ar["state"]) == "done":
 			done_now.append(str(ar["id"]))
-	info.text = "%d area(s), %.0f MB   ·   runner %s   ·   ~/.local/share/filament-falcon/areas" % [areas.size(), tot,
-		("pid %d" % int(js.get("runner", 0))) if int(js.get("runner", 0)) > 0 else "idle"]
+	info.text = "%d area(s), %.0f MB   ·   ~/.local/share/filament-falcon/areas" % [areas.size(), tot]
 	# a job just finished: the planet picks the new pack up (+ the region when you fly there)
 	var prev: Array = _ar.get("done", [])
 	if _ar.has("done") and done_now.any(func(i: String) -> bool: return not prev.has(i)):
@@ -1456,22 +1554,28 @@ func _area_list(js: Dictionary) -> void:
 				continue
 			deleting.erase(id)
 		var row := hbox(list, 6)
-		var col := C_GREEN if st == "done" else (C_AMBER if st in ["running", "queued"] else (C_RED if st == "error" else C_DIM))
-		var t := label("%s  ·  %s%s  %d%%  ·  %.0f MB%s%s\n%s" % [str(ar["name"]), st.to_upper(),
-			(" " + str(ar["step"]).to_upper()) if st == "running" else "", int(float(ar["progress"]) * 100.0), float(ar["disk_mb"]),
-			"  · pack ✓" if ar["pack"] else "", ("  · 3D v%d" % int(ar["region"])) if int(ar["region"]) > 0 else "", str(ar["msg"]).left(90)], 16, col)
+		var col := C_GREEN if st == "done" else (C_AMBER if st in ["running", "queued", "stalled"] else (C_RED if st == "error" else C_DIM))
+		var why := str(ar.get("why", ""))
+		if why.begins_with("blocked"):
+			col = C_RED
+		var dl_mb := float(ar.get("bytes", 0)) / 1e6
+		var t := label("%s  ·  %s%s  %d%%%s  ·  %.0f MB%s%s\n%s%s" % [str(ar["name"]), st.to_upper(),
+			(" " + str(ar["step"]).to_upper()) if st in ["running", "stalled"] else "", int(float(ar["progress"]) * 100.0),
+			("  · %.1f MB downloaded" % dl_mb) if dl_mb > 0.0 and st != "done" else "", float(ar["disk_mb"]),
+			"  · pack ✓" if ar["pack"] else "", ("  · 3D v%d" % int(ar["region"])) if int(ar["region"]) > 0 else "", str(ar["msg"]).left(110),
+			("\n→ " + why.left(140)) if why != "" and why != str(ar["msg"]) else ""], 16, col)
 		t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(t)
 		row.add_child(button("VIEW", func() -> void: (_ar["map"] as AreaMap).frame(ar["bbox"]), 16, 44))
-		if st in ["running", "queued"]:
+		if st in ["running", "queued", "stalled"]:
 			row.add_child(button("CANCEL", func() -> void:
-				var c := _area_cli(["cancel", id])
-				OS.create_process(str(c[0]), c[1])
+				_area_async(["cancel", id], func(_js: Dictionary) -> void: _ar["next_poll"] = 0.0)
 				_ar["next_poll"] = _now() + 0.5, 16, 44))
 		else:
 			row.add_child(button("REBUILD", func() -> void:
-				var c := _area_cli(["add", id, "--run"])
-				OS.create_process(str(c[0]), c[1])
+				_area_async(["add", id, "--run", "--json"], func(js: Dictionary) -> void:
+					_area_runner_result(js)
+					_ar["next_poll"] = 0.0)
 				_ar["next_poll"] = _now() + 0.5, 16, 44))
 			var del := button("DELETE", func() -> void: pass, 16, 44)
 			del.pressed.connect(func() -> void:
@@ -1480,14 +1584,60 @@ func _area_list(js: Dictionary) -> void:
 					var dl: Dictionary = _ar.get("deleting", {})
 					dl[id] = _now()
 					_ar["deleting"] = dl
-					var c := _area_cli(["delete", id])
-					OS.create_process(str(c[0]), c[1])
+					_area_async(["delete", id], func(_js: Dictionary) -> void: _ar["next_poll"] = 0.0)
 					_ar["next_poll"] = _now() + 1.0
 					get_tree().create_timer(1.5).timeout.connect(_area_reload)
 				else:
 					del.text = "SURE?"
 					del.modulate = C_RED)
 			row.add_child(del)
+
+
+## Runner line (running: job / step / progress / bytes / heartbeat; not running: why, or the start
+## error), the dependency problems, the log tail, and the auto-start: queued jobs + no runner -> start
+## it (every 8 s; every 30 s after a failed start). RUN / RETRY NOW does it by hand.
+func _area_runner_view(js: Dictionary, areas: Array) -> void:
+	var rs: Label = _ar["runner_lbl"]
+	var pid := int(js.get("runner", 0))
+	var ri: Dictionary = js.get("runner_info", {})
+	var waiting := 0
+	var blocked := 0
+	for ar: Dictionary in areas:
+		if str(ar["state"]) in ["queued", "stalled"]:
+			if str(ar.get("why", "")).begins_with("blocked"):
+				blocked += 1
+			else:
+				waiting += 1
+	var err := str(_ar.get("runner_err", ""))
+	if pid > 0:
+		_ar["runner_err"] = ""
+		var job := str(ri.get("job", ""))
+		var hb := _unix_now() - float(ri.get("heartbeat", _unix_now()))
+		rs.text = "RUNNER RUNNING (pid %d)" % pid + ("   ·   %s  %s %d%%  ·  %.1f MB downloaded  ·  %s\nlast update %d s ago" % [job,
+			str(ri.get("step", "")).to_upper(), int(float(ri.get("progress", 0.0)) * 100.0), float(ri.get("bytes", 0)) / 1e6,
+			str(ri.get("msg", "")).left(60), int(hb)] if job != "" else "   ·   starting / between jobs")
+		rs.modulate = C_GREEN
+	elif err != "":
+		rs.text = "RUNNER FAILED TO START (%d job(s) waiting): %s\nRUN / RETRY NOW tries again (auto-retry every 30 s). Terminal: python3 game/tools/area_manager.py run --wait" % [waiting, err.left(400)]
+		rs.modulate = C_RED
+	elif waiting > 0:
+		rs.text = "RUNNER NOT RUNNING: %d job(s) waiting. %s" % [waiting, str(_ar.get("runner_msg", "")) if _ar.get("starting", false) else "Starting it…"]
+		rs.modulate = C_AMBER
+	else:
+		rs.text = "Runner idle (nothing queued)" + ("" if blocked == 0 else ": %d job(s) blocked by missing modules, see below" % blocked)
+		rs.modulate = C_DIM
+	var probs: Array = js.get("problems", [])
+	(_ar["probs"] as Label).text = "\n".join(PackedStringArray(probs.filter(func(p: String) -> bool: return not p.contains("runner is not running"))))
+	var tail: Array = js.get("log_tail", [])
+	(_ar["log_lbl"] as Label).text = "\n".join(PackedStringArray(tail.slice(-8))) if not tail.is_empty() else "(no log yet)"
+	# auto-start / restart: queued (or stalled) jobs and no runner
+	if pid == 0 and waiting > 0 and not _ar.get("starting", false):
+		if _now() - float(_ar.get("last_start", -1000.0)) > (30.0 if err != "" else 8.0):
+			_area_run(false)
+
+
+static func _unix_now() -> float:
+	return Time.get_unix_time_from_system()
 
 
 func _build_setup(page: Control) -> void:

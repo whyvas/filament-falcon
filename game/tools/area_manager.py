@@ -9,7 +9,8 @@ pre-download and pre-generate them on THIS PC, check the cache, cancel, delete.
     python3 tools/area_manager.py add --id home --center 45.96,-66.64 --radius 5 --run
     python3 tools/area_manager.py add --id cape --bbox 28.40,-80.78,28.66,-80.52
     python3 tools/area_manager.py status [--json]               # areas, state, progress, disk use
-    python3 tools/area_manager.py run [--wait]                  # process the job queue (background)
+    python3 tools/area_manager.py run [--json]                  # start the background runner (checks it started)
+    python3 tools/area_manager.py run --wait                    # work the queue in this terminal
     python3 tools/area_manager.py cancel ID | delete ID [--purge-tiles]
     python3 tools/area_manager.py add --id nb --bbox 45.5,-67.3,46.4,-66.0 --fit split   # > 120 km
 
@@ -44,15 +45,22 @@ Everything lives under ~/.local/share/filament-falcon/:
     dem/terrarium/13/, imagery/s2cloudless/<z>/                         shared tile caches
     osm/<extract>.osm.pbf, osm/geofabrik-index.json                     extracts (shared)
     assets/regions/<id>/                                                built 3D regions
-Jobs run one at a time in a single background runner (areas/runner.pid); `cancel` stops the
+Jobs run one at a time in a single background runner (`run --wait`; areas/runner.lock is
+flock()ed while it lives, so a killed runner never leaves a stale lock; runner.json = its job /
+step / bytes / heartbeat, runner.log = its output; jobs a dead runner left 'running' are resumed
+first; `status` says why a queued job is not moving); `cancel` stops the
 running step within a few seconds, `delete` removes the pack + region (the shared tile and
 extract caches stay; --purge-tiles also drops this area's tiles that no other area uses).
 """
-import argparse, io, json, math, os, shutil, signal, subprocess, sys, time, urllib.request
+import argparse, fcntl, io, json, math, os, shutil, signal, subprocess, sys, time, urllib.error, urllib.request
+from email.utils import formatdate
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import numpy as np  # noqa: E402
+try:                     # numpy is needed by the jobs, not by status / run / cancel (those report it missing)
+    import numpy as np  # noqa: E402
+except ImportError:      # pragma: no cover
+    np = None
 
 DATA = os.path.join(os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")), "filament-falcon")
 AREAS = os.path.join(DATA, "areas")
@@ -75,7 +83,36 @@ ATTRIB = "Sentinel-2 cloudless - https://s2maps.eu by EOX IT Services GmbH (Cont
 
 
 def log(*a):
-    print("[area]", *a, flush=True)
+    print(time.strftime("%H:%M:%S"), "[area]", *a, flush=True)
+
+
+# ------------------------------------------------------------------ dependencies
+DEP_HINT = {"numpy": "sudo apt install python3-numpy", "PIL": "sudo apt install python3-pil",
+            "osmium": "pip install --user --break-system-packages osmium (or ./setup.sh)",
+            "osmium_tool": "sudo apt install osmium-tool"}
+STEP_NEEDS = {"dem": ["numpy", "PIL"], "imagery": ["numpy", "PIL"], "osm": [], "build": ["numpy"]}
+
+
+def deps():
+    """{module: importable} for what the jobs use (+ the osmium command line tool)."""
+    d = {}
+    for m in ("numpy", "PIL", "osmium"):
+        try:
+            __import__(m)
+            d[m] = True
+        except Exception:  # noqa: BLE001
+            d[m] = False
+    d["osmium_tool"] = bool(shutil.which("osmium"))
+    return d
+
+
+def missing_for(steps, d=None):
+    d = d or deps()
+    return sorted({m for st in steps for m in STEP_NEEDS.get(st, []) if not d.get(m)})
+
+
+def dep_msg(miss):
+    return "missing python module(s): " + ", ".join(miss) + " (" + "; ".join(DEP_HINT[m] for m in miss) + ")"
 
 
 def presets():
@@ -222,14 +259,18 @@ def geofabrik_index(offline=False):
         return None
 
 
-def pick_extract(bbox, offline=False):
-    """Smallest Geofabrik extract whose boundary contains the bbox corners + centre."""
+def pick_extracts(bbox, offline=False):
+    """The Geofabrik extract(s) for an area: the smallest one that contains the whole box, unless
+    the box straddles a border (e.g. the Bay of Fundy: New Brunswick + Nova Scotia), where that
+    would be a whole country (Canada ~4 GB): then the small extracts that cover its land, with the
+    points only a country covers treated as open sea (no OSM features to build there)."""
     idx = geofabrik_index(offline)
     if not idx:
-        return None
+        return []
     s, w, n, e = bbox
-    pts = [(w, s), (w, n), (e, s), (e, n), ((w + e) / 2, (s + n) / 2)]
-    best = None
+    G = 5
+    pts = [(w + (e - w) * i / (G - 1), s + (n - s) * j / (G - 1)) for i in range(G) for j in range(G)]
+    feats = []
     for f in idx.get("features", []):
         g, pr = f.get("geometry"), f.get("properties", {})
         url = pr.get("urls", {}).get("pbf")
@@ -238,13 +279,51 @@ def pick_extract(bbox, offline=False):
         coords = g["coordinates"] if g["type"] == "MultiPolygon" else [g["coordinates"]]
         xs = [c[0] for poly in coords for c in poly[0]]
         ys = [c[1] for poly in coords for c in poly[0]]
-        if min(xs) > w or max(xs) < e or min(ys) > s or max(ys) < n:
+        if min(xs) > e or max(xs) < w or min(ys) > n or max(ys) < s:
             continue
-        if all(_in_geom(x, y, g) for x, y in pts):
-            area = (max(xs) - min(xs)) * (max(ys) - min(ys))
-            if best is None or area < best[0]:
-                best = (area, pr.get("id"), pr.get("name"), url)
-    return {"id": best[1], "name": best[2], "url": best[3]} if best else None
+        feats.append(((max(xs) - min(xs)) * (max(ys) - min(ys)), g, {"id": pr.get("id"), "name": pr.get("name"), "url": url}))
+    feats.sort(key=lambda t: t[0])
+    smallest = []               # per sample point: the smallest extract that contains it
+    for x, y in pts:
+        smallest.append(next(((a, ex["id"]) for a, g, ex in feats if _in_geom(x, y, g)), None))
+    whole = next((ex for a, g, ex in feats if all(_in_geom(x, y, g) for x, y in pts)), None)
+    hit = [p for p in smallest if p]
+    if not hit:
+        return [whole] if whole else []
+    amin = min(a for a, _ in hit)
+    small = []
+    for a, i in hit:
+        if a <= 25 * amin and i not in small:
+            small.append(i)
+    wa = next((a for a, g, ex in feats if ex is whole), None) if whole else None
+    if whole and (len(small) == 1 and small[0] == whole["id"] or wa is not None and wa <= 25 * amin):
+        return [whole]          # one extract has it all and is not much bigger than the pieces
+    if len(small) > 4:
+        return [whole] if whole else []
+    byid = {ex["id"]: ex for _, _, ex in feats}
+    return [byid[i] for i in small]
+
+
+def pick_extract(bbox, offline=False):
+    """First of pick_extracts() (older callers)."""
+    ex = pick_extracts(bbox, offline)
+    return ex[0] if ex else None
+
+
+def extract_path(ex):
+    return os.path.join(OSM_DIR, ex["url"].rsplit("/", 1)[-1])
+
+
+def extract_fresh(path, max_age=30 * 86400):
+    """Cached .pbf younger than max_age (by the last check, or the file date when it was put
+    there by tools/fetch_assets.sh / build_region.py without our .meta.json)."""
+    if not os.path.exists(path) or os.path.getsize(path) < 1000:
+        return False
+    try:
+        meta = json.load(open(path + ".meta.json"))
+    except Exception:  # noqa: BLE001
+        meta = {}
+    return time.time() - meta.get("checked", os.path.getmtime(path)) < max_age
 
 
 def head_size(url):
@@ -263,17 +342,20 @@ def estimate(bbox, online=True):
     img_t = tiles_for(bbox, z)
     dem_new = sum(1 for x, y in dem_t if not os.path.exists(os.path.join(DEM_DIR, f"{x}_{y}.png")))
     img_new = sum(1 for x, y in img_t if not os.path.exists(os.path.join(IMG_DIR, str(z), f"{x}_{y}.jpg")))
-    ex = pick_extract(bbox, offline=not online)
-    ex_size, ex_cached = 0, False
-    if ex:
-        path = os.path.join(OSM_DIR, ex["url"].rsplit("/", 1)[-1])
-        ex_cached = os.path.exists(path)
-        ex_size = os.path.getsize(path) if ex_cached else (head_size(ex["url"]) if online else 0)
+    exs = pick_extracts(bbox, offline=not online)
+    ex_size, ex_cached = 0, bool(exs)
+    for x in exs:
+        path = extract_path(x)
+        c = os.path.exists(path)
+        ex_cached = ex_cached and c
+        ex_size += os.path.getsize(path) if c else (head_size(x["url"]) if online else 0)
+    ex = ({"id": "+".join(x["id"] for x in exs), "name": " + ".join(x["name"] for x in exs), "url": exs[0]["url"]}
+          if len(exs) > 1 else (exs[0] if exs else None))
     chunks = math.ceil(wkm) * math.ceil(hkm)
     return {"bbox": bbox, "km": [round(wkm, 1), round(hkm, 1)], "km2": round(wkm * hkm, 1),
             "dem_tiles": len(dem_t), "dem_new": dem_new, "dem_mb": round(dem_new * AVG_DEM_TILE / 1e6, 1),
             "img_zoom": z, "img_tiles": len(img_t), "img_new": img_new, "img_mb": round(img_new * AVG_IMG_TILE / 1e6, 1),
-            "osm_extract": ex, "osm_mb": round(ex_size / 1e6, 1), "osm_cached": ex_cached,
+            "osm_extract": ex, "osm_extracts": exs, "osm_mb": round(ex_size / 1e6, 1), "osm_cached": ex_cached,
             "region_chunks": chunks, "region_mb": round(chunks * 0.12, 1),
             "pack_mb": round(wkm * hkm * (1000 / 22) ** 2 * 3 / 1e6 + len(img_t) * 0.02, 1)}
 
@@ -335,6 +417,7 @@ def status_all():
         out.append({"id": aid, "name": m.get("name", aid), "bbox": m["bbox"], "steps": m.get("steps", STEPS),
                     "state": st.get("state", "new"), "step": st.get("step", ""), "progress": st.get("progress", 0.0),
                     "msg": st.get("msg", ""), "pack": bool(m.get("pack")), "region": rv,
+                    "bytes": st.get("bytes", 0), "updated": st.get("updated", 0), "error": st.get("error", ""),
                     "disk_mb": round((du(os.path.join(AREAS, aid)) + du(reg)) / 1e6, 1)})
     return out
 
@@ -347,6 +430,7 @@ class Cancelled(Exception):
 class Job:
     def __init__(self, aid):
         self.aid = aid
+        self.bytes = 0
         self.dir = os.path.join(AREAS, aid)
         self.area = json.load(open(os.path.join(self.dir, "area.json")))
         self.bbox = self.area["bbox"]
@@ -356,7 +440,8 @@ class Job:
             raise Cancelled()
 
     def prog(self, step, frac, msg=""):
-        write_status(self.aid, state="running", step=step, progress=round(frac, 3), msg=msg)
+        write_status(self.aid, state="running", step=step, progress=round(frac, 3), msg=msg, bytes=self.bytes)
+        runner_state(job=self.aid, step=step, progress=round(frac, 3), msg=msg, bytes=self.bytes)
 
     def fetch_tiles(self, step, tiles, url, folder, ext, frac0, frac1):
         os.makedirs(folder, exist_ok=True)
@@ -367,6 +452,7 @@ class Job:
             if not os.path.exists(p):
                 try:
                     data = urllib.request.urlopen(urllib.request.Request(url.format(x=x, y=y, z=self.z), headers=UA), timeout=60).read()
+                    self.bytes += len(data)
                     open(p + ".part", "wb").write(data)
                     os.replace(p + ".part", p)
                 except Exception as ex:  # noqa: BLE001
@@ -446,20 +532,48 @@ class Job:
         write_area(self.aid, image="image.jpg", image_attrib=ATTRIB)
 
     def step_osm(self):
-        ex = pick_extract(self.bbox)
-        if not ex:
-            raise RuntimeError("no Geofabrik extract contains this area (offline, or open sea?)")
-        write_area(self.aid, extract=ex)
+        exs = pick_extracts(self.bbox)
+        if not exs:
+            raise RuntimeError("no Geofabrik extract contains this area (offline: no geofabrik-index.json yet? open sea?)")
+        write_area(self.aid, extract=exs[0], extracts=exs)
+        log(self.aid, "OSM extract(s):", ", ".join(f"{x['name']} ({x['url'].rsplit('/', 1)[-1]})" for x in exs))
+        for k, ex in enumerate(exs):
+            self.fetch_extract(ex, k / len(exs), (k + 1) / len(exs))
+
+    def fetch_extract(self, ex, f0, f1):
         url = ex["url"]
-        path = os.path.join(OSM_DIR, url.rsplit("/", 1)[-1])
+        path = extract_path(ex)
         meta_p = path + ".meta.json"
-        meta = json.load(open(meta_p)) if os.path.exists(meta_p) else {}
-        if os.path.exists(path) and time.time() - meta.get("checked", 0) < 30 * 86400:
+        if extract_fresh(path):
+            log(self.aid, f"OSM: using the cached {os.path.basename(path)} ({os.path.getsize(path) / 1e6:.0f} MB)")
+            self.prog("osm", f1, f"{ex['name']}: cached")
             return
-        self.prog("osm", 0.0, f"{ex['name']} extract")
-        r = urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=60)
+        try:
+            meta = json.load(open(meta_p))
+        except Exception:  # noqa: BLE001
+            meta = {}
+        have = os.path.exists(path) and os.path.getsize(path) > 1000
+        hdr = dict(UA)
+        if have:
+            hdr["If-Modified-Since"] = meta.get("last_modified") or formatdate(os.path.getmtime(path), usegmt=True)
+        self.prog("osm", f0, f"{ex['name']} extract: connecting")
+        try:
+            r = urllib.request.urlopen(urllib.request.Request(url, headers=hdr), timeout=60)
+        except urllib.error.HTTPError as hx:
+            if hx.code == 304 and have:
+                log(self.aid, f"OSM: {os.path.basename(path)} unchanged on the server, keeping it")
+                meta["checked"] = time.time()
+                json.dump(meta, open(meta_p, "w"))
+                return
+            raise
+        except Exception as ux:  # noqa: BLE001
+            if have:
+                log(self.aid, f"OSM: offline ({ux}), using the cached {os.path.basename(path)}")
+                return
+            raise RuntimeError(f"OSM download failed ({ux})") from ux
         total = int(r.headers.get("Content-Length", 0) or 0)
-        done = 0
+        log(self.aid, f"OSM: downloading {url} ({total / 1e6:.0f} MB)")
+        done, t0 = 0, 0.0
         os.makedirs(OSM_DIR, exist_ok=True)
         with open(path + ".part", "wb") as f:
             while True:
@@ -469,21 +583,30 @@ class Job:
                     break
                 f.write(b)
                 done += len(b)
-                if total:
-                    self.prog("osm", done / total, f"{ex['name']}: {done / 1e6:.0f}/{total / 1e6:.0f} MB")
+                self.bytes += len(b)
+                if time.time() - t0 > 1.0:
+                    t0 = time.time()
+                    fr = done / total if total else 0.5
+                    self.prog("osm", f0 + (f1 - f0) * fr, f"{ex['name']}: {done / 1e6:.0f}/{total / 1e6:.0f} MB" if total else f"{ex['name']}: {done / 1e6:.0f} MB")
         if total and done < total:
             raise RuntimeError(f"short download {done}/{total}")
         os.replace(path + ".part", path)
         json.dump({"last_modified": r.headers.get("Last-Modified", ""), "size": done, "url": url, "checked": time.time()}, open(meta_p, "w"))
 
     def step_build(self):
-        ex = self.area.get("extract") or (json.load(open(os.path.join(self.dir, "area.json"))).get("extract"))
-        if not ex:
+        a = json.load(open(os.path.join(self.dir, "area.json")))
+        exs = a.get("extracts") or ([a["extract"]] if a.get("extract") else [])
+        if not exs:
             self.step_osm()
-            ex = json.load(open(os.path.join(self.dir, "area.json")))["extract"]
+            a = json.load(open(os.path.join(self.dir, "area.json")))
+            exs = a.get("extracts") or [a["extract"]]
         s, w, n, e = self.bbox
         cmd = [sys.executable, os.path.join(HERE, "build_region.py"), "--name", self.aid, "--bbox", f"{s},{w},{n},{e}",
-               "--pbf-url", ex["url"], "--out", os.path.join(REGIONS, self.aid)]
+               "--out", os.path.join(REGIONS, self.aid)]
+        for ex in exs:
+            cmd += ["--pbf-url", ex["url"]]
+        if not deps()["osmium"] and self.area.get("source") != "overpass":
+            log(self.aid, "build: pyosmium missing -> the builder falls back to the slower Overpass API (" + DEP_HINT["osmium"] + ")")
         if self.area.get("source") == "overpass":
             cmd += ["--source", "overpass"]
         self.prog("build", 0.05, "building the 3D region")
@@ -539,10 +662,17 @@ class Job:
 
     def run(self):
         steps = [s for s in STEPS if s in self.area.get("steps", STEPS)]
+        miss = missing_for(steps)
+        if miss:
+            write_status(self.aid, state="error", step="", msg=dep_msg(miss), error="deps")
+            log(self.aid, "error:", dep_msg(miss))
+            return
         try:
             for k, st in enumerate(steps):
                 self.check()
-                write_status(self.aid, state="running", step=st, progress=0.0, msg="", steps_done=steps[:k])
+                write_status(self.aid, state="running", step=st, progress=0.0, msg="", steps_done=steps[:k], error="")
+                runner_state(job=self.aid, step=st, progress=0.0, msg="", bytes=self.bytes)
+                log(self.aid, "step", st)
                 getattr(self, "step_" + st)()
                 if st in ("dem", "build") and os.path.exists(os.path.join(self.dir, "dem.bin")):
                     # usable as soon as the DEM is in (imagery / water refine it later)
@@ -559,8 +689,8 @@ class Job:
             write_status(self.aid, state="cancelled", msg="cancelled")
             log(self.aid, "cancelled")
         except Exception as ex:  # noqa: BLE001
-            write_status(self.aid, state="error", msg=str(ex)[:300])
-            log(self.aid, "error:", ex)
+            write_status(self.aid, state="error", msg=str(ex)[:300], error="job")
+            log(self.aid, "error:", repr(ex))
         if os.path.exists(os.path.join(self.dir, "delete")):   # `delete` while running: finish it now
             remove_area(self.aid)
             log(self.aid, "deleted (after cancel)")
@@ -583,47 +713,255 @@ def remove_area(aid):
     shutil.rmtree(os.path.join(REGIONS, aid), ignore_errors=True)
 
 
-def runner_alive():
-    p = os.path.join(AREAS, "runner.pid")
+LOCK = os.path.join(AREAS, "runner.lock")      # flock()ed by the live runner: the kernel drops it when it dies
+PIDF = os.path.join(AREAS, "runner.pid")
+RSTATE = os.path.join(AREAS, "runner.json")    # what the runner is doing (job / step / bytes / heartbeat)
+RLOG = os.path.join(AREAS, "runner.log")
+_lock_fd = None
+
+
+def _lock_held():
+    """True while a runner holds the lock. A crashed / killed runner can't leave a stale lock."""
+    if _lock_fd is not None:
+        return True
     try:
-        pid = int(open(p).read())
-        os.kill(pid, 0)
-        return pid
-    except Exception:  # noqa: BLE001
+        os.makedirs(AREAS, exist_ok=True)
+        fd = os.open(LOCK, os.O_RDWR | os.O_CREAT, 0o644)
+    except OSError:
+        return False
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        return False
+    except OSError:
+        return True
+    finally:
+        os.close(fd)
+
+
+def runner_alive():
+    """pid of the live runner (1 if it holds the lock but its pid file is unreadable), else 0."""
+    if not _lock_held():
         return 0
+    try:
+        return int(open(PIDF).read().strip()) or 1
+    except Exception:  # noqa: BLE001
+        return 1
+
+
+def runner_info():
+    try:
+        return json.load(open(RSTATE))
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def runner_state(**kw):
+    if _lock_fd is None:
+        return
+    st = runner_info()
+    st.update(kw)
+    st["pid"] = os.getpid()
+    st["heartbeat"] = time.time()
+    try:
+        json.dump(st, open(RSTATE + ".part", "w"))
+        os.replace(RSTATE + ".part", RSTATE)
+    except OSError:
+        pass
+
+
+def log_tail(n=12):
+    try:
+        with open(RLOG, "rb") as f:
+            f.seek(max(0, os.path.getsize(RLOG) - 16000))
+            return [ln for ln in f.read().decode("utf-8", "replace").splitlines() if ln.strip()][-n:]
+    except OSError:
+        return []
+
+
+def queue_files():
+    return sorted(f for f in os.listdir(QUEUE) if f.endswith(".json")) if os.path.isdir(QUEUE) else []
+
+
+def queued_ids():
+    out = []
+    for f in queue_files():
+        try:
+            out.append(json.load(open(os.path.join(QUEUE, f)))["id"])
+        except Exception:  # noqa: BLE001
+            pass
+    return out
+
+
+def enqueue(aid, first=False):
+    os.makedirs(QUEUE, exist_ok=True)
+    drop_queued(aid)
+    json.dump({"id": aid}, open(os.path.join(QUEUE, "%d_%s.json" % (0 if first else time.time() * 1000, aid)), "w"))
+
+
+def recover_stale():
+    """Runner start (we hold the lock, so nobody else is working): jobs left 'running' by a dead
+    runner and 'queued' areas whose queue file is gone go back into the queue."""
+    q = set(queued_ids())
+    for aid in existing():
+        st = read_status(aid)
+        state = st.get("state")
+        if state == "running":
+            enqueue(aid, first=True)
+            write_status(aid, state="queued", msg="resuming (the previous runner stopped mid-job)")
+            log(aid, "was 'running' under a dead runner: re-queued first")
+        elif state == "queued" and aid not in q:
+            enqueue(aid)
+            log(aid, "was 'queued' without a queue entry: re-queued")
 
 
 def run_queue():
+    global _lock_fd
     os.makedirs(QUEUE, exist_ok=True)
-    if runner_alive() and runner_alive() != os.getpid():
-        log("a runner is already working (pid %d)" % runner_alive())
-        return
-    pidp = os.path.join(AREAS, "runner.pid")
-    open(pidp, "w").write(str(os.getpid()))
+    fd = os.open(LOCK, os.O_RDWR | os.O_CREAT, 0o644)
     try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        os.close(fd)
+        log("a runner is already working (pid %d)" % runner_alive())
+        return 0
+    _lock_fd = fd
+    open(PIDF, "w").write(str(os.getpid()))
+    json.dump({"pid": os.getpid(), "started": time.time(), "heartbeat": time.time(), "job": "", "step": ""}, open(RSTATE, "w"))
+    log(f"runner started (pid {os.getpid()}, python {sys.executable}, data {DATA})")
+    rc = 0
+    try:
+        d = deps()
+        log("deps:", ", ".join(f"{k}={'ok' if v else 'MISSING'}" for k, v in d.items()))
+        recover_stale()
         while True:
-            jobs = sorted(f for f in os.listdir(QUEUE) if f.endswith(".json"))
+            jobs = queue_files()
             if not jobs:
                 break
             jp = os.path.join(QUEUE, jobs[0])
-            aid = json.load(open(jp))["id"]
-            os.remove(jp)
+            try:
+                aid = json.load(open(jp))["id"]
+            except Exception as ex:  # noqa: BLE001
+                log("bad queue entry", jobs[0], ex)
+                os.remove(jp)
+                continue
             if os.path.exists(os.path.join(AREAS, aid, "area.json")):
                 log("job:", aid)
-                Job(aid).run()
+                runner_state(job=aid, step="", progress=0.0, msg="", bytes=0)
+                try:
+                    Job(aid).run()
+                except Exception as ex:  # noqa: BLE001  (a broken area must not stop the queue)
+                    write_status(aid, state="error", msg=f"job failed to start: {ex!r}"[:300], error="job")
+                    log(aid, "job failed to start:", repr(ex))
+            try:
+                os.remove(jp)      # only now: a killed runner leaves the job in the queue
+            except OSError:
+                pass
+        log("queue empty: runner stops")
+    except Exception as ex:  # noqa: BLE001
+        log("runner crashed:", repr(ex))
+        import traceback
+        traceback.print_exc(file=sys.stdout)
+        rc = 1
     finally:
-        try:
-            os.remove(pidp)
-        except OSError:
-            pass
+        runner_state(job="", step="", stopped=time.time())
+        for p in (PIDF,):
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+        _lock_fd = None
+        os.close(fd)
+    return rc
 
 
-def spawn_runner():
-    if runner_alive():
-        return
+def spawn_runner(wait_s=4.0):
+    """Start the background runner (`run --wait`, detached, logging to areas/runner.log) and
+    check that it really started. Returns {"ok", "pid", "msg"/"error", "log"}."""
+    pid = runner_alive()
+    if pid:
+        return {"ok": True, "pid": pid, "msg": "runner already working (pid %d)" % pid}
     os.makedirs(AREAS, exist_ok=True)
-    subprocess.Popen([sys.executable, os.path.abspath(__file__), "run"], start_new_session=True,
-                     stdout=open(os.path.join(AREAS, "runner.log"), "a"), stderr=subprocess.STDOUT)
+    try:
+        if os.path.getsize(RLOG) > 2_000_000:
+            os.replace(RLOG, RLOG + ".1")
+    except OSError:
+        pass
+    env = dict(os.environ)
+    env["HOME"] = env.get("HOME") or os.path.expanduser("~")
+    env["PATH"] = (env.get("PATH") or "") + ":/usr/local/bin:/usr/bin:/bin"
+    env["PYTHONUNBUFFERED"] = "1"
+    lf = open(RLOG, "a")
+    lf.write(f"\n{time.strftime('%Y-%m-%d %H:%M:%S')} === start requested: {sys.executable} {os.path.abspath(__file__)} run --wait ===\n")
+    lf.flush()
+    try:
+        p = subprocess.Popen([sys.executable, "-u", os.path.abspath(__file__), "run", "--wait"], cwd=HERE, env=env,
+                             stdin=subprocess.DEVNULL, stdout=lf, stderr=subprocess.STDOUT, start_new_session=True, close_fds=True)
+    except OSError as ex:
+        lf.write(f"could not start the runner: {ex}\n")
+        return {"ok": False, "pid": 0, "error": f"could not start the runner: {ex}", "log": log_tail()}
+    finally:
+        lf.close()
+    t0 = time.time()
+    while time.time() - t0 < wait_s:
+        if _lock_held():
+            return {"ok": True, "pid": p.pid, "msg": "runner started (pid %d)" % p.pid}
+        rc = p.poll()
+        if rc is not None:
+            if rc == 0:
+                return {"ok": True, "pid": 0, "msg": "runner already finished (queue done or empty; see the log)", "log": log_tail(6)}
+            return {"ok": False, "pid": 0, "error": f"runner exited at once (code {rc}): see areas/runner.log", "log": log_tail()}
+        time.sleep(0.1)
+    return {"ok": True, "pid": p.pid, "msg": "runner starting (pid %d)" % p.pid}
+
+
+def why_waiting(areas, pid, d):
+    """Fill 'why' for areas that are not moving."""
+    q = queued_ids()
+    cur = runner_info().get("job", "") if pid else ""
+    for a in areas:
+        miss = missing_for(a["steps"], d)
+        if a["state"] == "queued":
+            if miss:
+                a["why"] = "blocked: " + dep_msg(miss)
+            elif a["id"] not in q:
+                a["why"] = "not in the queue file list: RUN NOW (or `area_manager.py run`) re-queues it"
+            elif not pid:
+                a["why"] = "waiting: the background runner is NOT running -> RUN NOW (or `python3 tools/area_manager.py run`)"
+            elif cur and cur != a["id"]:
+                k = q.index(a["id"]) if a["id"] in q else -1
+                a["why"] = f"waiting behind '{cur}' (#{k + 1} in the queue)"
+            else:
+                a["why"] = "starting"
+        elif a["state"] == "running" and not pid:
+            a["state"] = "stalled"
+            a["why"] = "the runner stopped mid-job (killed / crashed): RUN NOW resumes it"
+        elif a["state"] == "running":
+            a["why"] = ""
+        elif a["state"] == "error" and miss:
+            a["why"] = dep_msg(miss)
+    return areas
+
+
+def status_doc():
+    d = deps()
+    pid = runner_alive()
+    areas = why_waiting(status_all(), pid, d)
+    probs = []
+    if not d["numpy"]:
+        probs.append("python3-numpy missing: no area job can run (" + DEP_HINT["numpy"] + ")")
+    if not d["PIL"]:
+        probs.append("python3-pil missing: DEM + imagery steps can't run (" + DEP_HINT["PIL"] + ")")
+    if not d["osmium"]:
+        probs.append("pyosmium missing: 3D builds use the slow Overpass API (" + DEP_HINT["osmium"] + ")")
+    waiting = sum(1 for a in areas if a["state"] in ("queued", "stalled"))
+    if waiting and not pid:
+        probs.append(f"{waiting} job(s) waiting but the background runner is not running")
+    ri = runner_info()
+    if pid and ri.get("heartbeat") and time.time() - ri["heartbeat"] > 600 and ri.get("step") != "build":
+        probs.append("runner has not reported progress for %d min (stuck download?)" % ((time.time() - ri["heartbeat"]) // 60))
+    return {"areas": areas, "runner": pid, "runner_info": ri if pid else {}, "queue": queued_ids(), "deps": d,
+            "problems": probs, "log_tail": log_tail(), "log": RLOG, "python": sys.executable}
 
 
 # ------------------------------------------------------------------ commands
@@ -675,6 +1013,8 @@ def main():
                   f"  OSM      {ex['name'] + ' extract' if ex else '?'} ({est['osm_mb']} MB{', cached' if est['osm_cached'] else ''})\n"
                   f"  region   ~{est['region_chunks']} chunks (~{est['region_mb']} MB)")
     elif a.cmd == "add":
+        if np is None:
+            log("note: " + dep_msg(["numpy"]) + ": the job is queued but can't run until it is installed")
         aid0, name0, bbox0 = parse_area(a)
         parts = fit_area(aid0, name0, bbox0, a.fit)
         if len(parts) > 1 or parts[0][2] != bbox0:
@@ -689,27 +1029,57 @@ def main():
                     os.remove(os.path.join(AREAS, aid, flag))
                 except OSError:
                     pass
-            os.makedirs(QUEUE, exist_ok=True)
-            drop_queued(aid)
-            json.dump({"id": aid}, open(os.path.join(QUEUE, "%d_%s.json" % (time.time() * 1000, aid)), "w"))
-            write_status(aid, state="queued", step="", progress=0.0, msg="queued")
+            enqueue(aid)
+            write_status(aid, state="queued", step="", progress=0.0, msg="queued", bytes=0, error="")
             log(f"queued {aid} ({name}) {bbox} steps={','.join(steps)}")
         if a.run:
-            spawn_runner()
+            r = spawn_runner()
+            if a.json:
+                print(json.dumps(r))
+            else:
+                log(r.get("msg") or r.get("error"))
+            if not r["ok"]:
+                sys.exit(1)
     elif a.cmd == "status":
-        st = status_all()
+        doc = status_doc()
         if a.json:
-            print(json.dumps({"areas": st, "runner": runner_alive()}))
+            print(json.dumps(doc))
         else:
-            print(f"runner: {'pid %d' % runner_alive() if runner_alive() else 'idle'}")
-            for s in st:
-                print(f"{s['id']:16s} {s['state']:9s} {s['step']:8s} {s['progress'] * 100:5.1f}%  pack={'Y' if s['pack'] else '-'} "
+            ri = doc["runner_info"]
+            print("runner: " + (f"RUNNING pid {doc['runner']}" + (f"  job {ri.get('job')} {ri.get('step')} {float(ri.get('progress', 0)) * 100:.0f}%"
+                                                                   f"  {ri.get('bytes', 0) / 1e6:.1f} MB downloaded  (heartbeat {time.time() - ri.get('heartbeat', time.time()):.0f} s ago)"
+                                                                   if ri.get("job") else "") if doc["runner"] else "NOT RUNNING"))
+            print("deps:   " + ", ".join(f"{k} {'ok' if v else 'MISSING'}" for k, v in doc["deps"].items()) + f"   (python {doc['python']})")
+            for p in doc["problems"]:
+                print("  ! " + p)
+            for s in doc["areas"]:
+                print(f"{s['id']:16s} {s['state']:9s} {s['step']:8s} {s['progress'] * 100:5.1f}%  {s['bytes'] / 1e6:6.1f} MB dl  pack={'Y' if s['pack'] else '-'} "
                       f"region=v{s['region']}  {s['disk_mb']:7.1f} MB  {s['msg']}")
+                if s.get("why"):
+                    print(f"{'':16s} -> {s['why']}")
+            if doc["log_tail"]:
+                print(f"runner.log ({doc['log']}), last lines:")
+                for ln in doc["log_tail"][-6:]:
+                    print("  | " + ln)
     elif a.cmd == "run":
         if a.wait:
-            run_queue()
+            sys.exit(run_queue())
+        # retry: jobs that failed on missing modules that are there now go back in
+        d = deps()
+        for aid in existing():
+            st = read_status(aid)
+            if st.get("state") == "error" and st.get("error") == "deps" and not missing_for((area_json(aid) or {}).get("steps", STEPS), d):
+                enqueue(aid)
+                write_status(aid, state="queued", msg="queued (dependencies now installed)", error="")
+        r = spawn_runner()
+        if a.json:
+            print(json.dumps(r))
         else:
-            spawn_runner()
+            log(r.get("msg") or r.get("error"))
+            for ln in r.get("log", []):
+                print("  | " + ln)
+        if not r["ok"]:
+            sys.exit(1)
     elif a.cmd == "cancel":
         aid = norm_id(a.preset or a.id or "")
         if drop_queued(aid):

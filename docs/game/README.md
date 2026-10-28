@@ -162,7 +162,9 @@ All views render at native 1920x1080 (the console also works in portrait, 1080x1
 - **AREAS**: the real-size Earth's area manager. Pick a preset, LAT / LON + radius, or drag a box on the map, see
   the download sizes, then QUEUE DOWNLOAD + GENERATE (DEM, Sentinel-2 imagery, the Geofabrik extract, the 3D OSM
   build). Jobs run in the background on this PC; the list shows progress and disk use, with CANCEL / REBUILD /
-  DELETE. Same thing from a terminal: `python3 tools/area_manager.py`. See [REAL_EARTH.md](REAL_EARTH.md).
+  DELETE. The runner line shows whether the background job runner is running, what it is downloading (MB) and why
+  a job waits; it starts by itself when jobs are queued, and **RUN / RETRY NOW** retries by hand (log tail at the bottom).
+  Same thing from a terminal: `python3 tools/area_manager.py status` / `run --wait`. See [REAL_EARTH.md](REAL_EARTH.md).
 - **ICS**: the intercom: headset per seat (◀ ▶, IDENTIFY through that station's AUDIO OUT, RESCAN), mic level
   meters, OUT meter + stream state per station, VOX/PTT, VOX level / attack /
   hang, mic gain, intercom and game volume, sidetone per seat; radio effect, static, squelch tail, click + roger,
@@ -615,6 +617,7 @@ godot --headless --path . --xr-mode on -- --eva-client --eva-selftest           
 XDG_DATA_HOME=/tmp/ff godot --headless --path . -- --asset-test               # every shader compiles + HD texture cache round-trip
 godot --headless --path . -- --region-test --region-dir=DIR                    # region chunks: sync build + threaded streaming
 python3 tools/area_manager.py estimate fredericton --offline                   # area manager (no downloads)
+XDG_DATA_HOME=$(mktemp -d) godot --headless --path . -- --area-runner-test   # AREAS runner: auto-start, stale-job recovery, start failure shown
 python3 tools/test_falcon_ics.py                                         # intercom: DSP (band-pass, compressor), VOX, mixing/routing,
                                                                           # drift rings, device grouping (PulseAudio + PipeWire), replug matching,
                                                                           # the SPACEWALKER seat (WiVRn detection, suit radio, Quindar tones)

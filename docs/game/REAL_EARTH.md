@@ -30,7 +30,8 @@ Pick areas, see what they cost, pre-download and pre-generate them **on this PC*
 - **Pick an area:** a preset (Fredericton and the other NB cities, KSC, Cocoa Beach, Halifax, Fundy), **LAT / LON + RADIUS km → SET**, or the map: mouse wheel zooms at the cursor, right-drag pans, left-drag draws a box, a click makes a 10 × 10 km box.
 - The selection shows its size and an estimate: DEM and imagery tiles (how many are still to download, MB), which Geofabrik extract it needs (cached or MB to download) and the 3D region size.
 - Tick the steps (DEM, IMAGERY, OSM EXTRACT, 3D BUILD) and press **QUEUE DOWNLOAD + GENERATE**. Jobs run one at a time in a background runner on this PC and keep going if the game quits.
-- **CACHED AREAS** lists every area with its state (queued / running + step / done / error / cancelled), progress, disk use, `pack ✓` and `3D v3`. It has **VIEW** (frame it on the map), **CANCEL**, **REBUILD** and **DELETE** (click twice). Areas are drawn on the map in their state colour.
+- **The job runner line** (top of CACHED AREAS) says what the background runner is doing: **RUNNER RUNNING** with the job, step, progress, MB downloaded and how long ago it last reported, or **RUNNER NOT RUNNING** / **RUNNER FAILED TO START** with the reason and the log lines. When jobs are queued and no runner is running, the page starts one by itself. It retries every 8 s, or every 30 s after a failed start. Other Commander pages check every 60 s. **RUN / RETRY NOW** starts it by hand. Missing Python modules (numpy, Pillow, pyosmium) are listed in red. The last lines of `areas/runner.log` are shown at the bottom.
+- **CACHED AREAS** lists every area with its state (queued / running + step / stalled / done / error / cancelled), progress, MB downloaded, disk use, `pack ✓` and `3D v3`. It has **VIEW** (frame it on the map), **CANCEL**, **REBUILD** and **DELETE** (click twice). Areas are drawn on the map in their state colour.
 - When a job finishes, the terrain reloads by itself (**RELOAD TERRAIN** does it by hand). The planet picks up the new pack at once. A built region loads automatically when you fly within 30 km of it below 60 km altitude (`--region=NAME` / `--region-dir=DIR` pins one).
 
 ### CLI: `game/tools/area_manager.py`
@@ -52,6 +53,8 @@ Use `--bbox=` with an `=` when the latitude is negative.
 
 - **Size:** an area can be at most 120 km on a side. Bigger boxes are refused with the size and the tile count, unless you add `--fit clamp` (a 120 km box around the centre) or `--fit split` (a grid of ≤ 120 km areas `<id>_r<row>c<col>`, at most 64). The AREAS page has the same choice (OVER 120 km: CLAMP / SPLIT INTO TILES).
 - **Ids:** any id in the registry works on the CLI, including ones the map made (`area_45_964_-66_643`; dots and other characters are normalised the same way by the game and the CLI).
+- **`status`** explains every job that is not moving, for example "waiting: the background runner is NOT running", "waiting behind 'fundy' (#2 in the queue)", "blocked: missing python module(s): numpy (sudo apt install python3-numpy)" or "stalled: the runner stopped mid-job". It also prints the runner's job, step and MB downloaded, the dependencies and the last lines of `runner.log`.
+- **`run`** starts the background runner detached (`run --wait`, logging to `areas/runner.log`), then checks for up to 4 s that it really started. If the runner dies at once, `run` prints the error and the log lines and exits with code 1. `--json` gives the same result for the game. Jobs that failed only because a module was missing are queued again once that module is installed.
 - **Delete** is idempotent: deleting an area that is already gone prints "already deleted" and succeeds, queued jobs for it are dropped, and deleting a running area cancels it and removes it once the runner stops.
 
 ### Steps
@@ -60,14 +63,27 @@ Use `--bbox=` with an `=` when the latitude is negative.
 |---|---|---|
 | dem | AWS Terrain Tiles (terrarium z13, ~20 m) | `areas/<id>/dem.bin` (int16, 0.5 m, lat/lon grid, north row first) |
 | imagery | EOX Sentinel-2 cloudless 2020 (z ≤ 13, ~10–20 m) | `areas/<id>/image.jpg` (lat/lon-linear) |
-| osm | the **smallest Geofabrik regional extract** containing the area (from `index-v1.json`; never the planet file) | `osm/<region>-latest.osm.pbf`, shared, re-checked monthly |
-| build | `build_region.py` on that extract | `assets/regions/<id>/` (3D detail) + the water mask `areas/<id>/water.bin` |
+| osm | the **smallest Geofabrik regional extract** containing the area (from `index-v1.json`; never the planet file). An area across a border uses the provincial or state extracts that cover its land, not the whole country: a box over the middle of the Bay of Fundy uses New Brunswick + Nova Scotia (the Fundy NP preset is all New Brunswick), KSC and Cocoa Beach use Florida, and Halifax uses Nova Scotia. A copy already in `osm/` is reused if it is less than 30 days old. That includes the New Brunswick file `tools/fetch_assets.sh` leaves without a `.meta.json`. After 30 days it is re-checked with If-Modified-Since. | `osm/<region>-latest.osm.pbf`, shared, re-checked monthly |
+| build | `build_region.py` on that extract (`--pbf-url` once per extract) | `assets/regions/<id>/` (3D detail) + the water mask `areas/<id>/water.bin` |
 
 After the DEM step the pack is already usable; imagery and water refine it. Without the OSM build, the water mask is the sea (DEM ≤ 0).
 
 ### Files (`~/.local/share/filament-falcon/`)
 
-- `areas/<id>/area.json, status.json, dem.bin, water.bin, image.jpg, build.log`: the pack and the job state. Also `areas/queue/`, `areas/runner.pid` and `areas/runner.log`.
+- `areas/<id>/area.json, status.json, dem.bin, water.bin, image.jpg, build.log`: the pack and the job state. Also `areas/queue/` (a job's file is removed only after the job ends, so a killed runner loses nothing), `areas/runner.lock` (held with `flock` by the live runner; the kernel releases it when the runner dies, so it can never go stale), `areas/runner.pid`, `areas/runner.json` (current job, step, bytes and a heartbeat) and `areas/runner.log`. When a runner starts, jobs left "running" by a dead runner go back to the front of the queue.
+
+### Downloads never move ("QUEUED 0%", runner idle)
+
+Before this fix, the background runner added in 48fd6eb never started. `area_manager.py run`, which is what the game and `add --run` launched, started another `run` instead of `run --wait`. That one did the same, so short-lived processes kept handing over to each other and none of them worked the queue. Update the repo (`git pull`), then either open Commander → AREAS (the runner starts by itself) or run it in a terminal:
+
+```
+pkill -f "area_manager.py run"            # stop any leftover hand-over processes from the old version
+cd ~/filament-falcon/game                  # wherever the repo is
+python3 tools/area_manager.py status      # why each job is waiting, deps, runner log
+python3 tools/area_manager.py run --wait  # work the queue in this terminal (Ctrl+C stops; the job resumes next time)
+```
+
+The progress is in `~/.local/share/filament-falcon/areas/runner.log` (`tail -f` it).
 - `dem/terrarium/13/`, `imagery/s2cloudless/<z>/`: tile caches shared by all areas.
 - `osm/*.osm.pbf` (+ `.meta.json`), `osm/geofabrik-index.json`, `osm/extract_<id>_<key>.json.gz`.
 - `assets/regions/<id>/`: `manifest.json` (v3), `c_<ix>_<iz>.json` chunks and `dem.bin` (ground / water-surface heights for the physics).

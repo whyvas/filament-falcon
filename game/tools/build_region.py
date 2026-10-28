@@ -296,6 +296,21 @@ def read_pbf(pbf, bbox):
     return {"elements": out}
 
 
+def read_pbfs(pbfs, bbox):
+    """read_pbf() over several extracts (an area across a border), duplicates (shared border
+    ways / areas) dropped."""
+    if len(pbfs) == 1:
+        return read_pbf(pbfs[0], bbox)
+    seen, out = set(), []
+    for p in pbfs:
+        for el in read_pbf(p, bbox)["elements"]:
+            k = (el["type"], el["id"])
+            if k not in seen:
+                seen.add(k)
+                out.append(el)
+    return {"elements": out}
+
+
 def file_key(*parts):
     return hashlib.sha1(json.dumps(parts, sort_keys=True).encode()).hexdigest()[:12]
 
@@ -592,7 +607,8 @@ def main():
     ap.add_argument("--bbox", help="S,W,N,E (overrides the preset)")
     ap.add_argument("--list", action="store_true", help="list the presets")
     ap.add_argument("--source", choices=["pbf", "overpass"], default="pbf")
-    ap.add_argument("--pbf-url", default=PBF_URL)
+    ap.add_argument("--pbf-url", action="append",
+                    help="Geofabrik .pbf URL (default New Brunswick); repeat it for an area across a border (e.g. NB + NS)")
     ap.add_argument("--osm", help="Overpass JSON (out geom) to use instead of downloading")
     ap.add_argument("--dem-dir", help="terrarium tile cache dir (default: shared cache)")
     ap.add_argument("--flat-dem", action="store_true", help="no DEM (testing)")
@@ -627,9 +643,11 @@ def main():
     elif a.source == "pbf":
         try:
             import osmium  # noqa: F401
-            pbf = ensure_pbf(a.pbf_url, osm_dir)
-            src_id = ["pbf", os.path.basename(pbf), os.path.getsize(pbf), int(os.path.getmtime(pbf))]
-            loader = lambda: read_pbf(pbf, bbox)  # noqa: E731
+            pbfs = [ensure_pbf(u, osm_dir) for u in (a.pbf_url or [PBF_URL])]
+            src_id = ["pbf"] + [[os.path.basename(p), os.path.getsize(p), int(os.path.getmtime(p))] for p in pbfs]
+            if len(pbfs) == 1:
+                src_id = ["pbf", os.path.basename(pbfs[0]), os.path.getsize(pbfs[0]), int(os.path.getmtime(pbfs[0]))]   # same key as before
+            loader = lambda: read_pbfs(pbfs, bbox)  # noqa: E731
         except ImportError:
             log("pyosmium missing (sudo apt install osmium-tool; pip install --user --break-system-packages osmium, or pip install osmium): falling back to Overpass")
             a.source = "overpass"
