@@ -1,0 +1,32 @@
+@font-face { font-family: "FF Display"; src: url("../../cad/fonts/BarlowCondensed-Black.ttf"); font-weight: 900; }
+@page { size: Letter; margin: 0.7in 0.75in 0.7in 0.75in;
+  @top-left { content: "THE FILAMENT FALCON · UPDATES & QUICK START"; font-family: "FF Display", sans-serif; font-weight: 900; font-size: 8pt; letter-spacing: 1.5pt; color: #1b7fb0; }
+  @bottom-right { content: counter(page) " / " counter(pages); font-family: "DejaVu Sans", sans-serif; font-size: 8pt; color: #888; } }
+@page :first { @top-left { content: none; } }
+body { font-family: "DejaVu Sans", "Liberation Sans", sans-serif; font-size: 9.6pt; line-height: 1.42; color: #1d2433; }
+h1, h2, .kicker, .title { font-family: "FF Display", "DejaVu Sans Condensed", sans-serif; font-weight: 900; }
+h1 { font-size: 24pt; color: #0d2c4a; border-bottom: 3px solid #1b7fb0; padding-bottom: 4pt; margin: 0 0 10pt; page-break-before: always; letter-spacing: 0.5pt; }
+h2 { font-size: 14pt; color: #1b7fb0; margin: 13pt 0 4pt; letter-spacing: 0.4pt; page-break-after: avoid; }
+p { margin: 3pt 0 6pt; }
+ul, ol { margin: 2pt 0 6pt; padding-left: 16pt; }
+li { margin: 1.5pt 0; }
+code { font-family: "DejaVu Sans Mono", monospace; font-size: 8.4pt; background: #eef2f7; padding: 0 2pt; border-radius: 2pt; }
+pre { background: #0f1b2d; color: #d9e6f5; padding: 7pt 9pt; border-radius: 4pt; font-size: 8.2pt; line-height: 1.35; page-break-inside: avoid; white-space: pre-wrap; }
+pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+table { width: 100%; border-collapse: collapse; margin: 4pt 0 8pt; font-size: 8.8pt; page-break-inside: auto; }
+tr { page-break-inside: avoid; }
+th { background: #0d2c4a; color: #fff; text-align: left; padding: 3pt 6pt; font-weight: bold; }
+td { border-bottom: 1px solid #d6dde8; padding: 3pt 6pt; vertical-align: top; }
+td:first-child { font-weight: bold; color: #0d2c4a; width: 34%; }
+table.log td:first-child { white-space: nowrap; width: 9%; }
+table.log td:last-child { width: 15%; }
+p code, li code { white-space: nowrap; }
+table.log td:last-child { font-family: "DejaVu Sans Mono", monospace; font-size: 8pt; color: #555; }
+.note { background: #eaf5fb; border-left: 4px solid #1b7fb0; padding: 6pt 9pt; margin: 4pt 0 8pt; }
+.foot { color: #667; font-size: 8.5pt; margin-top: 10pt; }
+.cover { margin-top: 2.2in; }
+.kicker { color: #1b7fb0; letter-spacing: 4pt; font-size: 13pt; }
+.title { font-size: 46pt; color: #0d2c4a; margin: 4pt 0 8pt; border: none; page-break-before: avoid; line-height: 1.05; }
+.sub { font-size: 13pt; color: #334; max-width: 5.5in; }
+.meta { color: #778; margin-top: 18pt; font-size: 9.5pt; border-top: 1px solid #ccd; padding-top: 6pt; }
+table.tour td:first-child { width: 20%; white-space: nowrap; }
